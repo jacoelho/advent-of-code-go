@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func Must[T any](t T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func Must2[T, V any](t T, v V, err error) (T, V) {
+	if err != nil {
+		panic(err)
+	}
+	return t, v
+}
+
 func FileInput(t *testing.T, year, day int) io.Reader {
 	t.Helper()
 

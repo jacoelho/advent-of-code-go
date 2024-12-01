@@ -6,6 +6,14 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/xconstraints"
 )
 
+func Frequencies[Slice ~[]E, E comparable](s Slice) map[E]int {
+	count := make(map[E]int)
+	for _, item := range s {
+		count[item]++
+	}
+	return count
+}
+
 func Sum[Slice ~[]E, E xconstraints.Number](s Slice) E {
 	var total E
 	for _, v := range s {
