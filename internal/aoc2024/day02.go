@@ -27,8 +27,8 @@ func parseReports(r io.Reader) (iter.Seq[[]int], error) {
 	return s.Values(), s.Err()
 }
 
-func assertLevel(level []int, fn func(a, b int) bool) bool {
-	w := xslices.Window(level, 2)
+func assertReport(report []int, fn func(a, b int) bool) bool {
+	w := xslices.Window(report, 2)
 	for v := range w {
 		if !fn(v[0], v[1]) {
 			return false
@@ -37,10 +37,10 @@ func assertLevel(level []int, fn func(a, b int) bool) bool {
 	return true
 }
 
-func isLevelSafe(level []int) bool {
-	ascending := assertLevel(level, func(a, b int) bool { return a < b })
-	descending := assertLevel(level, func(a, b int) bool { return a > b })
-	differ := assertLevel(level, func(a, b int) bool {
+func isReportSafe(report []int) bool {
+	ascending := assertReport(report, func(a, b int) bool { return a < b })
+	descending := assertReport(report, func(a, b int) bool { return a > b })
+	differ := assertReport(report, func(a, b int) bool {
 		difference := xmath.Abs(a - b)
 		return difference >= 1 && difference <= 3
 	})
@@ -49,19 +49,19 @@ func isLevelSafe(level []int) bool {
 }
 
 func day02p01(r io.Reader) (string, error) {
-	levels := aoc.Must(parseReports(r))
+	reports := aoc.Must(parseReports(r))
 
-	count := xiter.Reduce(func(sum int, level []int) int {
-		if isLevelSafe(level) {
+	safeReportCount := xiter.Reduce(func(sum int, level []int) int {
+		if isReportSafe(level) {
 			return sum + 1
 		}
 		return sum
-	}, 0, levels)
+	}, 0, reports)
 
-	return strconv.Itoa(count), nil
+	return strconv.Itoa(safeReportCount), nil
 }
 
-func skipOne[T any](level []T) iter.Seq[[]T] {
+func tolerateOneLevel[T any](level []T) iter.Seq[[]T] {
 	if len(level) < 1 {
 		panic("need at least one level")
 	}
@@ -75,16 +75,16 @@ func skipOne[T any](level []T) iter.Seq[[]T] {
 }
 
 func day02p02(r io.Reader) (string, error) {
-	levels := aoc.Must(parseReports(r))
+	reports := aoc.Must(parseReports(r))
 
-	count := xiter.Reduce(func(sum int, level []int) int {
-		for variation := range skipOne(level) {
-			if isLevelSafe(variation) {
+	safeReportCount := xiter.Reduce(func(sum int, level []int) int {
+		for variation := range tolerateOneLevel(level) {
+			if isReportSafe(variation) {
 				return sum + 1
 			}
 		}
 		return sum
-	}, 0, levels)
+	}, 0, reports)
 
-	return strconv.Itoa(count), nil
+	return strconv.Itoa(safeReportCount), nil
 }
