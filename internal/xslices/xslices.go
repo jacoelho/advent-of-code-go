@@ -43,3 +43,12 @@ func Window[Slice ~[]E, E any](s Slice, n int) iter.Seq[Slice] {
 		}
 	}
 }
+
+func Every[Slice ~[]E, E any](s Slice, predicate func(E) bool) bool {
+	for _, v := range s {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
