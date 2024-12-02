@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"io"
 	"iter"
+	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/internal/scanner"
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
 	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 )
 
@@ -27,25 +27,20 @@ func parseReports(r io.Reader) (iter.Seq[[]int], error) {
 	return s.Values(), s.Err()
 }
 
-func assertReport(report []int, fn func(a, b int) bool) bool {
-	w := xslices.Window(report, 2)
-	for v := range w {
-		if !fn(v[0], v[1]) {
-			return false
-		}
-	}
-	return true
-}
-
 func isReportSafe(report []int) bool {
-	ascending := assertReport(report, func(a, b int) bool { return a < b })
-	descending := assertReport(report, func(a, b int) bool { return a > b })
-	differ := assertReport(report, func(a, b int) bool {
-		difference := xmath.Abs(a - b)
-		return difference >= 1 && difference <= 3
+	levels := slices.Collect(xslices.Window(report, 2))
+
+	ascending := xslices.Every(levels, func(v []int) bool {
+		diff := v[1] - v[0]
+		return diff >= 1 && diff <= 3
 	})
 
-	return differ && (ascending || descending)
+	descending := xslices.Every(levels, func(v []int) bool {
+		diff := v[1] - v[0]
+		return diff <= -1 && diff >= -3
+	})
+
+	return ascending || descending
 }
 
 func day02p01(r io.Reader) (string, error) {
