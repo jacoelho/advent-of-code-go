@@ -45,14 +45,14 @@ func isReportSafe(report []int) bool {
 		return difference >= 1 && difference <= 3
 	})
 
-	return (ascending || descending) && differ
+	return differ && (ascending || descending)
 }
 
 func day02p01(r io.Reader) (string, error) {
 	reports := aoc.Must(parseReports(r))
 
-	safeReportCount := xiter.Reduce(func(sum int, level []int) int {
-		if isReportSafe(level) {
+	safeReportCount := xiter.Reduce(func(sum int, report []int) int {
+		if isReportSafe(report) {
 			return sum + 1
 		}
 		return sum
@@ -61,13 +61,13 @@ func day02p01(r io.Reader) (string, error) {
 	return strconv.Itoa(safeReportCount), nil
 }
 
-func tolerateOneLevel[T any](level []T) iter.Seq[[]T] {
-	if len(level) < 1 {
-		panic("need at least one level")
+func tolerateOneLevel[T any](s []T) iter.Seq[[]T] {
+	if len(s) < 1 {
+		panic("need at least one element")
 	}
 	return func(yield func([]T) bool) {
-		for i := 0; i < len(level); i++ {
-			if !yield(append(level[:i:i], level[i+1:]...)) {
+		for i := 0; i < len(s); i++ {
+			if !yield(append(s[:i:i], s[i+1:]...)) {
 				return
 			}
 		}
@@ -77,8 +77,8 @@ func tolerateOneLevel[T any](level []T) iter.Seq[[]T] {
 func day02p02(r io.Reader) (string, error) {
 	reports := aoc.Must(parseReports(r))
 
-	safeReportCount := xiter.Reduce(func(sum int, level []int) int {
-		for variation := range tolerateOneLevel(level) {
+	safeReportCount := xiter.Reduce(func(sum int, report []int) int {
+		for variation := range tolerateOneLevel(report) {
 			if isReportSafe(variation) {
 				return sum + 1
 			}
