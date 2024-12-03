@@ -22,6 +22,14 @@ func Sum[Slice ~[]E, E xconstraints.Number](s Slice) E {
 	return total
 }
 
+func Product[Slice ~[]E, E xconstraints.Number](s Slice) E {
+	var total E = 1
+	for _, v := range s {
+		total *= v
+	}
+	return total
+}
+
 func Window[Slice ~[]E, E any](s Slice, n int) iter.Seq[Slice] {
 	if n < 1 {
 		panic("cannot be less than 1")
