@@ -60,3 +60,11 @@ func Every[Slice ~[]E, E any](s Slice, predicate func(E) bool) bool {
 	}
 	return true
 }
+
+func Map[In, Out any](f func(In) Out, in []In) []Out {
+	result := make([]Out, len(in))
+	for i, v := range in {
+		result[i] = f(v)
+	}
+	return result
+}
