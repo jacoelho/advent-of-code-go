@@ -28,6 +28,5 @@ func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 				frontier.PushBack(el)
 			}
 		}
-		return
 	}
 }
