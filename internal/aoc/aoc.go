@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"testing"
 )
 
@@ -12,6 +13,10 @@ func Must[T any](t T, err error) T {
 		panic(err)
 	}
 	return t
+}
+
+func MustAtoi(s string) int {
+	return Must(strconv.Atoi(s))
 }
 
 func Must2[T, V any](t T, v V, err error) (T, V) {
