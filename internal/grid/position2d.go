@@ -29,6 +29,13 @@ func (p *Position2D[T]) Distance(other Position2D[T]) T {
 	return xmath.Abs(p.X-other.X) + xmath.Abs(p.Y-other.Y)
 }
 
+func (p *Position2D[T]) TurnRight() Position2D[T] {
+	return Position2D[T]{
+		X: -p.Y,
+		Y: p.X,
+	}
+}
+
 func (p *Position2D[T]) generateNeighbours(offsets []Position2D[T]) iter.Seq[Position2D[T]] {
 	return func(yield func(Position2D[T]) bool) {
 		for _, offset := range offsets {
