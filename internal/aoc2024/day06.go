@@ -2,9 +2,11 @@ package aoc2024
 
 import (
 	"io"
-	"iter"
 	"slices"
 	"strconv"
+	"sync/atomic"
+
+	"github.com/jacoelho/advent-of-code-go/internal/conc"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
@@ -35,36 +37,38 @@ func guardPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {
 
 func followGuard(
 	g grid.Grid2D[int, rune],
-	start grid.Position2D[int],
-) (iter.Seq[grid.Position2D[int]], bool) {
-	visited := collections.NewSet[[2]grid.Position2D[int]]()
-	location := start
+	position grid.Position2D[int],
+	extraObstacles collections.Set[grid.Position2D[int]],
+) (collections.Set[[2]grid.Position2D[int]], bool) {
+	seen := collections.NewSet[[2]grid.Position2D[int]]()
 	direction := grid.Position2D[int]{X: 0, Y: -1}
 
-	for g[location] != 0 && !visited.Contains([2]grid.Position2D[int]{location, direction}) {
-		visited.Add([2]grid.Position2D[int]{location, direction})
-		next := location.Add(direction)
+	keyFn := func(position, direction grid.Position2D[int]) [2]grid.Position2D[int] {
+		return [2]grid.Position2D[int]{position, direction}
+	}
 
-		if g[next] == '#' {
+	for g[position] != 0 && !seen.Contains(keyFn(position, direction)) {
+		seen.Add(keyFn(position, direction))
+		next := position.Add(direction)
+
+		if g[next] == '#' || extraObstacles.Contains(next) {
 			direction = direction.TurnRight()
 		} else {
-			location = next
+			position = next
 		}
 	}
 
-	positionsVisited := xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
-		return in[0]
-	}, visited.Iter()))
-
-	return positionsVisited, g[location] != 0
+	return seen, g[position] != 0
 }
 
 func day06p01(r io.Reader) (string, error) {
 	m := aoc.Must(parseGuardMap(r))
 	startPosition := guardPosition(m)
 
-	positions, _ := followGuard(m, startPosition)
-	count := xiter.Length(positions)
+	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
+	count := xiter.Length(xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
+		return in[0]
+	}, positions.Iter())))
 
 	return strconv.Itoa(count), nil
 }
@@ -73,21 +77,26 @@ func day06p02(r io.Reader) (string, error) {
 	m := aoc.Must(parseGuardMap(r))
 	startPosition := guardPosition(m)
 
-	candidates, _ := followGuard(m, startPosition)
+	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
+	candidates := xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
+		return in[0]
+	}, positions.Iter()))
 
-	total := 0
+	var wg conc.WaitGroup
+	var count atomic.Int64
 	for candidate := range candidates {
 		if candidate == startPosition {
 			continue
 		}
-		m[candidate] = '#'
 
-		_, cycle := followGuard(m, startPosition)
-		if cycle {
-			total++
-		}
-		m[candidate] = '.'
+		wg.Go(func() {
+			if _, cycles := followGuard(m, startPosition, collections.NewSet(candidate)); cycles {
+				count.Add(1)
+			}
+		})
+
 	}
+	wg.Wait()
 
-	return strconv.Itoa(total), nil
+	return strconv.FormatInt(count.Load(), 10), nil
 }

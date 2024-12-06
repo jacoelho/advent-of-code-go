@@ -7,8 +7,12 @@ import (
 
 type Set[T comparable] map[T]struct{}
 
-func NewSet[T comparable]() Set[T] {
-	return make(Set[T])
+func NewSet[T comparable](elements ...T) Set[T] {
+	s := make(Set[T], len(elements))
+	for _, element := range elements {
+		s.Add(element)
+	}
+	return s
 }
 
 func (s Set[T]) Add(e T) {

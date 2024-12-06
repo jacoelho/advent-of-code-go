@@ -48,7 +48,7 @@ func Test_day06p02(t *testing.T) {
 		},
 		{
 			Input: aoc.FileInput(t, 2024, 6),
-			Want:  "5208",
+			Want:  "1972",
 		},
 	}
 
