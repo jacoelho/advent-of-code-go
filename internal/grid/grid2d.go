@@ -20,7 +20,7 @@ func NewGrid2D[T constraints.Signed, V any](v [][]V) Grid2D[T, V] {
 	return result
 }
 
-func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) string {
+func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) {
 	var minX, maxX, minY, maxY T
 
 	for pos := range *g {
@@ -42,13 +42,12 @@ func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) string {
 	for y := minY; y <= maxY; y++ {
 		for x := minX; x <= maxX; x++ {
 			if v, exists := (*g)[Position2D[T]{X: x, Y: y}]; exists {
-				fmt.Fprintf(sb, "%s", format(v))
+				sb.WriteString(format(v))
 			} else {
-				fmt.Fprintf(sb, "%s", empty)
+				sb.WriteString(empty)
 			}
 		}
-		fmt.Fprintf(sb, "\n")
+		sb.WriteString("\n")
 	}
-
-	return sb.String()
+	fmt.Println(sb.String())
 }
