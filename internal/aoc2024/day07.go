@@ -36,34 +36,40 @@ func day07Heuristic(equation []int) func(in [2]int) int {
 	}
 }
 
+func day07Neighbours(equation []int) func(state [2]int) [][2]int {
+	return func(state [2]int) [][2]int {
+		idx, t := state[0], state[1]
+		if idx < 0 {
+			return nil
+		}
+
+		v := equation[idx]
+		var n [][2]int
+
+		if t%v == 0 {
+			n = append(n, [2]int{idx - 1, t / v})
+		}
+		if t > v {
+			n = append(n, [2]int{idx - 1, t - v})
+		}
+
+		return n
+	}
+}
+
 func day07p01(r io.Reader) (string, error) {
 	equations := aoc.Must(parseCalibrationEquations(r))
 
 	var total int
 	for target, equation := range equations {
-		neighbours := func(state [2]int) [][2]int {
-			idx, t := state[0], state[1]
-			if idx < 0 {
-				return nil
-			}
-
-			v := equation[idx]
-			var n [][2]int
-
-			// Add valid neighbors based on conditions
-			if t%v == 0 {
-				n = append(n, [2]int{idx - 1, t / v})
-			}
-			if t > v {
-				n = append(n, [2]int{idx - 1, t - v})
-			}
-
-			return n
-		}
-
 		start := [2]int{len(equation) - 1, target}
 
-		_, _, found := search.AStar(start, neighbours, day07Heuristic(equation), search.ConstantStepCost)
+		_, _, found := search.AStar(
+			start,
+			day07Neighbours(equation),
+			day07Heuristic(equation),
+			search.ConstantStepCost,
+		)
 		if found {
 			total += target
 		}
@@ -76,38 +82,33 @@ func day07p02(r io.Reader) (string, error) {
 
 	var total int
 	for target, equation := range equations {
+		initialNeighbours := day07Neighbours(equation)
+
 		neighbours := func(state [2]int) [][2]int {
-			idx, t := state[0], state[1]
-			if idx < 0 {
+			n := initialNeighbours(state)
+			if n == nil {
 				return nil
 			}
 
-			v := equation[idx]
-			var n [][2]int
+			v, t := equation[state[0]], state[1]
 
-			if t%v == 0 {
-				n = append(n, [2]int{idx - 1, t / v})
-			}
-
-			if t > v {
-				n = append(n, [2]int{idx - 1, t - v})
-			}
-
-			tStr := strconv.Itoa(t)
-			vStr := strconv.Itoa(v)
-
-			if strings.HasSuffix(tStr, vStr) {
-				newTStr := strings.TrimSuffix(tStr, vStr)
-				if newT, err := strconv.Atoi(newTStr); err == nil {
-					n = append(n, [2]int{idx - 1, newT})
+			if newT, found := strings.CutSuffix(strconv.Itoa(t), strconv.Itoa(v)); found {
+				if newT, err := strconv.Atoi(newT); err == nil {
+					n = append(n, [2]int{state[0] - 1, newT})
 				}
 			}
+
 			return n
 		}
 
 		start := [2]int{len(equation) - 1, target}
 
-		_, _, found := search.AStar(start, neighbours, day07Heuristic(equation), search.ConstantStepCost)
+		_, _, found := search.AStar(
+			start,
+			neighbours,
+			day07Heuristic(equation),
+			search.ConstantStepCost,
+		)
 		if found {
 			total += target
 		}
