@@ -6,6 +6,10 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
 )
 
+func ConstantStepCost[T any](_, _ T) int {
+	return 1
+}
+
 type minItem[T any] struct {
 	item     T
 	priority int
