@@ -32,7 +32,7 @@ func day07Heuristic(equation []int) func(in [2]int) int {
 		if in[0] == 0 && equation[in[0]] == in[1] {
 			return 0
 		}
-		return 1
+		return in[1]
 	}
 }
 
@@ -77,6 +77,21 @@ func day07p01(r io.Reader) (string, error) {
 	return strconv.Itoa(total), nil
 }
 
+func hasDigitsSuffix(a, b int) (int, bool) {
+	if a < b {
+		return a, false
+	}
+
+	for b > 0 {
+		if a%10 != b%10 {
+			return a, false
+		}
+		a /= 10
+		b /= 10
+	}
+	return a, true
+}
+
 func day07p02(r io.Reader) (string, error) {
 	equations := aoc.Must(parseCalibrationEquations(r))
 
@@ -92,10 +107,9 @@ func day07p02(r io.Reader) (string, error) {
 
 			v, t := equation[state[0]], state[1]
 
-			if newT, found := strings.CutSuffix(strconv.Itoa(t), strconv.Itoa(v)); found {
-				if newT, err := strconv.Atoi(newT); err == nil {
-					n = append(n, [2]int{state[0] - 1, newT})
-				}
+			newT, found := hasDigitsSuffix(t, v)
+			if found {
+				n = append(n, [2]int{state[0] - 1, newT})
 			}
 
 			return n
