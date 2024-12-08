@@ -15,9 +15,7 @@ func parseCalibrationEquations(r io.Reader) (map[int][]int, error) {
 	equations := make(map[int][]int)
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		text := s.Text()
-
-		values := strings.Split(text, ":")
+		values := strings.SplitN(s.Text(), ":", 2)
 		testValue := aoc.MustAtoi(values[0])
 
 		equations[testValue] = xslices.Map(func(in string) int {
@@ -39,7 +37,7 @@ func day07Heuristic(equation []int) func(in [2]int) int {
 func day07Neighbours(equation []int) func(state [2]int) [][2]int {
 	return func(state [2]int) [][2]int {
 		idx, t := state[0], state[1]
-		if idx < 0 {
+		if idx < 0 || t < 0 {
 			return nil
 		}
 

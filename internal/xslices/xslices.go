@@ -52,6 +52,23 @@ func Window[Slice ~[]E, E any](s Slice, n int) iter.Seq[Slice] {
 	}
 }
 
+type Pair[E, T any] struct {
+	V1 E
+	V2 T
+}
+
+func Pairwise[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
+	return func(yield func(Pair[E, E]) bool) {
+		for i := 0; i < len(s); i++ {
+			for j := i + 1; j < len(s); j++ {
+				if !yield(Pair[E, E]{s[i], s[j]}) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func Every[Slice ~[]E, E any](s Slice, predicate func(E) bool) bool {
 	for _, v := range s {
 		if !predicate(v) {
