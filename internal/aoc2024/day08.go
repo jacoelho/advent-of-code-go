@@ -12,8 +12,8 @@ import (
 )
 
 type frequencyMap struct {
-	maxX, maxY  int
-	frequencies map[rune][]grid.Position2D[int]
+	maxX, maxY int
+	antennas   map[rune][]grid.Position2D[int]
 }
 
 func (m frequencyMap) isWithinBounds(p grid.Position2D[int]) bool {
@@ -22,15 +22,15 @@ func (m frequencyMap) isWithinBounds(p grid.Position2D[int]) bool {
 
 func parseFrequencyMap(r io.Reader) (frequencyMap, error) {
 	result := frequencyMap{
-		frequencies: make(map[rune][]grid.Position2D[int]),
+		antennas: make(map[rune][]grid.Position2D[int]),
 	}
 
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		for x, v := range s.Text() {
 			if v != '.' {
-				result.frequencies[v] = append(
-					result.frequencies[v],
+				result.antennas[v] = append(
+					result.antennas[v],
 					grid.Position2D[int]{X: x, Y: result.maxY},
 				)
 			}
@@ -45,9 +45,10 @@ func day08p01(r io.Reader) (string, error) {
 	m := aoc.Must(parseFrequencyMap(r))
 
 	antiNodes := collections.NewSet[grid.Position2D[int]]()
-	for _, frequency := range m.frequencies {
-		for pair := range xslices.Pairwise(frequency) {
+	for _, antenna := range m.antennas {
+		for pair := range xslices.Pairwise(antenna) {
 			a1 := grid.Position2D[int]{
+				// https://www.andreaminini.net/math/central-symmetry
 				X: 2*pair.V1.X - pair.V2.X,
 				Y: 2*pair.V1.Y - pair.V2.Y,
 			}
@@ -72,8 +73,8 @@ func day08p02(r io.Reader) (string, error) {
 	m := aoc.Must(parseFrequencyMap(r))
 
 	antiNodes := collections.NewSet[grid.Position2D[int]]()
-	for _, frequency := range m.frequencies {
-		for pair := range xslices.Pairwise(frequency) {
+	for _, antenna := range m.antennas {
+		for pair := range xslices.Pairwise(antenna) {
 			dX := pair.V2.X - pair.V1.X
 			dY := pair.V2.Y - pair.V1.Y
 
