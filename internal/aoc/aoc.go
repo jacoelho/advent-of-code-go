@@ -26,7 +26,13 @@ func Must2[T, V any](t T, v V, err error) (T, V) {
 	return t, v
 }
 
-func FileInput(t *testing.T, year, day int) io.Reader {
+type TestHelper interface {
+	Helper()
+	Cleanup(func())
+	Fatal(...interface{})
+}
+
+func FileInput(t TestHelper, year, day int) io.Reader {
 	t.Helper()
 
 	f, err := os.Open(fmt.Sprintf("../../inputs/%d/%02d.txt", year, day))
