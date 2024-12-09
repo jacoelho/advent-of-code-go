@@ -28,12 +28,14 @@ func parseFrequencyMap(r io.Reader) (frequencyMap, error) {
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		for x, v := range s.Text() {
-			if v != '.' {
-				result.antennas[v] = append(
-					result.antennas[v],
-					grid.Position2D[int]{X: x, Y: result.maxY},
-				)
+			if v == '.' {
+				continue
 			}
+			result.antennas[v] = append(
+				result.antennas[v],
+				grid.Position2D[int]{X: x, Y: result.maxY},
+			)
+
 			result.maxX = max(result.maxX, len(s.Text()))
 		}
 		result.maxY++
