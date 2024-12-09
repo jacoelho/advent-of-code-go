@@ -85,3 +85,12 @@ func Map[In, Out any](f func(In) Out, in []In) []Out {
 	}
 	return result
 }
+
+func LastIndexFunc[Slice ~[]E, E any](s Slice, f func(E) bool) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if f(s[i]) {
+			return i
+		}
+	}
+	return -1
+}
