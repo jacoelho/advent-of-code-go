@@ -37,8 +37,6 @@ func day09p01(r io.Reader) (string, error) {
 	for frontPtr < backPtr {
 		if disk[frontPtr] == -1 && disk[backPtr] != -1 {
 			disk[frontPtr], disk[backPtr] = disk[backPtr], disk[frontPtr]
-			frontPtr++
-			backPtr--
 		}
 		if disk[frontPtr] != -1 {
 			frontPtr++
