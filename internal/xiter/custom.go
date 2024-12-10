@@ -36,3 +36,11 @@ func Length[V any](seq iter.Seq[V]) int {
 	}
 	return total
 }
+
+func Frequencies[T comparable](seq iter.Seq[T]) map[T]int {
+	count := make(map[T]int)
+	for item := range seq {
+		count[item]++
+	}
+	return count
+}
