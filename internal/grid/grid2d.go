@@ -20,7 +20,7 @@ func NewGrid2D[T constraints.Signed, V any](v [][]V) Grid2D[T, V] {
 	return result
 }
 
-func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) {
+func (g *Grid2D[T, V]) Dimensions() (T, T, T, T) {
 	var minX, maxX, minY, maxY T
 
 	for pos := range *g {
@@ -37,6 +37,12 @@ func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) {
 		minY = min(minY, pos.Y)
 		maxY = max(maxY, pos.Y)
 	}
+
+	return minX, maxX, minY, maxY
+}
+
+func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) {
+	minX, maxX, minY, maxY := g.Dimensions()
 
 	sb := new(strings.Builder)
 	for y := minY; y <= maxY; y++ {
