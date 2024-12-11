@@ -6,10 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
-
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/internal/convert"
+	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 )
 
 func parseStoneArrangement(r io.Reader) []int64 {
