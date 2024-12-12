@@ -6,12 +6,10 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
 )
 
-func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
+func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
-		visited := make(map[T]struct{})
+		visited.Add(start)
 		frontier := collections.NewDeque[T](10)
-
-		visited[start] = struct{}{}
 		frontier.PushBack(start)
 
 		for frontier.Size() > 0 {
@@ -21,12 +19,16 @@ func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 			}
 
 			for el := range neighbours(node) {
-				if _, found := visited[el]; found {
+				if visited.Contains(el) {
 					continue
 				}
-				visited[el] = struct{}{}
+				visited.Add(el)
 				frontier.PushBack(el)
 			}
 		}
 	}
+}
+
+func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
+	return BFSWithVisited(start, collections.NewSet[T](), neighbours)
 }
