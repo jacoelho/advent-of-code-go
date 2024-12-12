@@ -87,15 +87,14 @@ func corners(region collections.Set[grid.Position2D[int]]) int {
 			}
 		}
 
-		remove := collections.NewSet[grid.Position2D[int]]()
+		rotation := offset.TurnRight()
 		for side := range sides.Iter() {
-			p := side.Add(grid.Position2D[int]{X: offset.Y, Y: offset.X})
-			for sides.Contains(p) {
-				remove.Add(p)
-				p = p.Add(grid.Position2D[int]{X: offset.Y, Y: offset.X})
+			for p := side.Add(rotation); sides.Contains(p); p = p.Add(rotation) {
+				sides.Remove(p)
 			}
 		}
-		count += sides.Len() - remove.Len()
+
+		count += sides.Len()
 	}
 
 	return count
