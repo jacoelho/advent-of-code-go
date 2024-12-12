@@ -22,18 +22,6 @@ func parseStoneArrangement(r io.Reader) []int64 {
 	return result
 }
 
-func day11p01(r io.Reader) (string, error) {
-	stones := parseStoneArrangement(r)
-
-	countFunc := memoizeCount()
-
-	total := xslices.Reduce(func(sum int64, stone int64) int64 {
-		return sum + countFunc(stone, 25)
-	}, 0, stones)
-
-	return strconv.FormatInt(total, 10), nil
-}
-
 func memoizeCount() func(int64, int64) int64 {
 	cache := make(map[[2]int64]int64)
 
@@ -68,14 +56,26 @@ func memoizeCount() func(int64, int64) int64 {
 	return countRec
 }
 
+func countBlinks(stones []int64, steps int64) int64 {
+	countFunc := memoizeCount()
+
+	return xslices.Reduce(func(sum int64, stone int64) int64 {
+		return sum + countFunc(stone, steps)
+	}, 0, stones)
+}
+
+func day11p01(r io.Reader) (string, error) {
+	stones := parseStoneArrangement(r)
+
+	total := countBlinks(stones, 25)
+
+	return strconv.FormatInt(total, 10), nil
+}
+
 func day11p02(r io.Reader) (string, error) {
 	stones := parseStoneArrangement(r)
 
-	countFunc := memoizeCount()
-
-	total := xslices.Reduce(func(sum int64, stone int64) int64 {
-		return sum + countFunc(stone, 75)
-	}, 0, stones)
+	total := countBlinks(stones, 75)
 
 	return strconv.FormatInt(total, 10), nil
 }

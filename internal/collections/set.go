@@ -9,14 +9,14 @@ type Set[T comparable] map[T]struct{}
 
 func NewSet[T comparable](elements ...T) Set[T] {
 	s := make(Set[T], len(elements))
-	for _, element := range elements {
-		s.Add(element)
-	}
+	s.Add(elements...)
 	return s
 }
 
-func (s Set[T]) Add(e T) {
-	s[e] = struct{}{}
+func (s Set[T]) Add(e ...T) {
+	for _, e := range e {
+		s[e] = struct{}{}
+	}
 }
 
 func (s Set[T]) Remove(e T) {
@@ -34,6 +34,10 @@ func (s Set[T]) Iter() iter.Seq[T] {
 
 func (s Set[T]) Len() int {
 	return len(s)
+}
+
+func (s Set[T]) Clone() Set[T] {
+	return maps.Clone(s)
 }
 
 func (s Set[T]) Intersect(other Set[T]) Set[T] {
