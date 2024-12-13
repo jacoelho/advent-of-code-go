@@ -29,7 +29,7 @@ Prize: X=18641, Y=10279`),
 		},
 		{
 			Input: aoc.FileInput(t, 2024, 13),
-			Want:  "28138", // too high
+			Want:  "28138",
 		},
 	}
 
@@ -63,17 +63,4 @@ Prize: X=18641, Y=10279`),
 	}
 
 	aoc.AOCTest(t, day13p02, tests)
-}
-
-func Benchmark_day13p02(b *testing.B) {
-	in := aoc.FileInput(b, 2024, 13)
-
-	b.ResetTimer()
-	for range b.N {
-		v, err := day13p02(in)
-		if err != nil {
-			panic(err)
-		}
-		_ = v
-	}
 }
