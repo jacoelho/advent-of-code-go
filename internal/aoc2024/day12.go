@@ -24,14 +24,15 @@ func parseGardenPlots(r io.Reader) (grid.Grid2D[int, rune], error) {
 	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
 }
 
-func day12neighbours(plots grid.Grid2D[int, rune], plant rune) func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
+func day12neighbours(
+	plots grid.Grid2D[int, rune],
+	plant rune,
+) func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
 	return func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
 		return func(yield func(grid.Position2D[int]) bool) {
 			for neighbour := range grid.Neighbours4(p) {
-				if plots[neighbour] == plant {
-					if !yield(neighbour) {
-						return
-					}
+				if plots[neighbour] == plant && !yield(neighbour) {
+					return
 				}
 			}
 		}
@@ -48,30 +49,6 @@ func perimeter(region collections.Set[grid.Position2D[int]]) int {
 		}
 	}
 	return result
-}
-
-func day12p01(r io.Reader) (string, error) {
-	plots := aoc.Must(parseGardenPlots(r))
-
-	visited := collections.NewSet[grid.Position2D[int]]()
-
-	var regions []collections.Set[grid.Position2D[int]]
-	for position, plant := range plots {
-		neighbours := day12neighbours(plots, plant)
-
-		if !visited.Contains(position) {
-			region := slices.Collect(search.BFS(position, neighbours))
-			regions = append(regions, collections.NewSet(region...))
-			visited.Add(region...)
-		}
-	}
-
-	var total int
-	for _, region := range regions {
-		total += perimeter(region) * region.Len()
-	}
-
-	return strconv.Itoa(total), nil
 }
 
 func corners(region collections.Set[grid.Position2D[int]]) int {
@@ -100,9 +77,10 @@ func corners(region collections.Set[grid.Position2D[int]]) int {
 	return count
 }
 
-func day12p02(r io.Reader) (string, error) {
-	plots := aoc.Must(parseGardenPlots(r))
-
+func calculateFencePrice(
+	plots grid.Grid2D[int, rune],
+	cost func(collections.Set[grid.Position2D[int]]) int,
+) int {
 	visited := collections.NewSet[grid.Position2D[int]]()
 
 	var regions []collections.Set[grid.Position2D[int]]
@@ -118,8 +96,24 @@ func day12p02(r io.Reader) (string, error) {
 
 	var total int
 	for _, region := range regions {
-		total += corners(region) * region.Len()
+		total += cost(region) * region.Len()
 	}
+
+	return total
+}
+
+func day12p01(r io.Reader) (string, error) {
+	plots := aoc.Must(parseGardenPlots(r))
+
+	total := calculateFencePrice(plots, perimeter)
+
+	return strconv.Itoa(total), nil
+}
+
+func day12p02(r io.Reader) (string, error) {
+	plots := aoc.Must(parseGardenPlots(r))
+
+	total := calculateFencePrice(plots, corners)
 
 	return strconv.Itoa(total), nil
 }
