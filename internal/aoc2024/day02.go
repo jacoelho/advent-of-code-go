@@ -28,17 +28,17 @@ func parseReports(r io.Reader) (iter.Seq[[]int], error) {
 }
 
 func isReportSafe(report []int) bool {
-	levels := slices.Collect(xslices.Window(report, 2))
+	levels := slices.Collect(xslices.Window(2, report))
 
-	ascending := xslices.Every(levels, func(v []int) bool {
+	ascending := xslices.Every(func(v []int) bool {
 		diff := v[1] - v[0]
 		return diff >= 1 && diff <= 3
-	})
+	}, levels)
 
-	descending := xslices.Every(levels, func(v []int) bool {
+	descending := xslices.Every(func(v []int) bool {
 		diff := v[1] - v[0]
 		return diff <= -1 && diff >= -3
-	})
+	}, levels)
 
 	return ascending || descending
 }

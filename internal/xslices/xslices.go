@@ -30,7 +30,7 @@ func Product[Slice ~[]E, E xconstraints.Number](s Slice) E {
 	return total
 }
 
-func Window[Slice ~[]E, E any](s Slice, n int) iter.Seq[Slice] {
+func Window[Slice ~[]E, E any](n int, s Slice) iter.Seq[Slice] {
 	if n < 1 {
 		panic("cannot be less than 1")
 	}
@@ -69,7 +69,7 @@ func Pairwise[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
 	}
 }
 
-func Every[Slice ~[]E, E any](s Slice, predicate func(E) bool) bool {
+func Every[Slice ~[]E, E any](predicate func(E) bool, s Slice) bool {
 	for _, v := range s {
 		if !predicate(v) {
 			return false
@@ -93,7 +93,17 @@ func Reduce[Sum any, Slice ~[]E, E any](f func(Sum, E) Sum, sum Sum, s Slice) Su
 	return sum
 }
 
-func LastIndexFunc[Slice ~[]E, E any](s Slice, f func(E) bool) int {
+func Filter[Slice ~[]E, E any](predicate func(E) bool, s Slice) Slice {
+	var result Slice
+	for _, v := range s {
+		if predicate(v) {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func LastIndexFunc[Slice ~[]E, E any](f func(E) bool, s Slice) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if f(s[i]) {
 			return i

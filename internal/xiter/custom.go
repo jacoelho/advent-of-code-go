@@ -1,6 +1,7 @@
 package xiter
 
 import (
+	"cmp"
 	"iter"
 
 	"github.com/jacoelho/advent-of-code-go/internal/xconstraints"
@@ -43,4 +44,17 @@ func Frequencies[T comparable](seq iter.Seq[T]) map[T]int {
 		count[item]++
 	}
 	return count
+}
+
+func Max[E cmp.Ordered](seq iter.Seq[E]) E {
+	next, stop := iter.Pull(seq)
+	defer stop()
+	m, ok := next()
+	if !ok {
+		panic("empty seq")
+	}
+	for v := range seq {
+		m = max(m, v)
+	}
+	return m
 }
