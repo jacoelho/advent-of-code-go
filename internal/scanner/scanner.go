@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"iter"
 )
@@ -48,4 +49,16 @@ func (s *Scanner[T]) Err() error {
 		return s.err
 	}
 	return s.scanner.Err()
+}
+
+func SplitBySeparator(separator []byte) func(data []byte, atEOF bool) (int, []byte, error) {
+	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if i := bytes.Index(data, separator); i != -1 {
+			return i + len(separator), data[:i], nil
+		}
+		if atEOF && len(data) > 0 {
+			return len(data), data, nil
+		}
+		return 0, nil, nil
+	}
 }

@@ -53,7 +53,7 @@ func TestWindow(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var chunks [][]int
-			for c := range Window(tc.s, tc.n) {
+			for c := range Window(tc.n, tc.s) {
 				chunks = append(chunks, c)
 			}
 
