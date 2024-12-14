@@ -31,26 +31,33 @@ func FromDigits[Slice ~[]T, T constraints.Signed](s Slice) T {
 	return sum
 }
 
-func ExtractDigits[T constraints.Integer](line string) []T {
+func ExtractDigits[T constraints.Signed](line string) []T {
 	var (
 		digits   []T
 		current  T
 		inNumber bool
+		sign     T = 1
 	)
 
 	for _, ch := range line {
-		if '0' <= ch && ch <= '9' {
+		switch {
+		case ch == '-' && !inNumber:
+			sign = -1
+		case '0' <= ch && ch <= '9':
 			current = current*10 + T(ch-'0')
 			inNumber = true
-		} else if inNumber {
-			digits = append(digits, current)
+		case inNumber:
+			digits = append(digits, current*sign)
 			current = 0
 			inNumber = false
+			sign = 1
+		default:
+			sign = 1
 		}
 	}
 
 	if inNumber {
-		digits = append(digits, current)
+		digits = append(digits, current*sign)
 	}
 
 	return digits

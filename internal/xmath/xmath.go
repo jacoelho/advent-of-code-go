@@ -10,3 +10,7 @@ func Abs[T constraints.Signed](v T) T {
 	}
 	return v
 }
+
+func Modulo[T constraints.Signed](a, b T) T {
+	return (a%b + b) % b
+}

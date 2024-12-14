@@ -58,3 +58,17 @@ func Max[E cmp.Ordered](seq iter.Seq[E]) E {
 	}
 	return m
 }
+
+func Apply[E any](start E, f func(E) E) iter.Seq[E] {
+	return func(yield func(E) bool) {
+		if !yield(start) {
+			return
+		}
+		for {
+			start = f(start)
+			if !yield(start) {
+				break
+			}
+		}
+	}
+}
