@@ -5,7 +5,6 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
 	"github.com/jacoelho/advent-of-code-go/internal/convert"
 	"github.com/jacoelho/advent-of-code-go/internal/grid"
 	"github.com/jacoelho/advent-of-code-go/internal/xmath"
@@ -101,12 +100,12 @@ func day14p02(reader io.Reader) (string, error) {
 
 	for iteration := 1; ; iteration++ {
 		finalPositions := positionsAfterIterations(initialPositions, width, height, iteration)
-		s := collections.NewSet[grid.Position2D[int]](finalPositions...)
 
 		// check if robots no longer overlap
-		if len(initialPositions) == s.Len() {
+		if !xslices.HasDuplicates(finalPositions) {
 			return strconv.Itoa(iteration), nil
 		}
 	}
+
 	panic("unreachable")
 }

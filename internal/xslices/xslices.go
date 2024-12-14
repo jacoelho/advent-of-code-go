@@ -111,3 +111,14 @@ func LastIndexFunc[Slice ~[]E, E any](f func(E) bool, s Slice) int {
 	}
 	return -1
 }
+
+func HasDuplicates[Slice ~[]E, E comparable](slice Slice) bool {
+	seen := make(map[E]struct{}, len(slice))
+	for _, v := range slice {
+		if _, exists := seen[v]; exists {
+			return true
+		}
+		seen[v] = struct{}{}
+	}
+	return false
+}
