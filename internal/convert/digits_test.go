@@ -33,3 +33,23 @@ func TestToDigits(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractDigits(t *testing.T) {
+	type testCase struct {
+		input string
+		want  []int
+	}
+	tests := []testCase{
+		{
+			input: "123 -456 78 -9abc-10,0 - 3",
+			want:  []int{123, -456, 78, -9, -10, 0, 3},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := ExtractDigits[int](tt.input); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ExtractDigits() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
