@@ -36,6 +36,13 @@ func (p *Position2D[T]) TurnRight() Position2D[T] {
 	}
 }
 
+func (p *Position2D[T]) TurnLeft() Position2D[T] {
+	return Position2D[T]{
+		X: p.Y,
+		Y: -p.X,
+	}
+}
+
 func (p *Position2D[T]) generateNeighbours(offsets []Position2D[T]) iter.Seq[Position2D[T]] {
 	return func(yield func(Position2D[T]) bool) {
 		for _, offset := range offsets {
