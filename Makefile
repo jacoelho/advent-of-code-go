@@ -7,7 +7,7 @@ DATE  = $(shell date +%Y%m%d%H%M%S)
 default: test
 
 .PHONY: test
-test:
+test: staticcheck
 	go test -race -shuffle=on -v ./...
 
 .PHONY: fmt

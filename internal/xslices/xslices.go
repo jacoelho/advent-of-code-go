@@ -122,3 +122,20 @@ func HasDuplicates[Slice ~[]E, E comparable](slice Slice) bool {
 	}
 	return false
 }
+
+func HasSuffixFunc[Slice ~[]E, E any](slice Slice, suffix Slice, compare func(E, E) bool) bool {
+	if len(suffix) > len(slice) {
+		return false
+	}
+	offset := len(slice) - len(suffix)
+	for i := range suffix {
+		if !compare(slice[offset+i], suffix[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func HasSuffix[Slice ~[]E, E comparable](slice Slice, suffix Slice) bool {
+	return HasSuffixFunc(slice, suffix, func(a, b E) bool { return a == b })
+}
