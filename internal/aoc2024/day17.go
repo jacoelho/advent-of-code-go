@@ -165,15 +165,15 @@ func day17p02(r io.Reader) (string, error) {
 	for {
 		cc := c.clone()
 		cc.a = i
-		result := slices.Collect(cc.run())
+		output := slices.Collect(cc.run())
 
 		switch {
-		case slices.Equal(result, c.instructions):
+		case slices.Equal(c.instructions, output):
 			return strconv.Itoa(i), nil
 
 		// digit matches
 		// attempt next
-		case xslices.HasSuffix(c.instructions, result):
+		case xslices.HasSuffix(c.instructions, output):
 			i <<= 3 // i *=8
 
 		default:
