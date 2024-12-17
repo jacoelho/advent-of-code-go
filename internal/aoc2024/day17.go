@@ -3,6 +3,7 @@ package aoc2024
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"iter"
 	"slices"
@@ -99,6 +100,51 @@ func (c *computer) run() iter.Seq[int] {
 			c.ip += 2
 		}
 	}
+}
+
+func (c *computer) debug() string {
+	sb := new(strings.Builder)
+
+	combo := func(v int) string {
+		switch v {
+		case 4:
+			return "A"
+		case 5:
+			return "B"
+		case 6:
+			return "C"
+		default:
+			return strconv.Itoa(v)
+		}
+	}
+
+	instructionMap := map[int]string{
+		0: "A = A >> %s",
+		1: "B = B ^ %s",
+		2: "B = %s %% 8",
+		3: "IF A != 0 JMP %d",
+		4: "B = B ^ C",
+		5: "OUTPUT %s %% 8",
+		6: "B = A >> %s",
+		7: "C = A >> %s",
+	}
+
+	for ip, v := range xiter.Enumerate(slices.Chunk(c.instructions, 2)) {
+		instruction := v[0]
+		operand := v[1]
+
+		format := instructionMap[instruction]
+		switch instruction {
+		case 3:
+			fmt.Fprintf(sb, "%d: "+format+"\n", ip, operand)
+		case 4:
+			fmt.Fprintf(sb, "%d: "+format+"\n", ip)
+		default:
+			fmt.Fprintf(sb, "%d: "+format+"\n", ip, combo(operand))
+		}
+	}
+
+	return sb.String()
 }
 
 func day17p01(r io.Reader) (string, error) {
