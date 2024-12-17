@@ -72,3 +72,13 @@ func Apply[E any](start E, f func(E) E) iter.Seq[E] {
 		}
 	}
 }
+
+func Enumerate[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
+	return func(yield func(int, T) bool) {
+		i := -1
+		seq(func(v T) bool {
+			i++
+			return yield(i, v)
+		})
+	}
+}
