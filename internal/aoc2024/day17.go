@@ -13,6 +13,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/internal/convert"
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 )
 
 func parseComputerProgram(r io.Reader) (*computer, error) {
@@ -172,7 +173,7 @@ func day17p02(r io.Reader) (string, error) {
 
 		// digit matches
 		// attempt next
-		case slices.Equal(result, c.instructions[len(c.instructions)-len(result):]):
+		case xslices.HasSuffix(c.instructions, result):
 			i <<= 3 // i *=8
 
 		default:
