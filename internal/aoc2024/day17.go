@@ -102,6 +102,7 @@ func (c *computer) run() iter.Seq[int] {
 	}
 }
 
+//lint:file-ignore U1000 debug function
 func (c *computer) debug() string {
 	sb := new(strings.Builder)
 
