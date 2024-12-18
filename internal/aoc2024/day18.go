@@ -3,7 +3,6 @@ package aoc2024
 import (
 	"fmt"
 	"io"
-	"iter"
 	"slices"
 	"strconv"
 
@@ -15,7 +14,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
 )
 
-func parsePushDownAutomatonMemory(r io.Reader) (iter.Seq[grid.Position2D[int]], error) {
+func parsePushDownAutomatonMemory(r io.Reader) ([]grid.Position2D[int], error) {
 	s := scanner.NewScanner(r, func(bytes []byte) (grid.Position2D[int], error) {
 		digits := convert.ExtractDigits[int](string(bytes))
 		return grid.Position2D[int]{
@@ -23,7 +22,7 @@ func parsePushDownAutomatonMemory(r io.Reader) (iter.Seq[grid.Position2D[int]], 
 			Y: digits[1],
 		}, nil
 	})
-	return s.Values(), s.Err()
+	return slices.Collect(s.Values()), s.Err()
 }
 
 func day18Neighbours(memory map[grid.Position2D[int]]bool, dimensions int) func(grid.Position2D[int]) []grid.Position2D[int] {
@@ -64,7 +63,7 @@ func day18search(
 
 func day18p01(dimensions, steps int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		corrupted := slices.Collect(aoc.Must(parsePushDownAutomatonMemory(r)))
+		corrupted := aoc.Must(parsePushDownAutomatonMemory(r))
 
 		start := grid.Position2D[int]{X: 0, Y: 0}
 
@@ -76,11 +75,10 @@ func day18p01(dimensions, steps int) func(r io.Reader) (string, error) {
 
 func day18p02(dimensions int, steps int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		corrupted := slices.Collect(aoc.Must(parsePushDownAutomatonMemory(r)))
+		corrupted := aoc.Must(parsePushDownAutomatonMemory(r))
 		start := grid.Position2D[int]{X: 0, Y: 0}
 
 		low, high := steps, len(corrupted)-1
-
 		for low < high {
 			mid := (low + high) / 2
 			if _, found := day18search(corrupted, dimensions, start, mid+1); found {
