@@ -1,7 +1,6 @@
 package aoc2024
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -44,20 +43,32 @@ func day18Heuristic(dimensions int) func(p grid.Position2D[int]) int {
 	}
 }
 
+func day18search(
+	corrupted []grid.Position2D[int],
+	dimensions int,
+	start grid.Position2D[int],
+	steps int,
+) (int, bool) {
+	memory := make(map[grid.Position2D[int]]bool, steps)
+	for _, v := range corrupted[:steps] {
+		memory[v] = true
+	}
+	cost, _, found := search.AStar(
+		start,
+		day18Neighbours(memory, dimensions),
+		day18Heuristic(dimensions),
+		search.ConstantStepCost,
+	)
+	return cost, found
+}
+
 func day18p01(dimensions, steps int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		corrupted := aoc.Must(parsePushDownAutomatonMemory(r))
+		corrupted := slices.Collect(aoc.Must(parsePushDownAutomatonMemory(r)))
+
 		start := grid.Position2D[int]{X: 0, Y: 0}
 
-		memory := make(map[grid.Position2D[int]]bool)
-		for p := range xiter.Take(corrupted, steps) {
-			memory[p] = true
-		}
-
-		cost, _, _ := search.AStar(start, day18Neighbours(
-			memory,
-			dimensions,
-		), day18Heuristic(dimensions), search.ConstantStepCost)
+		cost, _ := day18search(corrupted, dimensions, start, steps)
 
 		return strconv.Itoa(cost), nil
 	}
@@ -65,29 +76,21 @@ func day18p01(dimensions, steps int) func(r io.Reader) (string, error) {
 
 func day18p02(dimensions int, steps int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		corrupted := aoc.Must(parsePushDownAutomatonMemory(r))
+		corrupted := slices.Collect(aoc.Must(parsePushDownAutomatonMemory(r)))
 		start := grid.Position2D[int]{X: 0, Y: 0}
 
-		memory := make(map[grid.Position2D[int]]bool)
-		for p := range xiter.Take(corrupted, steps) {
-			memory[p] = true
-		}
+		low, high := steps, len(corrupted)-1
 
-		for p := range corrupted {
-			memory[p] = true
-
-			if _, _, found := search.AStar(
-				start,
-				day18Neighbours(
-					memory,
-					dimensions,
-				),
-				day18Heuristic(dimensions),
-				search.ConstantStepCost,
-			); !found {
-				return fmt.Sprintf("%d,%d", p.X, p.Y), nil
+		for low < high {
+			mid := (low + high) / 2
+			if _, found := day18search(corrupted, dimensions, start, mid+1); found {
+				low = mid + 1
+			} else {
+				high = mid
 			}
 		}
-		return "", errors.New("not found")
+
+		p := corrupted[low]
+		return fmt.Sprintf("%d,%d", p.X, p.Y), nil
 	}
 }
