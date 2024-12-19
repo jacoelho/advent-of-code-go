@@ -2,12 +2,12 @@ package funcs
 
 func Memoize[In comparable, Out any](f func(In) Out) func(In) Out {
 	cache := make(map[In]Out)
-	return func(v In) Out {
-		if result, found := cache[v]; found {
+	return func(in In) Out {
+		if result, found := cache[in]; found {
 			return result
 		}
-		result := f(v)
-		cache[v] = result
+		result := f(in)
+		cache[in] = result
 		return result
 	}
 }
