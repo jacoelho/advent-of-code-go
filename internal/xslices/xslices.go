@@ -103,6 +103,16 @@ func Filter[Slice ~[]E, E any](predicate func(E) bool, s Slice) Slice {
 	return result
 }
 
+func CountFunc[Slice ~[]E, E any](predicate func(E) bool, s Slice) int {
+	var result int
+	for _, v := range s {
+		if predicate(v) {
+			result++
+		}
+	}
+	return result
+}
+
 func LastIndexFunc[Slice ~[]E, E any](f func(E) bool, s Slice) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if f(s[i]) {
@@ -138,4 +148,18 @@ func HasSuffixFunc[Slice ~[]E, E any](slice Slice, suffix Slice, compare func(E,
 
 func HasSuffix[Slice ~[]E, E comparable](slice Slice, suffix Slice) bool {
 	return HasSuffixFunc(slice, suffix, func(a, b E) bool { return a == b })
+}
+
+// SubSlices generates all subslices from the beginning of the input slice up to the given length.
+func SubSlices[Slice ~[]E, E any](s Slice, n int) []Slice {
+	if n > len(s) {
+		n = len(s)
+	}
+
+	result := make([]Slice, n)
+	for i := 1; i <= n; i++ {
+		result[i-1] = s[:i]
+	}
+
+	return result
 }
