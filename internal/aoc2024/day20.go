@@ -2,6 +2,7 @@ package aoc2024
 
 import (
 	"io"
+	"iter"
 	"slices"
 	"strconv"
 
@@ -32,59 +33,64 @@ func raceStartPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {
 	return element.K
 }
 
+func day20Heuristic(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) int {
+	return func(position grid.Position2D[int]) int {
+		if raceTrack[position] == 'E' {
+			return 0
+		}
+		return 1
+	}
+}
+
+func day20Neighbours(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) []grid.Position2D[int] {
+	return func(position grid.Position2D[int]) []grid.Position2D[int] {
+		var result []grid.Position2D[int]
+		for p := range grid.Neighbours4(position) {
+			if raceTrack[p] == '.' || raceTrack[p] == 'E' {
+				result = append(result, p)
+			}
+		}
+		return result
+	}
+}
+
+func cheatDistanceOffsets(cheatDistance int) iter.Seq[grid.Position2D[int]] {
+	return func(yield func(grid.Position2D[int]) bool) {
+		for dy := -cheatDistance; dy <= cheatDistance; dy++ {
+			for dx := -cheatDistance + xmath.Abs(dy); dx <= cheatDistance-xmath.Abs(dy); dx++ {
+				if !yield(grid.Position2D[int]{X: dx, Y: dy}) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func day20(cheatDistance, save int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
 		raceTrack := aoc.Must(parseRaceTrack(r))
 		startPosition := raceStartPosition(raceTrack)
-
-		neighbours := func(position grid.Position2D[int]) []grid.Position2D[int] {
-			var result []grid.Position2D[int]
-			for p := range grid.Neighbours4(position) {
-				if raceTrack[p] == '.' || raceTrack[p] == 'E' {
-					result = append(result, p)
-				}
-			}
-			return result
-		}
-
-		heuristic := func(position grid.Position2D[int]) int {
-			if raceTrack[position] == 'E' {
-				return 0
-			}
-			return 1
-		}
+		neighbours := day20Neighbours(raceTrack)
+		heuristic := day20Heuristic(raceTrack)
 
 		_, path, _ := search.AStar(startPosition, neighbours, heuristic, search.ConstantStepCost)
+
 		distances := make(grid.Grid2D[int, int], len(path))
 		for distance, p := range path {
 			distances[p] = distance
 		}
 
-		savings := []struct {
-			Distance      int
-			CheatDistance int
-		}{}
-		for start := range distances {
-			for rowOffset := -cheatDistance; rowOffset <= cheatDistance; rowOffset++ {
-				for colOffset := xmath.Abs(rowOffset) - cheatDistance; colOffset <= cheatDistance-xmath.Abs(rowOffset); colOffset++ {
-					end := start.Add(grid.Position2D[int]{X: colOffset, Y: rowOffset})
-					if _, found := distances[end]; !found {
-						continue
+		offsets := slices.Collect(cheatDistanceOffsets(cheatDistance))
+
+		var count int
+		for start, startDistance := range distances {
+			for _, offset := range offsets {
+				end := start.Add(offset)
+				if endDistance, found := distances[end]; found {
+					if endDistance-startDistance-start.Distance(end) >= save {
+						count++
 					}
-					savings = append(savings, struct {
-						Distance      int
-						CheatDistance int
-					}{
-						Distance:      distances[end] - distances[start],
-						CheatDistance: start.Distance(end),
-					})
 				}
-			}
-		}
-		count := 0
-		for _, saving := range savings {
-			if saving.CheatDistance <= cheatDistance && saving.Distance-saving.CheatDistance >= save {
-				count++
 			}
 		}
 		return strconv.Itoa(count), nil
