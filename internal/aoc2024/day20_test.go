@@ -28,7 +28,7 @@ func Test_day20p01_example(t *testing.T) {
 			Want: "44",
 		},
 	}
-	aoc.AOCTest(t, day20p01(2, 2), tests)
+	aoc.AOCTest(t, day20p01(2), tests)
 }
 
 func Test_day20p01(t *testing.T) {
@@ -38,7 +38,7 @@ func Test_day20p01(t *testing.T) {
 			Want:  "1445",
 		},
 	}
-	aoc.AOCTest(t, day20p01(2, 100), tests)
+	aoc.AOCTest(t, day20p01(100), tests)
 }
 
 func Test_day20p02_example(t *testing.T) {
@@ -62,7 +62,7 @@ func Test_day20p02_example(t *testing.T) {
 			Want: "285",
 		},
 	}
-	aoc.AOCTest(t, day20p02(20, 50), tests)
+	aoc.AOCTest(t, day20p02(50), tests)
 }
 
 func Test_day20p02(t *testing.T) {
@@ -72,5 +72,5 @@ func Test_day20p02(t *testing.T) {
 			Want:  "1008040",
 		},
 	}
-	aoc.AOCTest(t, day20p02(20, 100), tests)
+	aoc.AOCTest(t, day20p02(100), tests)
 }
