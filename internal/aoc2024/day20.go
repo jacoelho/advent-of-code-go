@@ -66,7 +66,7 @@ func cheatDistanceOffsets(cheatDistance int) iter.Seq[grid.Position2D[int]] {
 	}
 }
 
-func day20(cheatDistance, save int) func(r io.Reader) (string, error) {
+func day20(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
 		raceTrack := aoc.Must(parseRaceTrack(r))
 		startPosition := raceStartPosition(raceTrack)
@@ -87,7 +87,7 @@ func day20(cheatDistance, save int) func(r io.Reader) (string, error) {
 			for _, offset := range offsets {
 				end := start.Add(offset)
 				if endDistance, found := distances[end]; found {
-					if endDistance-startDistance-start.Distance(end) >= save {
+					if endDistance-startDistance-start.Distance(end) >= saveGoal {
 						count++
 					}
 				}
@@ -97,10 +97,10 @@ func day20(cheatDistance, save int) func(r io.Reader) (string, error) {
 	}
 }
 
-func day20p01(cheatDistance, save int) func(r io.Reader) (string, error) {
-	return day20(cheatDistance, save)
+func day20p01(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
+	return day20(cheatDistance, saveGoal)
 }
 
-func day20p02(cheatDistance, save int) func(r io.Reader) (string, error) {
-	return day20(cheatDistance, save)
+func day20p02(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
+	return day20(cheatDistance, saveGoal)
 }
