@@ -97,10 +97,10 @@ func day20(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
 	}
 }
 
-func day20p01(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
-	return day20(cheatDistance, saveGoal)
+func day20p01(saveGoal int) func(r io.Reader) (string, error) {
+	return day20(2, saveGoal)
 }
 
-func day20p02(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
-	return day20(cheatDistance, saveGoal)
+func day20p02(saveGoal int) func(r io.Reader) (string, error) {
+	return day20(20, saveGoal)
 }
