@@ -83,7 +83,19 @@ func Enumerate[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
 	}
 }
 
-func Take[T any](seq iter.Seq[T], n int) iter.Seq[T] {
+func Skip[T any](seq iter.Seq[T], n int) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		seq(func(v T) bool {
+			if n > 0 {
+				n--
+				return true
+			}
+			return yield(v)
+		})
+	}
+}
+
+func Take[T any](n int, seq iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		seq(func(v T) bool {
 			if !yield(v) {
@@ -93,4 +105,34 @@ func Take[T any](seq iter.Seq[T], n int) iter.Seq[T] {
 			return n > 0
 		})
 	}
+}
+
+func Window[T any](n int, seq iter.Seq[T]) iter.Seq[[]T] {
+	return func(yield func([]T) bool) {
+		window := make([]T, 0, n)
+
+		seq(func(v T) bool {
+			if len(window) < n-1 {
+				window = append(window, v)
+				return true
+			}
+			if len(window) < n {
+				window = append(window, v)
+				return yield(window)
+			}
+
+			copy(window, window[1:])
+			window[len(window)-1] = v
+			return yield(window)
+		})
+		if len(window) < n {
+			yield(window)
+		}
+	}
+}
+
+func Next[T any](seq iter.Seq[T]) (T, bool) {
+	next, stop := iter.Pull(seq)
+	defer stop()
+	return next()
 }
