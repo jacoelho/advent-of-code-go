@@ -1,6 +1,8 @@
 package convert
 
 import (
+	"fmt"
+
 	"golang.org/x/exp/constraints"
 )
 
@@ -61,4 +63,19 @@ func ExtractDigits[T constraints.Signed](line string) []T {
 	}
 
 	return digits
+}
+
+func ScanNumber[T constraints.Signed](line []byte) (T, error) {
+	var n T
+	for _, ch := range line {
+		ch -= '0'
+		if ch > 9 {
+			return n, fmt.Errorf("invalid character '%c'", ch)
+		}
+		n = n*10 + T(ch)
+	}
+	if line[0] == '-' {
+		n = -n
+	}
+	return n, nil
 }
