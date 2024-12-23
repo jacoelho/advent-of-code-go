@@ -8,47 +8,53 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
 )
 
-// bron-kerbosch finds all maximal cliques in a graph using the Bron-Kerbosch algorithm.
-func bronKerbosch[T comparable](
-	graph map[T]collections.Set[T],
-	currentClique, potential, excluded collections.Set[T],
-	cliques *[]collections.Set[T],
-) {
-	if potential.IsEmpty() && excluded.IsEmpty() {
-		// currentClique is a maximal clique
-		maximalClique := currentClique.Clone() // Copy to avoid mutating it later
-		*cliques = append(*cliques, maximalClique)
-		return
+func bronKerbosch[T comparable](graph map[T]collections.Set[T]) []collections.Set[T] {
+	type state struct {
+		currentClique collections.Set[T]
+		potential     collections.Set[T]
+		excluded      collections.Set[T]
 	}
 
-	// Choose a pivot to reduce the number of recursive calls
-	pivot, _ := xiter.Next(potential.Iter())
-	nonNeighbors := potential.Difference(graph[pivot])
+	stack := collections.NewStack[state](state{
+		currentClique: collections.NewSet[T](),
+		potential:     collections.NewSet[T](slices.Collect(maps.Keys(graph))...),
+		excluded:      collections.NewSet[T](),
+	})
 
-	for vertex := range nonNeighbors.Iter() {
-		neighbors := graph[vertex]
-		// Recurse with vertex added to currentClique
-		bronKerbosch(
-			graph,
-			currentClique.Union(collections.NewSet[T](vertex)),
-			potential.Intersect(neighbors),
-			excluded.Intersect(neighbors),
-			cliques,
-		)
-		// Backtrack: remove vertex from potential and add it to excluded
-		potential.Remove(vertex)
-		excluded.Add(vertex)
+	var cliques []collections.Set[T]
+
+	for !stack.IsEmpty() {
+		current, _ := stack.Pop()
+
+		// if potential and excluded are both empty, currentClique is maximal
+		if current.potential.IsEmpty() && current.excluded.IsEmpty() {
+			cliques = append(cliques, current.currentClique.Clone())
+			continue
+		}
+
+		// choose a pivot to reduce the number of iterations
+		pivot, _ := xiter.Next(current.potential.Iter())
+		nonNeighbors := current.potential.Difference(graph[pivot])
+
+		for vertex := range nonNeighbors.Iter() {
+			neighbors := graph[vertex]
+
+			stack.Push(state{
+				currentClique: current.currentClique.Union(collections.NewSet[T](vertex)),
+				potential:     current.potential.Intersect(neighbors),
+				excluded:      current.excluded.Intersect(neighbors),
+			})
+
+			// update potential and excluded sets for backtracking
+			current.potential.Remove(vertex)
+			current.excluded.Add(vertex)
+		}
 	}
+
+	return cliques
 }
 
 // MaximalCliques runs the Bron-Kerbosch algorithm on a graph.
 func MaximalCliques[T comparable](graph map[T]collections.Set[T]) []collections.Set[T] {
-	// Initialize the sets: currentClique (empty), potential (all vertices), and excluded (empty)
-	currentClique := collections.NewSet[T]()
-	potential := collections.NewSet[T](slices.Collect(maps.Keys(graph))...)
-	excluded := collections.NewSet[T]()
-
-	var cliques []collections.Set[T]
-	bronKerbosch(graph, currentClique, potential, excluded, &cliques)
-	return cliques
+	return bronKerbosch(graph)
 }
