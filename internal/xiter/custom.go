@@ -40,6 +40,19 @@ func CountBy[V any](predicate func(V) bool, seq iter.Seq[V]) int {
 	return total
 }
 
+func MaxBy[V any](comparator func(V, V) bool, seq iter.Seq[V]) V {
+	currentMax, ok := Next(seq)
+	if !ok {
+		panic("invalid sequence")
+	}
+	for v := range seq {
+		if comparator(currentMax, v) {
+			currentMax = v
+		}
+	}
+	return currentMax
+}
+
 func Length[V any](seq iter.Seq[V]) int {
 	var total int
 	for range seq {

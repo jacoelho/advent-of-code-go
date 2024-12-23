@@ -11,7 +11,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
 	"github.com/jacoelho/advent-of-code-go/internal/graph"
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 )
 
 func parseNetworkMap(r io.Reader) (map[string]collections.Set[string], error) {
@@ -39,34 +38,31 @@ func day23p01(r io.Reader) (string, error) {
 
 	result := collections.NewSet[[3]string]()
 
-	addItem := func(k1, k2, k3 string) {
+	addTriplet := func(k1, k2, k3 string) {
 		el := [3]string{k1, k2, k3}
 		slices.Sort(el[:])
 		result.Add(el)
 	}
 
-	for k1 := range m {
-		for k2 := range m[k1].Iter() {
-			for k3 := range m[k2].Iter() {
-				if k1 != k3 && m[k3].Contains(k1) {
-					addItem(k1, k2, k3)
-				}
+	for a, connections := range m {
+		if !strings.HasPrefix(a, "t") {
+			continue
+		}
+		for b := range connections {
+			for c := range connections.Intersect(m[b]) {
+				addTriplet(a, b, c)
 			}
 		}
 	}
 
-	total := xiter.CountBy(func(v [3]string) bool {
-		return xslices.Any(func(s string) bool { return strings.HasPrefix(s, "t") }, v[:])
-	}, result.Iter())
-
-	return strconv.Itoa(total), nil
+	return strconv.Itoa(result.Len()), nil
 }
 
 func day23p02(r io.Reader) (string, error) {
 	m := aoc.Must(parseNetworkMap(r))
 
 	cliques := graph.MaximalCliques(m)
-	longest := xslices.MaxBy(func(a, b collections.Set[string]) bool {
+	longest := xiter.MaxBy(func(a, b collections.Set[string]) bool {
 		return b.Len() > a.Len()
 	}, cliques)
 
