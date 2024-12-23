@@ -3,13 +3,13 @@ package aoc2024
 import (
 	"bufio"
 	"io"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
+	"github.com/jacoelho/advent-of-code-go/internal/graph"
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
 	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 )
@@ -65,7 +65,7 @@ func day23p01(r io.Reader) (string, error) {
 func day23p02(r io.Reader) (string, error) {
 	m := aoc.Must(parseNetworkMap(r))
 
-	cliques := FindMaximalCliques(m)
+	cliques := graph.MaximalCliques(m)
 	longest := xslices.MaxBy(func(a, b collections.Set[string]) bool {
 		return b.Len() > a.Len()
 	}, cliques)
@@ -73,50 +73,4 @@ func day23p02(r io.Reader) (string, error) {
 	result := slices.Collect(longest.Iter())
 	slices.Sort(result)
 	return strings.Join(result, ","), nil
-}
-
-// BronKerbosch finds all maximal cliques in a graph using the Bron-Kerbosch algorithm.
-func BronKerbosch(
-	graph map[string]collections.Set[string],
-	R, P, X collections.Set[string],
-	cliques *[]collections.Set[string],
-) {
-	if P.IsEmpty() && X.IsEmpty() {
-		// R is a maximal clique
-		clique := collections.NewSet[string]()
-		maps.Copy(clique, R) // Copy R to avoid mutating it later
-		*cliques = append(*cliques, clique)
-		return
-	}
-
-	pivot, _ := xiter.Next(P.Iter())
-	nonNeighbors := P.Difference(graph[pivot])
-
-	for v := range nonNeighbors.Iter() {
-		neighbors := graph[v]
-		// Recurse with v added to R, and only its neighbors in P and X
-		BronKerbosch(
-			graph,
-			R.Union(collections.NewSet[string](v)),
-			P.Intersect(neighbors),
-			X.Intersect(neighbors),
-			cliques,
-		)
-		// Backtrack: remove v from P and add it to X
-		P.Remove(v)
-		X.Add(v)
-	}
-}
-
-// FindMaximalCliques runs the Bron-Kerbosch algorithm on a graph.
-func FindMaximalCliques(graph map[string]collections.Set[string]) []collections.Set[string] {
-	// Initialize R (empty set), P (all vertices), and X (empty set)
-
-	R := collections.NewSet[string]()
-	P := collections.NewSet[string](slices.Collect(maps.Keys(graph))...)
-	X := collections.NewSet[string]()
-
-	var cliques []collections.Set[string]
-	BronKerbosch(graph, R, P, X, &cliques)
-	return cliques
 }
