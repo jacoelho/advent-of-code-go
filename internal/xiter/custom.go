@@ -30,6 +30,16 @@ func Sum[V xconstraints.Number](seq iter.Seq[V]) V {
 	return total
 }
 
+func CountBy[V any](predicate func(V) bool, seq iter.Seq[V]) int {
+	var total int
+	for v := range seq {
+		if predicate(v) {
+			total++
+		}
+	}
+	return total
+}
+
 func Length[V any](seq iter.Seq[V]) int {
 	var total int
 	for range seq {
