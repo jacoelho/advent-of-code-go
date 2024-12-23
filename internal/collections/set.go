@@ -36,6 +36,10 @@ func (s Set[T]) Len() int {
 	return len(s)
 }
 
+func (s Set[T]) IsEmpty() bool {
+	return s.Len() == 0
+}
+
 func (s Set[T]) Clone() Set[T] {
 	return maps.Clone(s)
 }
@@ -51,4 +55,25 @@ func (s Set[T]) Intersect(other Set[T]) Set[T] {
 		}
 	}
 	return intersection
+}
+
+func (s Set[T]) Difference(other Set[T]) Set[T] {
+	difference := NewSet[T]()
+	for key := range s {
+		if _, exists := other[key]; !exists {
+			difference[key] = struct{}{}
+		}
+	}
+	return difference
+}
+
+func (s Set[T]) Union(other Set[T]) Set[T] {
+	union := NewSet[T]()
+	for k := range s.Iter() {
+		union.Add(k)
+	}
+	for k := range other.Iter() {
+		union.Add(k)
+	}
+	return union
 }

@@ -1,6 +1,7 @@
 package xslices
 
 import (
+	"cmp"
 	"iter"
 
 	"github.com/jacoelho/advent-of-code-go/internal/xconstraints"
@@ -12,6 +13,27 @@ func Frequencies[Slice ~[]E, E comparable](s Slice) map[E]int {
 		count[item]++
 	}
 	return count
+}
+
+func Max[Slice ~[]E, E cmp.Ordered](s Slice) E {
+	if len(s) == 0 {
+		panic("empty slice")
+	}
+	return Reduce(func(m E, v1 E) E {
+		return max(m, v1)
+	}, s[0], s[1:])
+}
+
+func MaxBy[Slice ~[]E, E any](comparator func(a, current E) bool, s Slice) E {
+	if len(s) == 0 {
+		panic("empty slice")
+	}
+	return Reduce(func(m E, v1 E) E {
+		if comparator(m, v1) {
+			return v1
+		}
+		return m
+	}, s[0], s[1:])
 }
 
 func Sum[Slice ~[]E, E xconstraints.Number](s Slice) E {
@@ -76,6 +98,15 @@ func Every[Slice ~[]E, E any](predicate func(E) bool, s Slice) bool {
 		}
 	}
 	return true
+}
+
+func Any[Slice ~[]E, E any](predicate func(E) bool, s Slice) bool {
+	for _, v := range s {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
 }
 
 func Map[In, Out any](f func(In) Out, in []In) []Out {

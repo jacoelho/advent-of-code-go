@@ -35,3 +35,7 @@ func (s *Stack[T]) Peek() (T, bool) {
 func (s *Stack[T]) Len() int {
 	return len(*s)
 }
+
+func (s *Stack[T]) IsEmpty() bool {
+	return len(*s) == 0
+}
