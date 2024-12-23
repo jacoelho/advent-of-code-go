@@ -10,3 +10,15 @@ func SubSlices(s string, n int) [][2]string {
 	}
 	return result
 }
+
+func Pairs(input string) []string {
+	n := len(input) - 1
+	if n <= 0 {
+		return nil
+	}
+	substrings := make([]string, n)
+	for i := 0; i < n; i++ {
+		substrings[i] = input[i : i+2]
+	}
+	return substrings
+}

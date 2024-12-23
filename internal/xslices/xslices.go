@@ -91,6 +91,18 @@ func Pairwise[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
 	}
 }
 
+func PairwiseSelf[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
+	return func(yield func(Pair[E, E]) bool) {
+		for i := 0; i < len(s); i++ {
+			for j := 0; j < len(s); j++ {
+				if !yield(Pair[E, E]{s[i], s[j]}) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func Every[Slice ~[]E, E any](predicate func(E) bool, s Slice) bool {
 	for _, v := range s {
 		if !predicate(v) {
