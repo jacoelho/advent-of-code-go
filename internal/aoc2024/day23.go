@@ -89,7 +89,10 @@ func BronKerbosch(
 		return
 	}
 
-	for v := range P.Iter() {
+	pivot, _ := xiter.Next(P.Iter())
+	nonNeighbors := P.Difference(graph[pivot])
+
+	for v := range nonNeighbors.Iter() {
 		neighbors := graph[v]
 		// Recurse with v added to R, and only its neighbors in P and X
 		BronKerbosch(
