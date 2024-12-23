@@ -67,6 +67,22 @@ func (s Set[T]) Difference(other Set[T]) Set[T] {
 	return difference
 }
 
+func (s Set[T]) SymmetricDifference(other Set[T]) Set[T] {
+	difference := NewSet[T]()
+	for key := range s {
+		if _, exists := other[key]; !exists {
+			difference[key] = struct{}{}
+		}
+	}
+	for key := range other {
+		if _, exists := s[key]; !exists {
+			difference[key] = struct{}{}
+		}
+	}
+
+	return difference
+}
+
 func (s Set[T]) Union(other Set[T]) Set[T] {
 	union := NewSet[T]()
 	for k := range s.Iter() {
