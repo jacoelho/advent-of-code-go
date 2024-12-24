@@ -11,6 +11,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
 	"github.com/jacoelho/advent-of-code-go/internal/convert"
 	"github.com/jacoelho/advent-of-code-go/internal/xmaps"
+	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 )
 
 func parseMonitoringDevice(r io.Reader) (map[string]int, [][]string, error) {
@@ -108,7 +109,7 @@ func extractZWires(wires [][]string) []string {
 	var zWires []string
 	for _, wire := range wires {
 		destination := wire[3]
-		if hasPrefix(destination, 'z') {
+		if isPrefixZ(destination) {
 			zWires = append(zWires, destination)
 		}
 	}
@@ -123,11 +124,11 @@ func identifyWrongWires(wires [][]string, highestZWire string) collections.Set[s
 
 		switch {
 		// Rule 1: z-prefixed wires with non-XOR operations (except the highest z wire)
-		case destination != highestZWire && hasPrefix(destination, 'z') && operation != "XOR":
+		case destination != highestZWire && isPrefixZ(destination) && operation != "XOR":
 			wrongWires.Add(destination)
 
 		// Rule 2: XOR operations with non x/y/z-prefixed wires
-		case operation == "XOR" && !hasSuffixXYZ(destination) && !hasSuffixXYZ(a) && !hasSuffixXYZ(b):
+		case operation == "XOR" && !anyPrefixXYZ(a, b, destination):
 			wrongWires.Add(destination)
 
 		// Rule 3: AND operation that doesn't involve "x00" and leads to non-OR suboperations
@@ -158,17 +159,13 @@ func reviewConnections(wires [][]string, destination string, failCondition func(
 	return wrong
 }
 
-// hasPrefix checks if a string has any of the given prefixes
-func hasPrefix(s string, prefixes ...rune) bool {
-	for _, prefix := range prefixes {
-		if rune(s[0]) == prefix {
-			return true
-		}
-	}
-	return false
+func isPrefixZ(wire string) bool { return strings.HasPrefix(wire, "z") }
+
+func hasPrefixXYZ(wire string) bool {
+	return strings.HasPrefix(wire, "x") || strings.HasPrefix(wire, "y") || strings.HasPrefix(wire, "z")
 }
 
-func hasSuffixXYZ(s string) bool { return hasPrefix(s, 'x', 'y', 'z') }
+func anyPrefixXYZ(wires ...string) bool { return xslices.Any(hasPrefixXYZ, wires) }
 
 func day24p02(r io.Reader) (string, error) {
 	_, wires := aoc.Must2(parseMonitoringDevice(r))
