@@ -3,10 +3,12 @@ package aoc2024
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+	"github.com/jacoelho/advent-of-code-go/internal/collections"
 	"github.com/jacoelho/advent-of-code-go/internal/convert"
 	"github.com/jacoelho/advent-of-code-go/internal/xmaps"
 )
@@ -51,6 +53,19 @@ func load(gates map[string]int, a, b string) (int, int, bool) {
 	return v1, v2, ok1 && ok2
 }
 
+func apply(op string, a, b int) int {
+	switch op {
+	case "AND":
+		return a & b
+	case "OR":
+		return a | b
+	case "XOR":
+		return a ^ b
+	default:
+		panic("invalid operation")
+	}
+}
+
 func run(gates map[string]int, wires [][]string) {
 	remaining := wires
 
@@ -64,15 +79,7 @@ func run(gates map[string]int, wires [][]string) {
 				nextMissing = append(nextMissing, wire)
 				continue
 			}
-
-			switch op {
-			case "AND":
-				gates[dst] = v1 & v2
-			case "OR":
-				gates[dst] = v1 | v2
-			case "XOR":
-				gates[dst] = v1 ^ v2
-			}
+			gates[dst] = apply(op, v1, v2)
 		}
 
 		remaining = nextMissing
@@ -98,5 +105,48 @@ func day24p01(r io.Reader) (string, error) {
 }
 
 func day24p02(r io.Reader) (string, error) {
-	return "", nil
+	_, wires := aoc.Must2(parseMonitoringDevice(r))
+
+	var zWires []string
+	for _, wire := range wires {
+		dst := wire[3]
+		if strings.HasPrefix(dst, "z") {
+			zWires = append(zWires, dst)
+		}
+	}
+	slices.Sort(zWires)
+	maxZWire := zWires[len(zWires)-1]
+
+	wrong := collections.NewSet[string]()
+	for _, wire := range wires {
+		a, op, b, dst := wire[0], wire[1], wire[2], wire[3]
+		if strings.HasPrefix(dst, "z") && op != "XOR" && dst != maxZWire {
+			wrong.Add(dst)
+		}
+		if op == "XOR" &&
+			!strings.HasPrefix(dst, "x") && !strings.HasPrefix(dst, "y") && !strings.HasPrefix(dst, "z") &&
+			!strings.HasPrefix(a, "x") && !strings.HasPrefix(a, "y") && !strings.HasPrefix(a, "z") &&
+			!strings.HasPrefix(b, "x") && !strings.HasPrefix(b, "y") && !strings.HasPrefix(b, "z") {
+			wrong.Add(dst)
+		}
+		if op == "AND" && a != "x00" && b != "x00" {
+			for _, subop := range wires {
+				if (dst == subop[0] || dst == subop[2]) && subop[1] != "OR" {
+					wrong.Add(dst)
+				}
+			}
+		}
+		if op == "XOR" {
+			for _, subop := range wires {
+				if (dst == subop[0] || dst == subop[2]) && subop[1] == "OR" {
+					wrong.Add(dst)
+				}
+			}
+		}
+	}
+
+	result := slices.Collect(wrong.Iter())
+	slices.Sort(result)
+
+	return strings.Join(result, ","), nil
 }
