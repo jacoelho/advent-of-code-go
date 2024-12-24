@@ -116,9 +116,12 @@ func extractZWires(wires [][]string) []string {
 	return zWires
 }
 
-func identifyWrongWires(wires [][]string, highestZWire string) collections.Set[string] {
-	wrongWires := collections.NewSet[string]()
+func identifyWrongWires(wires [][]string) collections.Set[string] {
+	zWires := extractZWires(wires)
+	slices.Sort(zWires)
+	highestZWire := zWires[len(zWires)-1]
 
+	wrongWires := collections.NewSet[string]()
 	for _, wire := range wires {
 		a, operation, b, destination := wire[0], wire[1], wire[2], wire[3]
 
@@ -170,11 +173,7 @@ func anyPrefixXYZ(wires ...string) bool { return xslices.Any(hasPrefixXYZ, wires
 func day24p02(r io.Reader) (string, error) {
 	_, wires := aoc.Must2(parseMonitoringDevice(r))
 
-	zWires := extractZWires(wires)
-	slices.Sort(zWires)
-	highestZWire := zWires[len(zWires)-1]
-
-	wrongWires := identifyWrongWires(wires, highestZWire)
+	wrongWires := identifyWrongWires(wires)
 	wrongWireList := slices.Collect(wrongWires.Iter())
 	slices.Sort(wrongWireList)
 
