@@ -119,15 +119,15 @@ func extractZWires(wires [][]string) []string {
 func identifyWrongWires(wires [][]string) collections.Set[string] {
 	zWires := extractZWires(wires)
 	slices.Sort(zWires)
-	highestZWire := zWires[len(zWires)-1]
+	carry := zWires[len(zWires)-1]
 
 	wrongWires := collections.NewSet[string]()
 	for _, wire := range wires {
 		a, operation, b, destination := wire[0], wire[1], wire[2], wire[3]
 
 		switch {
-		// Rule 1: z-prefixed wires with non-XOR operations (except the highest z wire)
-		case destination != highestZWire && isPrefixZ(destination) && operation != "XOR":
+		// Rule 1: z-prefixed wires with non-XOR operations (except the carry)
+		case destination != carry && isPrefixZ(destination) && operation != "XOR":
 			wrongWires.Add(destination)
 
 		// Rule 2: XOR operations with non x/y/z-prefixed wires
