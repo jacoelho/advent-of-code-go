@@ -104,49 +104,82 @@ func day24p01(r io.Reader) (string, error) {
 	return strconv.Itoa(output(gates)), nil
 }
 
+func extractZWires(wires [][]string) []string {
+	var zWires []string
+	for _, wire := range wires {
+		destination := wire[3]
+		if hasPrefix(destination, 'z') {
+			zWires = append(zWires, destination)
+		}
+	}
+	return zWires
+}
+
+func identifyWrongWires(wires [][]string, highestZWire string) collections.Set[string] {
+	wrongWires := collections.NewSet[string]()
+
+	for _, wire := range wires {
+		a, operation, b, destination := wire[0], wire[1], wire[2], wire[3]
+
+		switch {
+		// Rule 1: z-prefixed wires with non-XOR operations (except the highest z wire)
+		case destination != highestZWire && hasPrefix(destination, 'z') && operation != "XOR":
+			wrongWires.Add(destination)
+
+		// Rule 2: XOR operations with non x/y/z-prefixed wires
+		case operation == "XOR" && !hasSuffixXYZ(destination) && !hasSuffixXYZ(a) && !hasSuffixXYZ(b):
+			wrongWires.Add(destination)
+
+		// Rule 3: AND operation that doesn't involve "x00" and leads to non-OR suboperations
+		case operation == "AND" && a != "x00" && b != "x00":
+			w := reviewConnections(wires, destination, func(op string) bool { return op != "OR" })
+			wrongWires.Add(w...)
+
+		// Rule 4: XOR operation leading to an OR suboperation
+		case operation == "XOR":
+			w := reviewConnections(wires, destination, func(op string) bool { return op == "OR" })
+			wrongWires.Add(w...)
+		}
+	}
+
+	return wrongWires
+}
+
+// reviewConnections returns a destination
+// if it is involved in sub-operations of a specific type.
+func reviewConnections(wires [][]string, destination string, failCondition func(string) bool) []string {
+	var wrong []string
+	for _, wire := range wires {
+		a, op, b := wire[0], wire[1], wire[2]
+		if failCondition(op) && (destination == a || destination == b) {
+			wrong = append(wrong, destination)
+		}
+	}
+	return wrong
+}
+
+// hasPrefix checks if a string has any of the given prefixes
+func hasPrefix(s string, prefixes ...rune) bool {
+	for _, prefix := range prefixes {
+		if rune(s[0]) == prefix {
+			return true
+		}
+	}
+	return false
+}
+
+func hasSuffixXYZ(s string) bool { return hasPrefix(s, 'x', 'y', 'z') }
+
 func day24p02(r io.Reader) (string, error) {
 	_, wires := aoc.Must2(parseMonitoringDevice(r))
 
-	var zWires []string
-	for _, wire := range wires {
-		dst := wire[3]
-		if strings.HasPrefix(dst, "z") {
-			zWires = append(zWires, dst)
-		}
-	}
+	zWires := extractZWires(wires)
 	slices.Sort(zWires)
-	maxZWire := zWires[len(zWires)-1]
+	highestZWire := zWires[len(zWires)-1]
 
-	wrong := collections.NewSet[string]()
-	for _, wire := range wires {
-		a, op, b, dst := wire[0], wire[1], wire[2], wire[3]
-		if strings.HasPrefix(dst, "z") && op != "XOR" && dst != maxZWire {
-			wrong.Add(dst)
-		}
-		if op == "XOR" &&
-			!strings.HasPrefix(dst, "x") && !strings.HasPrefix(dst, "y") && !strings.HasPrefix(dst, "z") &&
-			!strings.HasPrefix(a, "x") && !strings.HasPrefix(a, "y") && !strings.HasPrefix(a, "z") &&
-			!strings.HasPrefix(b, "x") && !strings.HasPrefix(b, "y") && !strings.HasPrefix(b, "z") {
-			wrong.Add(dst)
-		}
-		if op == "AND" && a != "x00" && b != "x00" {
-			for _, subop := range wires {
-				if (dst == subop[0] || dst == subop[2]) && subop[1] != "OR" {
-					wrong.Add(dst)
-				}
-			}
-		}
-		if op == "XOR" {
-			for _, subop := range wires {
-				if (dst == subop[0] || dst == subop[2]) && subop[1] == "OR" {
-					wrong.Add(dst)
-				}
-			}
-		}
-	}
+	wrongWires := identifyWrongWires(wires, highestZWire)
+	wrongWireList := slices.Collect(wrongWires.Iter())
+	slices.Sort(wrongWireList)
 
-	result := slices.Collect(wrong.Iter())
-	slices.Sort(result)
-
-	return strings.Join(result, ","), nil
+	return strings.Join(wrongWireList, ","), nil
 }
