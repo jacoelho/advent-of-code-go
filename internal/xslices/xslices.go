@@ -82,18 +82,6 @@ type Pair[E, T any] struct {
 func Pairwise[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
 	return func(yield func(Pair[E, E]) bool) {
 		for i := 0; i < len(s); i++ {
-			for j := i + 1; j < len(s); j++ {
-				if !yield(Pair[E, E]{s[i], s[j]}) {
-					return
-				}
-			}
-		}
-	}
-}
-
-func PairwiseSelf[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
-	return func(yield func(Pair[E, E]) bool) {
-		for i := 0; i < len(s); i++ {
 			for j := 0; j < len(s); j++ {
 				if !yield(Pair[E, E]{s[i], s[j]}) {
 					return

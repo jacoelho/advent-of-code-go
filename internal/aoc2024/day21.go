@@ -1,21 +1,31 @@
 package aoc2024
 
 import (
-	"fmt"
 	"io"
-	"maps"
+	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/convert"
 	"github.com/jacoelho/advent-of-code-go/internal/grid"
 	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/search"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/internal/xmath"
 	"github.com/jacoelho/advent-of-code-go/internal/xslices"
 	"github.com/jacoelho/advent-of-code-go/internal/xstrings"
 )
+
+var numericKeyPad = map[rune]grid.Position2D[int]{
+	'7': {0, 0}, '8': {1, 0}, '9': {2, 0},
+	'4': {0, 1}, '5': {1, 1}, '6': {2, 1},
+	'1': {0, 2}, '2': {1, 2}, '3': {2, 2},
+	' ': {0, 3}, '0': {1, 3}, 'A': {2, 3},
+}
+
+var directionalKeyPad = map[rune]grid.Position2D[int]{
+	' ': {0, 0}, '^': {1, 0}, 'A': {2, 0},
+	'<': {0, 1}, 'v': {1, 1}, '>': {2, 1},
+}
 
 func parseCodes(r io.Reader) ([]string, error) {
 	s := scanner.NewScanner(r, func(b []byte) (string, error) {
@@ -24,147 +34,116 @@ func parseCodes(r io.Reader) ([]string, error) {
 	return slices.Collect(s.Values()), s.Err()
 }
 
-func numericKeyPad() grid.Grid2D[int, rune] {
-	/*
-		+---+---+---+
-		| 7 | 8 | 9 |
-		+---+---+---+
-		| 4 | 5 | 6 |
-		+---+---+---+
-		| 1 | 2 | 3 |
-		+---+---+---+
-		|   | 0 | A |
-		+---+---+---+
-	*/
-	return grid.Grid2D[int, rune]{
-		{0, 0}: '7', {1, 0}: '8', {2, 0}: '9',
-		{0, 1}: '4', {1, 1}: '5', {2, 1}: '6',
-		{0, 2}: '1', {1, 2}: '2', {2, 2}: '3',
-		/*     empty    */ {1, 3}: '0', {2, 3}: 'A',
-	}
+type robotCacheItem struct {
+	robot int
+	from  rune
+	to    rune
 }
 
-func directionalKeyPad() grid.Grid2D[int, rune] {
-	/*
-		+---+---+---+
-		|	| ^ | A |
-		+---+---+---+
-		| < | v | > |
-		+---+---+---+
-	*/
-	return grid.Grid2D[int, rune]{
-		/*     empty    */ {1, 0}: '^', {2, 0}: 'A',
-		{0, 1}: '<', {1, 1}: 'v', {2, 1}: '>',
-	}
+func sequencePressCost(cache map[robotCacheItem]int, robot int, sequence string) int {
+	return xslices.Reduce(func(total int, pair []rune) int {
+		if robot == 0 {
+			return total + 1
+		}
+		k := robotCacheItem{robot: robot, from: pair[0], to: pair[1]}
+		return total + cache[k]
+	}, 0, xstrings.Pairs("A"+sequence))
 }
 
-func offsetToMovement(offset grid.Position2D[int]) rune {
-	switch offset {
-	case grid.Position2D[int]{0, -1}:
-		return '^'
-	case grid.Position2D[int]{0, 1}:
-		return 'v'
-	case grid.Position2D[int]{-1, 0}:
-		return '<'
-	case grid.Position2D[int]{1, 0}:
-		return '>'
-	default:
-		panic("invalid offset")
-	}
-}
+func fillRobotBestPath(
+	cache map[robotCacheItem]int,
+	robot int,
+	keyPad map[rune]grid.Position2D[int],
+) {
+	emptyPosition := keyPad[' ']
+	for start, startPos := range keyPad {
+		for end, endPos := range keyPad {
+			distanceX := xmath.Abs(endPos.X - startPos.X)
+			distanceY := xmath.Abs(endPos.Y - startPos.Y)
 
-func shortestPathsBetweenKeys(g grid.Grid2D[int, rune]) map[string][]string {
-	neighbours := func(position grid.Position2D[int]) []grid.Position2D[int] {
-		return slices.Collect(xiter.Filter(g.Contains, grid.Neighbours4(position)))
-	}
-	targetValue := func(target grid.Position2D[int]) func(position grid.Position2D[int]) int {
-		return func(position grid.Position2D[int]) int {
-			if position == target {
-				return 0
+			horizontalKey := ">"
+			if endPos.X < startPos.X {
+				horizontalKey = "<"
 			}
-			return 1
-		}
-	}
-	result := make(map[string][]string)
-	for pair := range xslices.PairwiseSelf(slices.Collect(maps.Keys(g))) {
-		_, paths, found := search.AStarBag(pair.V1, neighbours, targetValue(pair.V2), search.ConstantStepCost)
-		if !found {
-			panic("no paths found")
-		}
-		pathsRunes := make([]string, len(paths))
-		for i, path := range paths {
-			var runes []rune
-			for i := 0; i < len(path)-1; i++ {
-				offset := path[i+1].Sub(path[i])
-				runes = append(runes, offsetToMovement(offset))
+			verticalKey := "v"
+			if endPos.Y < startPos.Y {
+				verticalKey = "^"
 			}
-			pathsRunes[i] = string(runes)
+
+			minHorizontalCost := math.MaxInt
+			if emptyPosition != (grid.Position2D[int]{X: endPos.X, Y: startPos.Y}) {
+				minHorizontalCost = sequencePressCost(
+					cache,
+					robot-1,
+					buildPressSequence(horizontalKey, verticalKey, distanceX, distanceY),
+				)
+			}
+
+			minVerticalCost := math.MaxInt
+			if emptyPosition != (grid.Position2D[int]{X: startPos.X, Y: endPos.Y}) {
+				minVerticalCost = sequencePressCost(
+					cache,
+					robot-1,
+					buildPressSequence(verticalKey, horizontalKey, distanceY, distanceX),
+				)
+			}
+
+			cache[robotCacheItem{robot: robot, from: start, to: end}] = min(minHorizontalCost, minVerticalCost)
 		}
-		result[string([]rune{g[pair.V1], g[pair.V2]})] = pathsRunes
 	}
-	return result
 }
 
-func findMoves(code string, depth int) int {
-	numericKeyPadPaths := shortestPathsBetweenKeys(numericKeyPad())
-	directionalKeyPadPaths := shortestPathsBetweenKeys(directionalKeyPad())
+func buildPressSequence(firstPress, secondPress string, firstDistance, secondDistance int) string {
+	var sb strings.Builder
 
-	type pair struct {
-		V1 string
-		V2 int
+	size := firstDistance + secondDistance + 1
+
+	sb.Grow(size)
+	for i := 0; i < firstDistance; i++ {
+		sb.WriteString(firstPress)
 	}
 
-	cache := make(map[pair]int)
+	for i := 0; i < secondDistance; i++ {
+		sb.WriteString(secondPress)
+	}
 
-	var findMovesRec func(transitions map[string][]string, code string, depth int) int
-	findMovesRec = func(transitions map[string][]string, code string, depth int) int {
-		key := pair{code, depth}
-		if v, found := cache[key]; found {
-			return v
-		}
+	sb.WriteString("A")
 
+	return sb.String()
+}
+
+func robotMovementCache(count int) map[robotCacheItem]int {
+	cache := make(map[robotCacheItem]int)
+	for i := 1; i <= count; i++ {
+		fillRobotBestPath(cache, i, directionalKeyPad)
+	}
+	fillRobotBestPath(cache, count+1, numericKeyPad)
+
+	return cache
+}
+
+func minKeyPresses(count int, code string) int {
+	cache := robotMovementCache(count)
+	return sequencePressCost(cache, count+1, code)
+}
+
+func day21(robots int) func(io.Reader) (string, error) {
+	return func(r io.Reader) (string, error) {
+		codes := aoc.Must(parseCodes(r))
 		var total int
-		for _, move := range xstrings.Pairs(code) {
-			paths, found := transitions[move]
-			if !found {
-				panic("no paths found" + move)
-			}
-			if depth == 0 {
-				v := slices.Min(xslices.Map(func(path string) int { return len(path) }, paths))
-				total += v
-				continue
-			}
-			vv := xslices.Map(func(path string) int {
-				return findMovesRec(directionalKeyPadPaths, path, depth-1)
-			}, xslices.Filter(func(e string) bool {
-				return e != ""
-			}, paths))
-			if len(vv) > 0 {
-				v := slices.Min(vv)
-				total += v
-			}
-
+		for _, code := range codes {
+			presses := minKeyPresses(robots, code)
+			numericCode := aoc.Must(strconv.Atoi(code[:len(code)-1]))
+			total += numericCode * presses
 		}
-
-		cache[key] = total
-		return total
+		return strconv.Itoa(total), nil
 	}
-
-	return findMovesRec(numericKeyPadPaths, "A"+code, depth)
 }
 
 func day21p01(r io.Reader) (string, error) {
-	codes := aoc.Must(parseCodes(r))
-
-	var total int
-	for _, code := range codes {
-		codeInt := convert.ExtractDigits[int](code)[0]
-		fmt.Println(findMoves(code, 2))
-		total += findMoves(code, 2) * codeInt
-	}
-	return strconv.Itoa(total), nil
+	return day21(2)(r)
 }
 
 func day21p02(r io.Reader) (string, error) {
-	return "", nil
+	return day21(25)(r)
 }
