@@ -15,7 +15,7 @@ func Find[M ~map[K]V, K comparable, V any](m M, predicate func(k K, v V) bool) (
 	return empty, false
 }
 
-func Filter[M ~map[K]V, K comparable, V any](m M, predicate func(k K, v V) bool) []Pair[K, V] {
+func Filter[M ~map[K]V, K comparable, V any](predicate func(k K, v V) bool, m M) []Pair[K, V] {
 	if len(m) == 0 {
 		return nil
 	}

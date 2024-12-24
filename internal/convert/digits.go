@@ -79,3 +79,11 @@ func ScanNumber[T constraints.Signed](line []byte) (T, error) {
 	}
 	return n, nil
 }
+
+func FromBinaryToBase10(digits []int) int {
+	var result int
+	for _, digit := range digits {
+		result = (result << 1) | digit
+	}
+	return result
+}
