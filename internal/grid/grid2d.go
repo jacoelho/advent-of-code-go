@@ -41,6 +41,11 @@ func (g *Grid2D[T, V]) Dimensions() (T, T, T, T) {
 	return minX, maxX, minY, maxY
 }
 
+func (g *Grid2D[T, V]) Contains(pos Position2D[T]) bool {
+	_, found := (*g)[pos]
+	return found
+}
+
 func (g *Grid2D[T, V]) PrettyPrint(format func(V) string, empty string) {
 	minX, maxX, minY, maxY := g.Dimensions()
 
