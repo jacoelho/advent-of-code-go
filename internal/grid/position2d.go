@@ -11,6 +11,10 @@ type Position2D[T constraints.Signed] struct {
 	X, Y T
 }
 
+func NewPosition2D[T constraints.Signed](x, y T) Position2D[T] {
+	return Position2D[T]{X: x, Y: y}
+}
+
 func (p *Position2D[T]) Add(other Position2D[T]) Position2D[T] {
 	return Position2D[T]{
 		X: p.X + other.X,
