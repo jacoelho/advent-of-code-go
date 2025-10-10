@@ -45,7 +45,7 @@ func calibration(table map[string]int, b []byte) (int, bool) {
 func day01(table map[string]int, r io.Reader) (string, error) {
 	s := scanner.NewScanner(r, func(bytes []byte) (int, error) {
 		var digits []int
-		for i := 0; i < len(bytes); i++ {
+		for i := range bytes {
 			if v, ok := calibration(table, bytes[i:]); ok {
 				digits = append(digits, v)
 			}

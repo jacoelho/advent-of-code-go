@@ -7,13 +7,12 @@ DATE  = $(shell date +%Y%m%d%H%M%S)
 default: test
 
 .PHONY: test
-test: staticcheck
+test:
 	go test -race -shuffle=on -v ./...
 
 .PHONY: fmt
 fmt:
 	go fmt ./...
-
 
 .PHONY: ci-tidy
 ci-tidy:
@@ -29,3 +28,7 @@ $(GOBIN)/gcassert:
 .PHONY: staticcheck
 staticcheck: $(GOBIN)/staticcheck
 	$(GOBIN)/staticcheck ./...
+
+.PHONY: test-%
+test-%:
+	go test -race -shuffle=on -v ./internal/aoc$*/...

@@ -3,6 +3,8 @@ package collections
 import (
 	"iter"
 	"maps"
+
+	"github.com/jacoelho/advent-of-code-go/internal/xiter"
 )
 
 type Set[T comparable] map[T]struct{}
@@ -92,4 +94,8 @@ func (s Set[T]) Union(other Set[T]) Set[T] {
 		union.Add(k)
 	}
 	return union
+}
+
+func (s Set[T]) Next() (T, bool) {
+	return xiter.Next(s.Iter())
 }

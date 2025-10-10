@@ -56,8 +56,7 @@ func Test_day07p02(t *testing.T) {
 func Benchmark_day07(b *testing.B) {
 	in := aoc.FileInput(b, 2024, 7)
 
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		v, err := day07p02(in)
 		if err != nil {
 			panic(err)

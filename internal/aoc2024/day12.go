@@ -21,7 +21,7 @@ func parseGardenPlots(r io.Reader) (grid.Grid2D[int, rune], error) {
 		}
 		return res, nil
 	})
-	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
+	return grid.NewGrid2D[int](slices.Collect(s.Values())), s.Err()
 }
 
 func day12neighbours(

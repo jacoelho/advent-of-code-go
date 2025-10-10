@@ -81,7 +81,7 @@ func day16p01(r io.Reader) (string, error) {
 	maze := aoc.Must(parseReindeerMaze(r))
 	start := day16Pair{
 		position:  mazeStartPosition(maze),
-		direction: grid.Position2D[int]{1, 0},
+		direction: grid.Position2D[int]{X: 1, Y: 0},
 	}
 
 	score, _, _ := search.AStar(start, day16Neighbours(maze), day16Heuristic(maze), day16Cost)
@@ -93,7 +93,7 @@ func day16p02(r io.Reader) (string, error) {
 	maze := aoc.Must(parseReindeerMaze(r))
 	start := day16Pair{
 		position:  mazeStartPosition(maze),
-		direction: grid.Position2D[int]{1, 0},
+		direction: grid.Position2D[int]{X: 1, Y: 0},
 	}
 
 	_, paths, _ := search.AStarBag(start, day16Neighbours(maze), day16Heuristic(maze), day16Cost)

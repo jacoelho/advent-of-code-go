@@ -16,15 +16,15 @@ import (
 )
 
 var numericKeyPad = map[rune]grid.Position2D[int]{
-	'7': {0, 0}, '8': {1, 0}, '9': {2, 0},
-	'4': {0, 1}, '5': {1, 1}, '6': {2, 1},
-	'1': {0, 2}, '2': {1, 2}, '3': {2, 2},
-	' ': {0, 3}, '0': {1, 3}, 'A': {2, 3},
+	'7': {X: 0, Y: 0}, '8': {X: 1, Y: 0}, '9': {X: 2, Y: 0},
+	'4': {X: 0, Y: 1}, '5': {X: 1, Y: 1}, '6': {X: 2, Y: 1},
+	'1': {X: 0, Y: 2}, '2': {X: 1, Y: 2}, '3': {X: 2, Y: 2},
+	' ': {X: 0, Y: 3}, '0': {X: 1, Y: 3}, 'A': {X: 2, Y: 3},
 }
 
 var directionalKeyPad = map[rune]grid.Position2D[int]{
-	' ': {0, 0}, '^': {1, 0}, 'A': {2, 0},
-	'<': {0, 1}, 'v': {1, 1}, '>': {2, 1},
+	' ': {X: 0, Y: 0}, '^': {X: 1, Y: 0}, 'A': {X: 2, Y: 0},
+	'<': {X: 0, Y: 1}, 'v': {X: 1, Y: 1}, '>': {X: 2, Y: 1},
 }
 
 func parseCodes(r io.Reader) ([]string, error) {
@@ -99,11 +99,11 @@ func buildPressSequence(firstPress, secondPress string, firstDistance, secondDis
 	size := firstDistance + secondDistance + 1
 
 	sb.Grow(size)
-	for i := 0; i < firstDistance; i++ {
+	for range firstDistance {
 		sb.WriteString(firstPress)
 	}
 
-	for i := 0; i < secondDistance; i++ {
+	for range secondDistance {
 		sb.WriteString(secondPress)
 	}
 

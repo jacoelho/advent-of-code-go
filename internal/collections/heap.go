@@ -78,11 +78,11 @@ func (s *sliceHeap[E]) Less(i, j int) bool {
 	return s.less(s.s[i], s.s[j])
 }
 
-func (s *sliceHeap[E]) Push(x interface{}) {
+func (s *sliceHeap[E]) Push(x any) {
 	s.s = append(s.s, x.(E))
 }
 
-func (s *sliceHeap[E]) Pop() interface{} {
+func (s *sliceHeap[E]) Pop() any {
 	var zero E
 	e := s.s[len(s.s)-1]
 	// avoid memory leak by clearing out popped value in slice

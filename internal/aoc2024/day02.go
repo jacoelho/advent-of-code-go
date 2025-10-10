@@ -61,7 +61,7 @@ func tolerateOneLevel[T any](s []T) iter.Seq[[]T] {
 		panic("need at least one element")
 	}
 	return func(yield func([]T) bool) {
-		for i := 0; i < len(s); i++ {
+		for i := range s {
 			if !yield(append(s[:i:i], s[i+1:]...)) {
 				return
 			}
