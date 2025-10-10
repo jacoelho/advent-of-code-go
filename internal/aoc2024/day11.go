@@ -15,7 +15,7 @@ func parseStoneArrangement(r io.Reader) []int64 {
 	var result []int64
 	b := bufio.NewScanner(r)
 	for b.Scan() {
-		for _, v := range strings.Fields(b.Text()) {
+		for v := range strings.FieldsSeq(b.Text()) {
 			result = append(result, aoc.Must(strconv.ParseInt(v, 10, 64)))
 		}
 	}

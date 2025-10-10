@@ -29,7 +29,7 @@ func Must2[T, V any](t T, v V, err error) (T, V) {
 type TestHelper interface {
 	Helper()
 	Cleanup(func())
-	Fatal(...interface{})
+	Fatal(...any)
 }
 
 func FileInput(t TestHelper, year, day int) io.Reader {

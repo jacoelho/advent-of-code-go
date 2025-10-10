@@ -4,11 +4,11 @@ import (
 	"io"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/internal/collections"
-	"github.com/jacoelho/advent-of-code-go/internal/conc"
 	"github.com/jacoelho/advent-of-code-go/internal/grid"
 	"github.com/jacoelho/advent-of-code-go/internal/scanner"
 	"github.com/jacoelho/advent-of-code-go/internal/xiter"
@@ -81,7 +81,7 @@ func day06p02(r io.Reader) (string, error) {
 		return in[0]
 	}, positions.Iter()))
 
-	var wg conc.WaitGroup
+	var wg sync.WaitGroup
 	var count atomic.Int64
 	for candidate := range candidates {
 		if candidate == startPosition {

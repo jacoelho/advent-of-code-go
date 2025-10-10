@@ -106,6 +106,4 @@ func day14p02(reader io.Reader) (string, error) {
 			return strconv.Itoa(iteration), nil
 		}
 	}
-
-	panic("unreachable")
 }

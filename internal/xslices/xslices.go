@@ -1,6 +1,7 @@
 package xslices
 
 import (
+	"slices"
 	"cmp"
 	"iter"
 
@@ -101,12 +102,7 @@ func Every[Slice ~[]E, E any](predicate func(E) bool, s Slice) bool {
 }
 
 func Any[Slice ~[]E, E any](predicate func(E) bool, s Slice) bool {
-	for _, v := range s {
-		if predicate(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(s, predicate)
 }
 
 func Map[In, Out any](f func(In) Out, in []In) []Out {

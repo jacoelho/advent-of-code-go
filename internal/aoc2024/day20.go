@@ -22,7 +22,7 @@ func parseRaceTrack(r io.Reader) (grid.Grid2D[int, rune], error) {
 		}
 		return result, nil
 	})
-	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
+	return grid.NewGrid2D[int](slices.Collect(s.Values())), s.Err()
 }
 
 func raceStartPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {

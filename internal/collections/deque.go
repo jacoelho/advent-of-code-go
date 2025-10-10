@@ -1,5 +1,9 @@
 package collections
 
+import (
+	"iter"
+)
+
 // Deque represents a double-ended queue implemented as a circular buffer.
 type Deque[T any] struct {
 	data       []T
@@ -105,4 +109,28 @@ func (d *Deque[T]) PeekBack() (T, bool) {
 // Size returns the number of elements in the deque.
 func (d *Deque[T]) Size() int {
 	return d.size
+}
+
+// IterFront returns an iterator that yields elements from front to back without modifying the deque.
+func (d *Deque[T]) IterFront() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for i := 0; i < d.size; i++ {
+			idx := (d.head + i) % d.cap
+			if !yield(d.data[idx]) {
+				return
+			}
+		}
+	}
+}
+
+// IterBack returns an iterator that yields elements from back to front without modifying the deque.
+func (d *Deque[T]) IterBack() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for i := 0; i < d.size; i++ {
+			idx := (d.tail - 1 - i + d.cap) % d.cap
+			if !yield(d.data[idx]) {
+				return
+			}
+		}
+	}
 }

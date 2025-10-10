@@ -12,9 +12,7 @@ func Map[In, Out any](f func(In) Out, in []In) []Out {
 
 	var wg sync.WaitGroup
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			for {
 				inIdx := int(idx.Add(1) - 1)
@@ -24,7 +22,7 @@ func Map[In, Out any](f func(In) Out, in []In) []Out {
 
 				res[inIdx] = f(in[inIdx])
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	return res

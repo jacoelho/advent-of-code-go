@@ -25,7 +25,7 @@ func parseMonitoringDevice(r io.Reader) (map[string]int, [][]string, error) {
 	}
 
 	gates := make(map[string]int)
-	for _, line := range strings.Split(parts[0], "\n") {
+	for line := range strings.SplitSeq(parts[0], "\n") {
 		parts := strings.Split(line, ": ")
 		if len(parts) != 2 {
 			return nil, nil, fmt.Errorf("invalid gate format: %s", line)
@@ -37,7 +37,7 @@ func parseMonitoringDevice(r io.Reader) (map[string]int, [][]string, error) {
 	}
 
 	var wires [][]string
-	for _, line := range strings.Split(parts[1], "\n") {
+	for line := range strings.SplitSeq(parts[1], "\n") {
 		fields := strings.Fields(line)
 		if len(fields) != 5 {
 			return nil, nil, fmt.Errorf("invalid wire format: %s", line)

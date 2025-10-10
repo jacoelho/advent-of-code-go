@@ -17,7 +17,7 @@ func Pairs(input string) [][]rune {
 		return nil
 	}
 	substrings := make([][]rune, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		substrings[i] = []rune(input[i : i+2])
 	}
 	return substrings

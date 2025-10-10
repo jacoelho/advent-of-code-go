@@ -64,13 +64,13 @@ func parseWarehouse(
 	}, strings.Split(mapString, "\n"))
 
 	var movementLines []grid.Position2D[int]
-	for _, line := range strings.Split(movementString, "\n") {
+	for line := range strings.SplitSeq(movementString, "\n") {
 		for _, ch := range line {
 			movementLines = append(movementLines, convertDirection(ch))
 		}
 	}
 
-	return grid.NewGrid2D[int, rune](mapLines), movementLines
+	return grid.NewGrid2D[int](mapLines), movementLines
 }
 
 func robotStartPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {

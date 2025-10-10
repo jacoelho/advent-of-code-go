@@ -1,9 +1,10 @@
 package aoc2023
 
 import (
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"strings"
 	"testing"
+
+	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
 func Test_day01p01(t *testing.T) {
