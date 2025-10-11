@@ -159,3 +159,19 @@ func Next[T any](seq iter.Seq[T]) (T, bool) {
 	defer stop()
 	return next()
 }
+
+// Nth returns the nth element from the sequence (0-indexed).
+func Nth[T any](seq iter.Seq[T], n int) (T, bool) {
+	var result T
+	found := false
+	seq(func(v T) bool {
+		if n > 0 {
+			n--
+			return true
+		}
+		result = v
+		found = true
+		return false
+	})
+	return result, found
+}
