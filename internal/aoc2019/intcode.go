@@ -430,3 +430,15 @@ func (c *IntcodeComputer) Memory() []int {
 func (c *IntcodeComputer) SetMemory(addr, value int) error {
 	return c.writeMemory(addr, value)
 }
+
+// StringsToASCII converts strings to ASCII integer codes, adding newlines after each string
+func StringsToASCII(lines ...string) []int {
+	var result []int
+	for _, line := range lines {
+		for _, ch := range line {
+			result = append(result, int(ch))
+		}
+		result = append(result, 10)
+	}
+	return result
+}

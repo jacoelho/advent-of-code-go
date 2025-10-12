@@ -274,23 +274,7 @@ func compressPath(path []string) (string, string, string, string, bool) {
 }
 
 func buildMovementInput(main, funcA, funcB, funcC string) []int {
-	var inputs []int
-	for _, ch := range main + "\n" {
-		inputs = append(inputs, int(ch))
-	}
-	for _, ch := range funcA + "\n" {
-		inputs = append(inputs, int(ch))
-	}
-	for _, ch := range funcB + "\n" {
-		inputs = append(inputs, int(ch))
-	}
-	for _, ch := range funcC + "\n" {
-		inputs = append(inputs, int(ch))
-	}
-	for _, ch := range "n\n" {
-		inputs = append(inputs, int(ch))
-	}
-	return inputs
+	return StringsToASCII(main, funcA, funcB, funcC, "n")
 }
 
 func runVacuumRobot(program []int, inputs []int) (int, error) {
