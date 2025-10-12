@@ -36,6 +36,7 @@ import (
 )
 
 func Test_day{{ .Day }}p01(t *testing.T) {
+	t.Skip()
 	tests := []aoc.TestInput{
 		{
 			Input: strings.NewReader(` + "``" + `),
@@ -50,6 +51,7 @@ func Test_day{{ .Day }}p01(t *testing.T) {
 }
 
 func Test_day{{ .Day }}p02(t *testing.T) {
+	t.Skip()
 	tests := []aoc.TestInput{
 		{
 			Input: strings.NewReader(` + "``" + `),

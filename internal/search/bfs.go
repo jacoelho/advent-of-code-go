@@ -32,3 +32,64 @@ func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbour
 func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 	return BFSWithVisited(start, collections.NewSet[T](), neighbours)
 }
+
+func BFSDistanceTo[T comparable](start, target T, neighbours func(T) iter.Seq[T]) int {
+	if start == target {
+		return 0
+	}
+
+	distances := make(map[T]int)
+	distances[start] = 0
+
+	for node := range BFS(start, neighbours) {
+		currentDist := distances[node]
+
+		if node == target {
+			return currentDist
+		}
+
+		for neighbour := range neighbours(node) {
+			if _, seen := distances[neighbour]; !seen {
+				distances[neighbour] = currentDist + 1
+			}
+		}
+	}
+
+	return -1
+}
+
+func BFSMaxDistance[T comparable](start T, neighbours func(T) iter.Seq[T]) int {
+	distances := make(map[T]int)
+	distances[start] = 0
+
+	maxDist := 0
+	for node := range BFS(start, neighbours) {
+		currentDist := distances[node]
+		maxDist = max(maxDist, currentDist)
+
+		for neighbour := range neighbours(node) {
+			if _, seen := distances[neighbour]; !seen {
+				distances[neighbour] = currentDist + 1
+			}
+		}
+	}
+
+	return maxDist
+}
+
+func BFSDistances[T comparable](start T, neighbours func(T) iter.Seq[T]) map[T]int {
+	distances := make(map[T]int)
+	distances[start] = 0
+
+	for node := range BFS(start, neighbours) {
+		currentDist := distances[node]
+
+		for neighbour := range neighbours(node) {
+			if _, seen := distances[neighbour]; !seen {
+				distances[neighbour] = currentDist + 1
+			}
+		}
+	}
+
+	return distances
+}

@@ -66,15 +66,28 @@ func ExtractDigits[T constraints.Signed](line string) []T {
 }
 
 func ScanNumber[T constraints.Signed](line []byte) (T, error) {
+	if len(line) == 0 {
+		return 0, fmt.Errorf("empty input")
+	}
+
 	var n T
-	for _, ch := range line {
-		ch -= '0'
+	negative := false
+	start := 0
+
+	if line[0] == '-' {
+		negative = true
+		start = 1
+	}
+
+	for i := start; i < len(line); i++ {
+		ch := line[i] - '0'
 		if ch > 9 {
-			return n, fmt.Errorf("invalid character '%c'", ch)
+			return n, fmt.Errorf("invalid character '%c'", line[i])
 		}
 		n = n*10 + T(ch)
 	}
-	if line[0] == '-' {
+
+	if negative {
 		n = -n
 	}
 	return n, nil

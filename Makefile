@@ -32,3 +32,9 @@ staticcheck: $(GOBIN)/staticcheck
 .PHONY: test-%
 test-%:
 	go test -race -shuffle=on -v ./internal/aoc$*/...
+
+.PHONY: tmpl-%
+tmpl-%:
+	@year=$(shell echo $* | cut -d- -f1); \
+	day=$(shell echo $* | cut -d- -f2); \
+	go run ./cmd/template/template.go -year $$year -day $$day
