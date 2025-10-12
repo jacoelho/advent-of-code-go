@@ -20,7 +20,7 @@ func Test_day22p02(t *testing.T) {
 	tests := []aoc.TestInput{
 		{
 			Input: aoc.FileInput(t, 2019, 22),
-			Want:  "24410995576964",
+			Want:  "7757787935983",
 		},
 	}
 	aoc.AOCTest(t, day22p02, tests)
