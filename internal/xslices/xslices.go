@@ -1,9 +1,9 @@
 package xslices
 
 import (
-	"slices"
 	"cmp"
 	"iter"
+	"slices"
 
 	"github.com/jacoelho/advent-of-code-go/internal/xconstraints"
 )

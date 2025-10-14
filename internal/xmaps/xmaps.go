@@ -5,6 +5,15 @@ type Pair[V1, V2 any] struct {
 	V V2
 }
 
+func Any[M ~map[K]V, K comparable, V any](predicate func(k K, v V) bool, m M) bool {
+	for k, v := range m {
+		if predicate(k, v) {
+			return true
+		}
+	}
+	return false
+}
+
 func Find[M ~map[K]V, K comparable, V any](m M, predicate func(k K, v V) bool) (Pair[K, V], bool) {
 	for k, v := range m {
 		if predicate(k, v) {

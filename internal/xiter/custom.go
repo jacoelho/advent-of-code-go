@@ -3,6 +3,7 @@ package xiter
 import (
 	"cmp"
 	"iter"
+	"slices"
 
 	"github.com/jacoelho/advent-of-code-go/internal/xconstraints"
 )
@@ -174,4 +175,49 @@ func Nth[T any](seq iter.Seq[T], n int) (T, bool) {
 		return false
 	})
 	return result, found
+}
+
+// Permutations generates all permutations of the input slice using Heap's algorithm.
+func Permutations[T any](slice []T) iter.Seq[[]T] {
+	return func(yield func([]T) bool) {
+		if len(slice) == 0 {
+			return
+		}
+
+		a := slices.Clone(slice)
+		if !yield(slices.Clone(a)) {
+			return
+		}
+
+		c := make([]int, len(slice))
+		for i := 0; i < len(slice); {
+			if c[i] < i {
+				if i&1 == 0 {
+					a[0], a[i] = a[i], a[0]
+				} else {
+					a[c[i]], a[i] = a[i], a[c[i]]
+				}
+				if !yield(slices.Clone(a)) {
+					return
+				}
+				c[i]++
+				i = 0
+			} else {
+				c[i] = 0
+				i++
+			}
+		}
+	}
+}
+
+// DotProduct computes the dot product of two sequences (element-wise multiply and sum).
+// If the sequences have different lengths, computation stops at the shorter sequence.
+func DotProduct[V xconstraints.Number](x, y iter.Seq[V]) V {
+	var sum V
+	for z := range Zip(x, y) {
+		if z.Ok1 && z.Ok2 {
+			sum += z.V1 * z.V2
+		}
+	}
+	return sum
 }
