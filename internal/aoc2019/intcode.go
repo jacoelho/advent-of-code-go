@@ -155,7 +155,7 @@ func (c *IntcodeComputer) AddInput(values ...int) {
 
 // GetOutput returns the output buffer
 func (c *IntcodeComputer) GetOutput() []int {
-	return c.output
+	return slices.Clone(c.output)
 }
 
 // LastOutput returns the last output value, or an error if no output was produced
@@ -253,15 +253,16 @@ func (c *IntcodeComputer) executeInstruction() (bool, error) {
 			c.waiting = true
 			return true, nil // Pause execution, waiting for input
 		}
+		inputVal := c.input[0]
+		c.input = c.input[1:]
 
 		pos, err := c.getWriteAddress(parseMode(instruction, 0), 1)
 		if err != nil {
 			return false, err
 		}
-		if err := c.writeMemory(pos, c.input[0]); err != nil {
+		if err := c.writeMemory(pos, inputVal); err != nil {
 			return false, err
 		}
-		c.input = c.input[1:]
 
 		c.ip += 2
 		return false, nil
@@ -429,6 +430,47 @@ func (c *IntcodeComputer) Memory() []int {
 // SetMemory sets the value at a specific memory address
 func (c *IntcodeComputer) SetMemory(addr, value int) error {
 	return c.writeMemory(addr, value)
+}
+
+// ReadOutputString converts the output buffer to a string
+func (c *IntcodeComputer) ReadOutputString() string {
+	var result []byte
+	for _, val := range c.output {
+		result = append(result, byte(val))
+	}
+	return string(result)
+}
+
+// ClearOutput clears the output buffer
+func (c *IntcodeComputer) ClearOutput() {
+	c.output = nil
+}
+
+// ReadAndResetOutput returns the current output buffer and clears it
+func (c *IntcodeComputer) ReadAndResetOutput() []int {
+	output := c.output
+	c.output = nil
+	return output
+}
+
+// ReadAndResetOutputString returns the current output as a string and clears it
+func (c *IntcodeComputer) ReadAndResetOutputString() string {
+	result := c.ReadOutputString()
+	c.ClearOutput()
+	return result
+}
+
+// Clone creates a deep copy of the computer state
+func (c *IntcodeComputer) Clone() *IntcodeComputer {
+	return &IntcodeComputer{
+		memory:       slices.Clone(c.memory),
+		ip:           c.ip,
+		input:        slices.Clone(c.input),
+		output:       slices.Clone(c.output),
+		halted:       c.halted,
+		waiting:      c.waiting,
+		relativeBase: c.relativeBase,
+	}
 }
 
 // StringsToASCII converts strings to ASCII integer codes, adding newlines after each string

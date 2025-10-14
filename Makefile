@@ -31,7 +31,7 @@ staticcheck: $(GOBIN)/staticcheck
 
 .PHONY: test-%
 test-%:
-	go test -race -shuffle=on -v ./internal/aoc$*/...
+	go test -race -shuffle=on -timeout=2m -v ./internal/aoc$*/...
 
 .PHONY: tmpl-%
 tmpl-%:
