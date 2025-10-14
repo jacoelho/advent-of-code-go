@@ -1,5 +1,3 @@
-// ABOUTME: Binary search for finding boundaries in sorted/monotonic ranges.
-// ABOUTME: Finds the smallest value where a predicate transitions from false to true.
 package search
 
 import "golang.org/x/exp/constraints"

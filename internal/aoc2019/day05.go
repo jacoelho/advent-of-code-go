@@ -24,7 +24,6 @@ func day5p01(r io.Reader) (string, error) {
 		return "", fmt.Errorf("no output produced")
 	}
 
-	// All outputs except the last should be 0 (diagnostic tests passing)
 	for i := 0; i < len(output)-1; i++ {
 		if output[i] != 0 {
 			return "", fmt.Errorf("diagnostic test failed at position %d: got %d, expected 0", i, output[i])
