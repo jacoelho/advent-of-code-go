@@ -153,17 +153,20 @@ func (c *IntcodeComputer) AddInput(values ...int) {
 	c.waiting = false
 }
 
-// GetOutput returns the output buffer
+// GetOutput returns the output buffer and clears it
 func (c *IntcodeComputer) GetOutput() []int {
-	return slices.Clone(c.output)
+	output := slices.Clone(c.output)
+	c.output = nil
+	return output
 }
 
-// LastOutput returns the last output value, or an error if no output was produced
+// LastOutput returns the last output value
 func (c *IntcodeComputer) LastOutput() (int, error) {
-	if len(c.output) == 0 {
+	output := c.GetOutput()
+	if len(output) == 0 {
 		return 0, fmt.Errorf("no output produced")
 	}
-	return c.output[len(c.output)-1], nil
+	return output[len(output)-1], nil
 }
 
 // IsHalted returns true if the computer has halted
@@ -176,8 +179,70 @@ func (c *IntcodeComputer) IsWaiting() bool {
 	return c.waiting
 }
 
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func (c *IntcodeComputer) execBinaryOp(instruction int, op func(int, int) int) error {
+	if c.ip+3 >= len(c.memory) {
+		return fmt.Errorf("incomplete instruction at position %d", c.ip)
+	}
+
+	val1, err := c.getParameter(parseMode(instruction, 0), 1)
+	if err != nil {
+		return err
+	}
+
+	val2, err := c.getParameter(parseMode(instruction, 1), 2)
+	if err != nil {
+		return err
+	}
+
+	pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
+	if err != nil {
+		return err
+	}
+
+	if err := c.writeMemory(pos3, op(val1, val2)); err != nil {
+		return err
+	}
+
+	c.ip += 4
+	return nil
+}
+
+func (c *IntcodeComputer) execComparisonOp(instruction int, cmp func(int, int) bool) error {
+	if c.ip+3 >= len(c.memory) {
+		return fmt.Errorf("incomplete instruction at position %d", c.ip)
+	}
+
+	val1, err := c.getParameter(parseMode(instruction, 0), 1)
+	if err != nil {
+		return err
+	}
+
+	val2, err := c.getParameter(parseMode(instruction, 1), 2)
+	if err != nil {
+		return err
+	}
+
+	pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
+	if err != nil {
+		return err
+	}
+
+	if err := c.writeMemory(pos3, boolToInt(cmp(val1, val2))); err != nil {
+		return err
+	}
+
+	c.ip += 4
+	return nil
+}
+
 // executeInstruction executes the instruction at the current IP
-// Returns true if the program should halt, false otherwise
 func (c *IntcodeComputer) executeInstruction() (bool, error) {
 	if c.ip >= len(c.memory) {
 		return false, fmt.Errorf("instruction pointer out of bounds: %d", c.ip)
@@ -193,56 +258,10 @@ func (c *IntcodeComputer) executeInstruction() (bool, error) {
 		return true, nil
 
 	case OpAdd:
-		if c.ip+3 >= len(c.memory) {
-			return false, fmt.Errorf("incomplete instruction at position %d", c.ip)
-		}
-
-		val1, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		val2, err := c.getParameter(parseMode(instruction, 1), 2)
-		if err != nil {
-			return false, err
-		}
-
-		pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
-		if err != nil {
-			return false, err
-		}
-		if err := c.writeMemory(pos3, val1+val2); err != nil {
-			return false, err
-		}
-
-		c.ip += 4
-		return false, nil
+		return false, c.execBinaryOp(instruction, func(a, b int) int { return a + b })
 
 	case OpMul:
-		if c.ip+3 >= len(c.memory) {
-			return false, fmt.Errorf("incomplete instruction at position %d", c.ip)
-		}
-
-		val1, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		val2, err := c.getParameter(parseMode(instruction, 1), 2)
-		if err != nil {
-			return false, err
-		}
-
-		pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
-		if err != nil {
-			return false, err
-		}
-		if err := c.writeMemory(pos3, val1*val2); err != nil {
-			return false, err
-		}
-
-		c.ip += 4
-		return false, nil
+		return false, c.execBinaryOp(instruction, func(a, b int) int { return a * b })
 
 	case OpInput:
 		if c.ip+1 >= len(c.memory) {
@@ -251,7 +270,7 @@ func (c *IntcodeComputer) executeInstruction() (bool, error) {
 
 		if len(c.input) == 0 {
 			c.waiting = true
-			return true, nil // Pause execution, waiting for input
+			return true, nil // pause execution, waiting for input
 		}
 		inputVal := c.input[0]
 		c.input = c.input[1:]
@@ -327,68 +346,10 @@ func (c *IntcodeComputer) executeInstruction() (bool, error) {
 		return false, nil
 
 	case OpLessThan:
-		if c.ip+3 >= len(c.memory) {
-			return false, fmt.Errorf("incomplete instruction at position %d", c.ip)
-		}
-
-		val1, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		val2, err := c.getParameter(parseMode(instruction, 1), 2)
-		if err != nil {
-			return false, err
-		}
-
-		pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
-		if err != nil {
-			return false, err
-		}
-		if val1 < val2 {
-			if err := c.writeMemory(pos3, 1); err != nil {
-				return false, err
-			}
-		} else {
-			if err := c.writeMemory(pos3, 0); err != nil {
-				return false, err
-			}
-		}
-
-		c.ip += 4
-		return false, nil
+		return false, c.execComparisonOp(instruction, func(a, b int) bool { return a < b })
 
 	case OpEquals:
-		if c.ip+3 >= len(c.memory) {
-			return false, fmt.Errorf("incomplete instruction at position %d", c.ip)
-		}
-
-		val1, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		val2, err := c.getParameter(parseMode(instruction, 1), 2)
-		if err != nil {
-			return false, err
-		}
-
-		pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
-		if err != nil {
-			return false, err
-		}
-		if val1 == val2 {
-			if err := c.writeMemory(pos3, 1); err != nil {
-				return false, err
-			}
-		} else {
-			if err := c.writeMemory(pos3, 0); err != nil {
-				return false, err
-			}
-		}
-
-		c.ip += 4
-		return false, nil
+		return false, c.execComparisonOp(instruction, func(a, b int) bool { return a == b })
 
 	case OpRelativeBase:
 		if c.ip+1 >= len(c.memory) {
@@ -432,32 +393,14 @@ func (c *IntcodeComputer) SetMemory(addr, value int) error {
 	return c.writeMemory(addr, value)
 }
 
-// ReadOutputString converts the output buffer to a string
+// ReadOutputString converts the output buffer to a string and clears it
 func (c *IntcodeComputer) ReadOutputString() string {
+	output := c.GetOutput()
 	var result []byte
-	for _, val := range c.output {
+	for _, val := range output {
 		result = append(result, byte(val))
 	}
 	return string(result)
-}
-
-// ClearOutput clears the output buffer
-func (c *IntcodeComputer) ClearOutput() {
-	c.output = nil
-}
-
-// ReadAndResetOutput returns the current output buffer and clears it
-func (c *IntcodeComputer) ReadAndResetOutput() []int {
-	output := c.output
-	c.output = nil
-	return output
-}
-
-// ReadAndResetOutputString returns the current output as a string and clears it
-func (c *IntcodeComputer) ReadAndResetOutputString() string {
-	result := c.ReadOutputString()
-	c.ClearOutput()
-	return result
 }
 
 // Clone creates a deep copy of the computer state

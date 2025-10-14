@@ -43,17 +43,14 @@ func day13p02(r io.Reader) (string, error) {
 
 	var score, ballX, paddleX int
 
-	outputIndex := 0
 	for {
 		if err := computer.Run(); err != nil {
 			return "", err
 		}
 
 		output := computer.GetOutput()
-		newOutput := output[outputIndex:]
-		outputIndex = len(output)
 
-		for tile := range slices.Chunk(newOutput, 3) {
+		for tile := range slices.Chunk(output, 3) {
 			x, y, tileID := tile[0], tile[1], tile[2]
 
 			if x == -1 && y == 0 {

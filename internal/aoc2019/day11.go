@@ -16,7 +16,6 @@ func runPaintingRobot(program []int, startColor int) grid.Grid2D[int, int] {
 
 	panels[position] = startColor
 
-	consumedOutputs := 0
 	for !computer.IsHalted() {
 		currentColor := panels[position]
 
@@ -27,13 +26,12 @@ func runPaintingRobot(program []int, startColor int) grid.Grid2D[int, int] {
 		}
 
 		outputs := computer.GetOutput()
-		if len(outputs) < consumedOutputs+2 {
+		if len(outputs) < 2 {
 			break
 		}
 
-		paintColor := outputs[consumedOutputs]
-		turnDirection := outputs[consumedOutputs+1]
-		consumedOutputs += 2
+		paintColor := outputs[0]
+		turnDirection := outputs[1]
 
 		panels[position] = paintColor
 

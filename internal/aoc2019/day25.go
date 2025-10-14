@@ -43,20 +43,23 @@ type queueItem struct {
 
 func parseList(lines []string, header string) []string {
 	var result []string
+	var foundHeader bool
 	for i, line := range lines {
-		if !strings.HasPrefix(line, header) {
-			continue
-		}
-
-		for j := i + 1; j < len(lines); j++ {
-			listLine := lines[j]
-			if after, ok := strings.CutPrefix(listLine, "- "); ok {
-				result = append(result, after)
-			} else if listLine == "" || !strings.HasPrefix(listLine, "-") {
-				break
+		if strings.HasPrefix(line, header) {
+			foundHeader = true
+			for j := i + 1; j < len(lines); j++ {
+				listLine := lines[j]
+				if after, ok := strings.CutPrefix(listLine, "- "); ok {
+					result = append(result, after)
+				} else if listLine == "" || !strings.HasPrefix(listLine, "-") {
+					break
+				}
 			}
+			break
 		}
-		return result
+	}
+	if !foundHeader {
+		return nil
 	}
 	return result
 }
@@ -116,6 +119,36 @@ func stateKey(roomName string, inventory []string) string {
 	return fmt.Sprintf("%s:%v", roomName, sortedInv)
 }
 
+func isSafeToTake(computer *IntcodeComputer, item string) bool {
+	if dangerousItems.Contains(item) {
+		return false
+	}
+	output, err := tryCommand(computer, "take "+item)
+	return err == nil && !isDeath(output)
+}
+
+func findCheckpointDirection(computer *IntcodeComputer, doors []string) string {
+	for _, door := range doors {
+		output, err := tryCommand(computer, door)
+		if err == nil && isSecurityCheck(output) {
+			return door
+		}
+	}
+	return ""
+}
+
+func exploreDirection(computer *IntcodeComputer, door string) (*IntcodeComputer, string, bool) {
+	output, err := tryCommand(computer, door)
+	if err != nil || isDeath(output) || isSecurityCheck(output) {
+		return nil, "", false
+	}
+
+	next := computer.Clone()
+	next.SetInput(StringsToASCII(door)...)
+	next.Run()
+	return next, output, true
+}
+
 // mapShip performs BFS to explore all rooms, identify safe items, and locate the security checkpoint
 func mapShip(computer *IntcodeComputer, initialOutput string) (safeItems collections.Set[string], checkpointDir string) {
 	visited := make(map[string]bool)
@@ -137,60 +170,50 @@ func mapShip(computer *IntcodeComputer, initialOutput string) (safeItems collect
 		visited[state.roomName] = true
 
 		for _, item := range state.items {
-			if dangerousItems.Contains(item) {
-				continue
+			if isSafeToTake(current.computer, item) {
+				items.Add(item)
 			}
-
-			testOutput, err := tryCommand(current.computer, "take "+item)
-			if err != nil {
-				continue
-			}
-
-			if isDeath(testOutput) {
-				continue
-			}
-
-			items.Add(item)
 		}
 
 		if strings.Contains(state.roomName, "Security Checkpoint") && checkpointDir == "" {
-			for _, door := range state.doors {
-				testOutput, err := tryCommand(current.computer, door)
-				if err != nil {
-					continue
-				}
-
-				if isSecurityCheck(testOutput) {
-					checkpointDir = door
-					break
-				}
-			}
-
+			checkpointDir = findCheckpointDirection(current.computer, state.doors)
 		}
 
 		for _, door := range state.doors {
-			testOutput, err := tryCommand(current.computer, door)
-			if err != nil {
-				continue
+			if next, output, ok := exploreDirection(current.computer, door); ok {
+				queue.PushBack(queueItem{
+					computer:   next,
+					inventory:  append([]string{}, current.inventory...),
+					lastOutput: output,
+				})
 			}
-
-			if isDeath(testOutput) || isSecurityCheck(testOutput) {
-				continue
-			}
-
-			test := current.computer.Clone()
-			test.SetInput(StringsToASCII(door)...)
-			test.Run()
-
-			queue.PushBack(queueItem{
-				computer:   test,
-				inventory:  append([]string{}, current.inventory...),
-				lastOutput: testOutput,
-			})
 		}
 	}
 
 	return items, checkpointDir
+}
+
+func collectItemsInRoom(
+	computer *IntcodeComputer,
+	inventory []string,
+	items []string,
+	safeItems collections.Set[string],
+) (*IntcodeComputer, []string) {
+	current := computer
+	collected := inventory
+
+	for _, item := range items {
+		if !dangerousItems.Contains(item) && safeItems.Contains(item) {
+			test := current.Clone()
+			test.SetInput(StringsToASCII("take " + item)...)
+			if err := test.Run(); err == nil {
+				current = test
+				collected = append(collected, item)
+			}
+		}
+	}
+
+	return current, collected
 }
 
 // collectItemsAndReachCheckpoint performs BFS to collect all items and navigate to checkpoint
@@ -199,7 +222,7 @@ func collectItemsAndReachCheckpoint(program []int, safeItems collections.Set[str
 	if err := collector.Run(); err != nil {
 		return nil, err
 	}
-	collectorOutput := collector.ReadAndResetOutputString()
+	collectorOutput := collector.ReadOutputString()
 
 	visitedStates := make(map[string]bool)
 	collectionQueue := collections.NewDeque[queueItem](16)
@@ -209,34 +232,16 @@ func collectItemsAndReachCheckpoint(program []int, safeItems collections.Set[str
 		lastOutput: collectorOutput,
 	})
 
-	statesExplored := 0
 	for current, ok := collectionQueue.PopFront(); ok; current, ok = collectionQueue.PopFront() {
 		state := parseGameOutput(current.lastOutput)
 
-		stateKey := stateKey(state.roomName, current.inventory)
-		if visitedStates[stateKey] {
+		key := stateKey(state.roomName, current.inventory)
+		if visitedStates[key] {
 			continue
 		}
-		visitedStates[stateKey] = true
-		statesExplored++
+		visitedStates[key] = true
 
-		currentComputer := current.computer
-		currentInventory := current.inventory
-
-		for _, item := range state.items {
-			if dangerousItems.Contains(item) || !safeItems.Contains(item) {
-				continue
-			}
-
-			test := currentComputer.Clone()
-			test.SetInput(StringsToASCII("take " + item)...)
-			if err := test.Run(); err != nil {
-				continue
-			}
-
-			currentComputer = test
-			currentInventory = append(currentInventory, item)
-		}
+		currentComputer, currentInventory := collectItemsInRoom(current.computer, current.inventory, state.items, safeItems)
 
 		if strings.Contains(state.roomName, "Security Checkpoint") && len(currentInventory) == safeItems.Len() {
 			return currentComputer, nil
@@ -244,11 +249,7 @@ func collectItemsAndReachCheckpoint(program []int, safeItems collections.Set[str
 
 		for _, door := range state.doors {
 			testOutput, err := tryCommand(currentComputer, door)
-			if err != nil {
-				continue
-			}
-
-			if isDeath(testOutput) {
+			if err != nil || isDeath(testOutput) {
 				continue
 			}
 
@@ -268,21 +269,19 @@ func collectItemsAndReachCheckpoint(program []int, safeItems collections.Set[str
 		}
 	}
 
-	fmt.Printf("Explored %d states, never reached checkpoint with all items\n", statesExplored)
-	return nil, nil
+	return nil, fmt.Errorf("never reached checkpoint with all items")
 }
 
 // exploreAndCollect performs BFS exploration using computer state cloning.
 // It uses a two-pass strategy:
 // 1. First pass: Map the entire ship, identify safe items, and locate the security checkpoint
 // 2. Second pass: Collect all items and navigate to the checkpoint with full inventory
-// Returns the computer state at checkpoint, set of safe items, and the direction to security
 func exploreAndCollect(program []int) (*IntcodeComputer, collections.Set[string], string, error) {
 	computer := New(program)
 	if err := computer.Run(); err != nil {
 		return nil, nil, "", err
 	}
-	initialOutput := computer.ReadAndResetOutputString()
+	initialOutput := computer.ReadOutputString()
 
 	safeItems, checkpointDir := mapShip(computer, initialOutput)
 	if checkpointDir == "" || safeItems.IsEmpty() {
@@ -291,6 +290,53 @@ func exploreAndCollect(program []int) (*IntcodeComputer, collections.Set[string]
 
 	checkpointComputer, err := collectItemsAndReachCheckpoint(program, safeItems)
 	return checkpointComputer, safeItems, checkpointDir, err
+}
+
+type grayCodeChange struct {
+	itemIdx int
+	take    bool
+}
+
+// grayCodeChanges generates Gray code transitions for n items.
+// Gray code ensures consecutive values differ by exactly one bit,
+// minimizing the number of take/drop commands from O(n * 2^n) to O(2^n).
+func grayCodeChanges(n int) func(yield func(grayCodeChange) bool) {
+	return func(yield func(grayCodeChange) bool) {
+		currentMask := 0
+		numCombinations := 1 << n
+
+		for i := range numCombinations {
+			gray := i ^ (i >> 1)
+			diff := currentMask ^ gray
+			currentMask = gray
+
+			if diff != 0 {
+				itemIdx := bits.TrailingZeros(uint(diff))
+				take := (gray & (1 << itemIdx)) != 0
+				if !yield(grayCodeChange{itemIdx: itemIdx, take: take}) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func tryItemCombination(computer *IntcodeComputer, securityDir string) (string, bool) {
+	computer.SetInput(StringsToASCII(securityDir)...)
+	if err := computer.Run(); err != nil {
+		return "", false
+	}
+
+	output := computer.ReadOutputString()
+	if isSecurityCheck(output) {
+		return "", false
+	}
+
+	if password := extractPassword(output); password != "" {
+		return password, true
+	}
+
+	return "", false
 }
 
 func day25p01(r io.Reader) (string, error) {
@@ -309,58 +355,34 @@ func day25p01(r io.Reader) (string, error) {
 	}
 
 	items := slices.Collect(itemsSet.Iter())
-
-	// Try all item combinations using Gray code to minimize state changes.
-	// Gray code is a binary sequence where consecutive values differ by exactly one bit,
-	// which means we only need to take/drop one item per iteration instead of 7+.
-	// This reduces the number of commands from O(n * 2^n) to O(2^n).
 	test := checkpointComputer.Clone()
 
 	for _, item := range items {
 		test.SetInput(StringsToASCII("drop " + item)...)
 		test.Run()
-		test.ClearOutput()
+		test.GetOutput()
 	}
 
-	currentMask := 0
-	numCombinations := 1 << len(items)
+	tried := 0
 
-	for i := range numCombinations {
-		gray := i ^ (i >> 1)
-		diff := currentMask ^ gray
-		currentMask = gray
-
-		if diff != 0 {
-			itemIdx := bits.TrailingZeros(uint(diff))
-			item := items[itemIdx]
-			action := "drop"
-			if (gray & (1 << itemIdx)) != 0 {
-				action = "take"
-			}
-
-			test.SetInput(StringsToASCII(action + " " + item)...)
-			if err := test.Run(); err != nil {
-				continue
-			}
-			test.ClearOutput()
+	for change := range grayCodeChanges(len(items)) {
+		item := items[change.itemIdx]
+		action := "drop"
+		if change.take {
+			action = "take"
 		}
 
-		test.SetInput(StringsToASCII(securityDir)...)
+		test.SetInput(StringsToASCII(action + " " + item)...)
 		if err := test.Run(); err != nil {
 			continue
 		}
+		test.GetOutput()
 
-		output := test.ReadOutputString()
-
-		if isSecurityCheck(output) {
-			continue
-		}
-
-		password := extractPassword(output)
-		if password != "" {
+		if password, found := tryItemCombination(test, securityDir); found {
 			return password, nil
 		}
+		tried++
 	}
 
-	return "", fmt.Errorf("tried all %d combinations, none worked", numCombinations)
+	return "", fmt.Errorf("tried all %d combinations, none worked", tried)
 }

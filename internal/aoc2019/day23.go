@@ -53,7 +53,6 @@ func processOutput(
 			queues[dest].PushBack(packet{x: x, y: y})
 		}
 	}
-	computer.output = nil
 	return addr255Packets, true
 }
 

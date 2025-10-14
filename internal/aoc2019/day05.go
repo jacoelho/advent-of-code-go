@@ -20,6 +20,10 @@ func day5p01(r io.Reader) (string, error) {
 	}
 
 	output := computer.GetOutput()
+	if len(output) == 0 {
+		return "", fmt.Errorf("no output produced")
+	}
+
 	// All outputs except the last should be 0 (diagnostic tests passing)
 	for i := 0; i < len(output)-1; i++ {
 		if output[i] != 0 {
@@ -27,12 +31,7 @@ func day5p01(r io.Reader) (string, error) {
 		}
 	}
 
-	result, err := computer.LastOutput()
-	if err != nil {
-		return "", err
-	}
-
-	return strconv.Itoa(result), nil
+	return strconv.Itoa(output[len(output)-1]), nil
 }
 
 func day5p02(r io.Reader) (string, error) {
@@ -48,10 +47,10 @@ func day5p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	result, err := computer.LastOutput()
-	if err != nil {
-		return "", err
+	output := computer.GetOutput()
+	if len(output) == 0 {
+		return "", fmt.Errorf("no output produced")
 	}
 
-	return strconv.Itoa(result), nil
+	return strconv.Itoa(output[len(output)-1]), nil
 }
