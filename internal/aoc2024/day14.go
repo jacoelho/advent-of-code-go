@@ -5,10 +5,10 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/convert"
-	"github.com/jacoelho/advent-of-code-go/internal/grid"
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type robot struct {

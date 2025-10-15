@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseDiskAsSparse(r io.Reader) []int {

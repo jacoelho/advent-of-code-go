@@ -5,7 +5,7 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/jacoelho/advent-of-code-go/internal/xconstraints"
+	"github.com/jacoelho/advent-of-code-go/pkg/xconstraints"
 )
 
 func Unique[T comparable](seq iter.Seq[T]) iter.Seq[T] {

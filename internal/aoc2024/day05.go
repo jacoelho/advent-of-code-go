@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseSleighLaunchSafetyRules(r io.Reader) (map[[2]int]bool, [][]int, error) {

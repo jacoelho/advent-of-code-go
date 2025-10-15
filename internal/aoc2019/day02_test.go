@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/assert"
+	"github.com/jacoelho/advent-of-code-go/pkg/assert"
 )
 
 func Test_day2p01(t *testing.T) {

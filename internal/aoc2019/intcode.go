@@ -5,8 +5,8 @@ import (
 	"io"
 	"slices"
 
-	"github.com/jacoelho/advent-of-code-go/internal/convert"
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 // Opcode represents an Intcode operation

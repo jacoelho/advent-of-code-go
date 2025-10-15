@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
 type packet struct {

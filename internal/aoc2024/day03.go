@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var re = regexp.MustCompile(`do\(\)|don't\(\)|mul\((\d+),(\d+)\)`)

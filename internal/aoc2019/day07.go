@@ -4,8 +4,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 // runAmplifierChain runs a series of 5 amplifiers with the given phase settings

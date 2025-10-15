@@ -4,7 +4,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 func checkTractorBeam(program []int, x, y int) int {

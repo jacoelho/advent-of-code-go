@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
-	"github.com/jacoelho/advent-of-code-go/internal/graph"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseNetworkMap(r io.Reader) (map[string]collections.Set[string], error) {
