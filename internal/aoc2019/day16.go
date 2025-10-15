@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/convert"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func parseInput(r io.Reader) ([]int, error) {

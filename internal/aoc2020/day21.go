@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/xmaps"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 var foodRegex = regexp.MustCompile(`^(.+) \(contains (.+)\)$`)

@@ -7,11 +7,11 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/grid"
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/search"
-	"github.com/jacoelho/advent-of-code-go/internal/xmaps"
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func parseRaceTrack(r io.Reader) (grid.Grid2D[int, rune], error) {

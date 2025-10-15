@@ -5,8 +5,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var calibrationDigits = map[string]int{

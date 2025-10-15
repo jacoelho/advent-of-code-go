@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
-	"github.com/jacoelho/advent-of-code-go/internal/convert"
-	"github.com/jacoelho/advent-of-code-go/internal/xmaps"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseMonitoringDevice(r io.Reader) (map[string]int, [][]string, error) {

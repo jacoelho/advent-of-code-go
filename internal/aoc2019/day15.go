@@ -5,9 +5,9 @@ import (
 	"iter"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
-	"github.com/jacoelho/advent-of-code-go/internal/grid"
-	"github.com/jacoelho/advent-of-code-go/internal/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 type status int

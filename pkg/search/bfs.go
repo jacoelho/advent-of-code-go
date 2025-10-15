@@ -3,7 +3,7 @@ package search
 import (
 	"iter"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
 func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbours func(T) iter.Seq[T]) iter.Seq[T] {

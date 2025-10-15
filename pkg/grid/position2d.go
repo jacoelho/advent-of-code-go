@@ -3,7 +3,7 @@ package grid
 import (
 	"iter"
 
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 	"golang.org/x/exp/constraints"
 )
 

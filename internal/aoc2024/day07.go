@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/search"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseCalibrationEquations(r io.Reader) (map[int][]int, error) {

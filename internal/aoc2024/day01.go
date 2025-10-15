@@ -7,10 +7,10 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func lists(r io.Reader) ([]int, []int, error) {

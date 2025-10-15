@@ -4,7 +4,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
 func runPaintingRobot(program []int, startColor int) grid.Grid2D[int, int] {

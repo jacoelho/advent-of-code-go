@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/convert"
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/xmath"
-	"github.com/jacoelho/advent-of-code-go/internal/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type Moon struct {

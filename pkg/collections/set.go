@@ -4,7 +4,7 @@ import (
 	"iter"
 	"maps"
 
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type Set[T comparable] map[T]struct{}

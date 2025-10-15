@@ -3,7 +3,7 @@ package search
 import (
 	"slices"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
 func ConstantStepCost[T any](_, _ T) int {

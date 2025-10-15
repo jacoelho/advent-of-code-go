@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/jacoelho/advent-of-code-go/internal/collections"
-	"github.com/jacoelho/advent-of-code-go/internal/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 // MaximalCliques runs the Bron-Kerbosch algorithm on a graph.

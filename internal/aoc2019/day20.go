@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/jacoelho/advent-of-code-go/internal/grid"
-	"github.com/jacoelho/advent-of-code-go/internal/scanner"
-	"github.com/jacoelho/advent-of-code-go/internal/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 // 1 space padding + 1 letter
