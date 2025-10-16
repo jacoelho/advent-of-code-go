@@ -3,7 +3,6 @@ package aoc2023
 import (
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,12 +48,6 @@ func parseHailstone(line []byte) (Hailstone, error) {
 	}
 
 	return Hailstone{position: position, velocity: velocity}, nil
-}
-
-const epsilon = 1e-9
-
-func floatEquals(a, b float64) bool {
-	return math.Abs(a-b) < epsilon
 }
 
 type intersection struct {
@@ -120,7 +113,7 @@ func allIntersectionsMatch(intersections []*intersection) bool {
 	}
 
 	return xslices.Every(func(inter *intersection) bool {
-		return floatEquals(inter.x, intersections[0].x) && floatEquals(inter.y, intersections[0].y)
+		return inter.x == intersections[0].x && inter.y == intersections[0].y
 	}, intersections[1:])
 }
 
@@ -131,7 +124,7 @@ func findRockVelocityZ(hailstones []Hailstone, intersections []*intersection) (i
 		z2 := hailstones[2].zAt(intersections[1].t1, rockVZ)
 		z3 := hailstones[3].zAt(intersections[2].t1, rockVZ)
 
-		if floatEquals(z1, z2) && floatEquals(z2, z3) {
+		if z1 == z2 && z2 == z3 {
 			return rockVZ, true
 		}
 	}
