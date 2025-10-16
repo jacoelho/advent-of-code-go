@@ -3,6 +3,7 @@ package aoc2023
 import (
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,6 +49,19 @@ func parseHailstone(line []byte) (Hailstone, error) {
 	}
 
 	return Hailstone{position: position, velocity: velocity}, nil
+}
+
+const epsilon = 1e-12
+
+func floatEquals(a, b float64) bool {
+	if a == b {
+		return true
+	}
+	if a == 0 || b == 0 {
+		return math.Abs(a-b) < epsilon
+	}
+	// Use relative error for large numbers - more robust across architectures
+	return math.Abs(a-b) < epsilon*math.Max(math.Abs(a), math.Abs(b))
 }
 
 type intersection struct {
@@ -113,18 +127,18 @@ func allIntersectionsMatch(intersections []*intersection) bool {
 	}
 
 	return xslices.Every(func(inter *intersection) bool {
-		return inter.x == intersections[0].x && inter.y == intersections[0].y
+		return floatEquals(inter.x, intersections[0].x) && floatEquals(inter.y, intersections[0].y)
 	}, intersections[1:])
 }
 
 func findRockVelocityZ(hailstones []Hailstone, intersections []*intersection) (int, bool) {
-	const searchRange = 1000
+	const searchRange = 500
 	for rockVZ := -searchRange; rockVZ <= searchRange; rockVZ++ {
 		z1 := hailstones[1].zAt(intersections[0].t1, rockVZ)
 		z2 := hailstones[2].zAt(intersections[1].t1, rockVZ)
 		z3 := hailstones[3].zAt(intersections[2].t1, rockVZ)
 
-		if z1 == z2 && z2 == z3 {
+		if floatEquals(z1, z2) && floatEquals(z2, z3) {
 			return rockVZ, true
 		}
 	}
@@ -142,7 +156,7 @@ func day24p02(r io.Reader) (string, error) {
 		return "", fmt.Errorf("need at least 4 hailstones")
 	}
 
-	const searchRange = 1000
+	const searchRange = 500
 	for rockVX := -searchRange; rockVX <= searchRange; rockVX++ {
 		for rockVY := -searchRange; rockVY <= searchRange; rockVY++ {
 			adjustedStone := Hailstone{
