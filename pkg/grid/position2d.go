@@ -11,6 +11,9 @@ type Position2D[T constraints.Signed] struct {
 	X, Y T
 }
 
+func (p Position2D[T]) GetX() T { return p.X }
+func (p Position2D[T]) GetY() T { return p.Y }
+
 func NewPosition2D[T constraints.Signed](x, y T) Position2D[T] {
 	return Position2D[T]{X: x, Y: y}
 }

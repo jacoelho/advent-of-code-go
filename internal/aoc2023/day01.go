@@ -2,6 +2,7 @@ package aoc2023
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strconv"
 
@@ -51,14 +52,11 @@ func day01(table map[string]int, r io.Reader) (string, error) {
 			}
 		}
 
-		switch len(digits) {
-		case 0:
-			panic("expected digits")
-		case 1:
-			return digits[0]*10 + digits[0], nil
-		default:
-			return digits[0]*10 + digits[len(digits)-1], nil
+		if len(digits) == 0 {
+			return 0, fmt.Errorf("expected digits")
 		}
+
+		return digits[0]*10 + digits[len(digits)-1], nil
 	})
 
 	result := xiter.Sum(s.Values())

@@ -39,19 +39,19 @@ func findPortalLabel(lines []string, x, y int) (string, grid.Position2D[int], bo
 	}
 
 	directions := []struct {
-		dx, dy            int                    // second letter direction
-		passages          []struct{ dx, dy int } // passages to check
+		dx, dy            int
+		passages          []struct{ dx, dy int }
 		checkSecondLetter func() bool
 		getSecondLetter   func() rune
 	}{
 		{
-			dx: 1, dy: 0, // horizontal
+			dx: 1, dy: 0,
 			passages:          []struct{ dx, dy int }{{-1, 0}, {2, 0}},
 			checkSecondLetter: func() bool { return x+1 < len(lines[y]) },
 			getSecondLetter:   func() rune { return rune(lines[y][x+1]) },
 		},
 		{
-			dx: 0, dy: 1, // vertical
+			dx: 0, dy: 1,
 			passages:          []struct{ dx, dy int }{{0, -1}, {0, 2}},
 			checkSecondLetter: func() bool { return y+1 < len(lines) && x < len(lines[y+1]) },
 			getSecondLetter:   func() rune { return rune(lines[y+1][x]) },

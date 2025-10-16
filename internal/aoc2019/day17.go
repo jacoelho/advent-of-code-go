@@ -128,7 +128,6 @@ func generatePath(scaffoldGrid grid.Grid2D[int, rune]) []string {
 	var path []string
 
 	for {
-		// try moving forward
 		nextPos := pos.Add(dir)
 		if scaffoldGrid.Contains(nextPos) {
 			steps := 0
@@ -141,7 +140,6 @@ func generatePath(scaffoldGrid grid.Grid2D[int, rune]) []string {
 			continue
 		}
 
-		// try turning left
 		leftDir := dir.TurnLeft()
 		if scaffoldGrid.Contains(pos.Add(leftDir)) {
 			path = append(path, "L")
@@ -149,7 +147,6 @@ func generatePath(scaffoldGrid grid.Grid2D[int, rune]) []string {
 			continue
 		}
 
-		// try turning right
 		rightDir := dir.TurnRight()
 		if scaffoldGrid.Contains(pos.Add(rightDir)) {
 			path = append(path, "R")
@@ -157,7 +154,6 @@ func generatePath(scaffoldGrid grid.Grid2D[int, rune]) []string {
 			continue
 		}
 
-		// can't move
 		break
 	}
 
@@ -302,14 +298,12 @@ func day17p02(r io.Reader) (string, error) {
 	}
 	scaffoldGrid := parseScaffoldFromASCII(computer.GetOutput())
 
-	// generate and compress the path
 	path := generatePath(scaffoldGrid)
 	main, funcA, funcB, funcC, ok := compressPath(path)
 	if !ok {
 		return "", fmt.Errorf("failed to compress path")
 	}
 
-	// wake up the robot and provide movement instructions
 	inputs := buildMovementInput(main, funcA, funcB, funcC)
 	dust, err := runVacuumRobot(program, inputs)
 	if err != nil {

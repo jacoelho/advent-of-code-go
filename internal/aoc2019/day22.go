@@ -81,7 +81,6 @@ func day22p01(r io.Reader) (string, error) {
 	return strconv.Itoa(position), nil
 }
 
-// bigMod performs modulo operation ensuring non-negative result
 func bigMod(a, m *big.Int) *big.Int {
 	result := new(big.Int).Mod(a, m)
 	if result.Sign() < 0 {
@@ -90,7 +89,6 @@ func bigMod(a, m *big.Int) *big.Int {
 	return result
 }
 
-// modInv computes the modular multiplicative inverse of a mod m
 func modInv(a, m *big.Int) *big.Int {
 	return new(big.Int).ModInverse(a, m)
 }

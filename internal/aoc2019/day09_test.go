@@ -6,7 +6,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
-func Test_day9p01(t *testing.T) {
+func Test_day09p01(t *testing.T) {
 	tests := []aoc.TestInput{
 		{
 			Input: aoc.FileInput(t, 2019, 9),
@@ -16,7 +16,7 @@ func Test_day9p01(t *testing.T) {
 	aoc.AOCTest(t, day9p01, tests)
 }
 
-func Test_day9p02(t *testing.T) {
+func Test_day09p02(t *testing.T) {
 	tests := []aoc.TestInput{
 		{
 			Input: aoc.FileInput(t, 2019, 9),
