@@ -60,7 +60,7 @@ func floatEquals(a, b float64) bool {
 	if a == 0 || b == 0 {
 		return math.Abs(a-b) < epsilon
 	}
-	// Use relative error for large numbers - more robust across architectures
+	// fix for floating point precision issues between arm and x86
 	return math.Abs(a-b) < epsilon*math.Max(math.Abs(a), math.Abs(b))
 }
 
