@@ -29,12 +29,30 @@ $(GOBIN)/gcassert:
 staticcheck: $(GOBIN)/staticcheck
 	$(GOBIN)/staticcheck ./...
 
-.PHONY: test-%
-test-%:
-	go test -race -shuffle=on -timeout=2m -v ./internal/aoc$*/...
-
 .PHONY: tmpl-%
 tmpl-%:
 	@year=$(shell echo $* | cut -d- -f1); \
 	day=$(shell echo $* | cut -d- -f2); \
 	go run ./cmd/template/template.go -year $$year -day $$day
+
+.PHONY: input-fetch-%
+input-fetch-%:
+	@year=$(shell echo $* | cut -d- -f1); \
+	day=$(shell echo $* | cut -d- -f2); \
+	go run ./cmd/input-fetch/main.go -year $$year -day $$day
+
+test-timings-runner: cmd/test-timings/main.go
+	go build -o test-timings-runner ./cmd/test-timings
+
+.PHONY: test-timings-%
+test-timings-%: test-timings-runner
+	@year=$(shell echo $* | cut -d- -f1); \
+	./test-timings-runner -year $$year
+
+.PHONY: test-timings
+test-timings: test-timings-runner
+	./test-timings-runner
+
+.PHONY: test-%
+test-%:
+	go test -race -shuffle=on -timeout=2m -v ./internal/aoc$*/...

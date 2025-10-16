@@ -125,7 +125,7 @@ func allIntersectionsMatch(intersections []*intersection) bool {
 }
 
 func findRockVelocityZ(hailstones []Hailstone, intersections []*intersection) (int, bool) {
-	const searchRange = 500
+	const searchRange = 1000
 	for rockVZ := -searchRange; rockVZ <= searchRange; rockVZ++ {
 		z1 := hailstones[1].zAt(intersections[0].t1, rockVZ)
 		z2 := hailstones[2].zAt(intersections[1].t1, rockVZ)
@@ -149,7 +149,7 @@ func day24p02(r io.Reader) (string, error) {
 		return "", fmt.Errorf("need at least 4 hailstones")
 	}
 
-	const searchRange = 500
+	const searchRange = 1000
 	for rockVX := -searchRange; rockVX <= searchRange; rockVX++ {
 		for rockVY := -searchRange; rockVY <= searchRange; rockVY++ {
 			adjustedStone := Hailstone{
