@@ -8,7 +8,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/assert"
 )
 
-func Test_day2p01(t *testing.T) {
+func Test_day02p01(t *testing.T) {
 	t.Run("example", func(t *testing.T) {
 		program, err := ParseIntcodeInput(strings.NewReader(`1,9,10,3,2,3,11,0,99,30,40,50`))
 		assert.NoError(t, err)
@@ -29,7 +29,7 @@ func Test_day2p01(t *testing.T) {
 	aoc.AOCTest(t, day2p01, tests)
 }
 
-func Test_day2p02(t *testing.T) {
+func Test_day02p02(t *testing.T) {
 	tests := []aoc.TestInput{
 		{
 			Input: aoc.FileInput(t, 2019, 2),

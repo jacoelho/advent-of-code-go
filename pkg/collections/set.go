@@ -15,6 +15,14 @@ func NewSet[T comparable](elements ...T) Set[T] {
 	return s
 }
 
+func NewSetFromIter[T comparable](iter iter.Seq[T]) Set[T] {
+	s := NewSet[T]()
+	for e := range iter {
+		s.Add(e)
+	}
+	return s
+}
+
 func (s Set[T]) Add(e ...T) {
 	for _, e := range e {
 		s[e] = struct{}{}

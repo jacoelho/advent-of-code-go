@@ -130,6 +130,7 @@ func Filter[Slice ~[]E, E any](predicate func(E) bool, s Slice) Slice {
 	return result
 }
 
+// CountFunc counts the number of elements in the slice that satisfy the predicate.
 func CountFunc[Slice ~[]E, E any](predicate func(E) bool, s Slice) int {
 	var result int
 	for _, v := range s {
@@ -189,4 +190,33 @@ func SubSlices[Slice ~[]E, E any](s Slice, n int) []Slice {
 	}
 
 	return result
+}
+
+// Combinations generates all combinations of k elements from the input slice.
+func Combinations[Slice ~[]E, E any](s Slice, k int) iter.Seq[Slice] {
+	if k > len(s) || k < 0 {
+		return func(yield func(Slice) bool) {}
+	}
+	if k == 0 {
+		return func(yield func(Slice) bool) {
+			yield(Slice{})
+		}
+	}
+
+	return func(yield func(Slice) bool) {
+		var generate func(int, Slice) bool
+		generate = func(start int, current Slice) bool {
+			if len(current) == k {
+				return yield(slices.Clone(current))
+			}
+
+			for i := start; i <= len(s)-k+len(current); i++ {
+				if !generate(i+1, append(current, s[i])) {
+					return false
+				}
+			}
+			return true
+		}
+		generate(0, make(Slice, 0, k))
+	}
 }

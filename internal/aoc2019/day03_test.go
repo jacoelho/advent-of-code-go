@@ -7,7 +7,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
-func Test_day3p01(t *testing.T) {
+func Test_day03p01(t *testing.T) {
 	tests := []aoc.TestInput{
 		{
 			Input: strings.NewReader("R8,U5,L5,D3\nU7,R6,D4,L4"),
@@ -21,7 +21,7 @@ func Test_day3p01(t *testing.T) {
 	aoc.AOCTest(t, day3p01, tests)
 }
 
-func Test_day3p02(t *testing.T) {
+func Test_day03p02(t *testing.T) {
 	tests := []aoc.TestInput{
 		{
 			Input: strings.NewReader("R8,U5,L5,D3\nU7,R6,D4,L4"),
