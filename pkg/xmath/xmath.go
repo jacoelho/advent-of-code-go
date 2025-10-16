@@ -45,7 +45,7 @@ func PolygonArea[T constraints.Signed, P Point[T]](vertices []P) T {
 	}
 
 	var area T
-	for i := 0; i < len(vertices); i++ {
+	for i := range vertices {
 		j := (i + 1) % len(vertices)
 		area += vertices[i].GetX() * vertices[j].GetY()
 		area -= vertices[j].GetX() * vertices[i].GetY()
