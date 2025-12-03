@@ -11,23 +11,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-const dialStartPosition = 50
-
-func rotate(pos int, amount int) int {
-	return xmath.Modulo(pos+amount, 100)
-}
-
-func countClicks(pos int, amount int) int {
-	unwrapped := pos + amount
-	clicks := xmath.Abs(unwrapped / 100)
-
-	if unwrapped == 0 || (pos > 0 && unwrapped < 0) {
-		clicks++
-	}
-
-	return clicks
-}
-
 func parseInstructions(r io.Reader) ([]int, error) {
 	s := scanner.NewScanner(r, func(line []byte) (int, error) {
 		if len(line) == 0 {
@@ -51,34 +34,41 @@ func parseInstructions(r io.Reader) ([]int, error) {
 	return slices.Collect(s.Values()), s.Err()
 }
 
-func day01p01(r io.Reader) (string, error) {
+func day01(r io.Reader, countFn func(pos int, amount int) int) (string, error) {
 	instructions, err := parseInstructions(r)
 	if err != nil {
 		return "", err
 	}
 
-	pos := dialStartPosition
+	pos := 50
 	var count int
 	for _, amount := range instructions {
-		if pos == 0 {
-			count++
-		}
-		pos = rotate(pos, amount)
+		count += countFn(pos, amount)
+		pos = xmath.Modulo(pos+amount, 100)
 	}
 	return strconv.Itoa(count), nil
 }
 
-func day01p02(r io.Reader) (string, error) {
-	instructions, err := parseInstructions(r)
-	if err != nil {
-		return "", err
+func day01p01(r io.Reader) (string, error) {
+	return day01(r, func(pos int, _ int) int {
+		if pos == 0 {
+			return 1
+		}
+		return 0
+	})
+}
+
+func countClicks(pos int, amount int) int {
+	unwrapped := pos + amount
+	clicks := xmath.Abs(unwrapped / 100)
+
+	if unwrapped == 0 || (pos > 0 && unwrapped < 0) {
+		clicks++
 	}
 
-	pos := dialStartPosition
-	var count int
-	for _, amount := range instructions {
-		count += countClicks(pos, amount)
-		pos = rotate(pos, amount)
-	}
-	return strconv.Itoa(count), nil
+	return clicks
+}
+
+func day01p02(r io.Reader) (string, error) {
+	return day01(r, countClicks)
 }
