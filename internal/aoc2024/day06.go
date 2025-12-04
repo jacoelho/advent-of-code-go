@@ -65,7 +65,7 @@ func day06p01(r io.Reader) (string, error) {
 	startPosition := guardPosition(m)
 
 	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
-	count := xiter.Length(xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
+	count := xiter.Len(xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
 		return in[0]
 	}, positions.Iter())))
 

@@ -146,7 +146,7 @@ func findComponentSizes(graph map[string]collections.Set[string]) []int {
 			continue
 		}
 
-		componentSize := xiter.Length(search.BFSWithVisited(start, visited, neighbours))
+		componentSize := xiter.Len(search.BFSWithVisited(start, visited, neighbours))
 		sizes = append(sizes, componentSize)
 	}
 
