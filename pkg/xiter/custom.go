@@ -54,7 +54,7 @@ func MaxBy[V any](comparator func(V, V) bool, seq iter.Seq[V]) V {
 	return currentMax
 }
 
-func Length[V any](seq iter.Seq[V]) int {
+func Len[V any](seq iter.Seq[V]) int {
 	var total int
 	for range seq {
 		total++

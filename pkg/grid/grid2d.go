@@ -2,6 +2,7 @@ package grid
 
 import (
 	"fmt"
+	"iter"
 	"strings"
 
 	"golang.org/x/exp/constraints"
@@ -44,6 +45,30 @@ func (g *Grid2D[T, V]) Dimensions() (T, T, T, T) {
 func (g *Grid2D[T, V]) Contains(pos Position2D[T]) bool {
 	_, found := (*g)[pos]
 	return found
+}
+
+func (g *Grid2D[T, V]) ValidNeighbours4(pos Position2D[T]) iter.Seq[Position2D[T]] {
+	return func(yield func(Position2D[T]) bool) {
+		for neighbor := range Neighbours4(pos) {
+			if g.Contains(neighbor) {
+				if !yield(neighbor) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (g *Grid2D[T, V]) ValidNeighbours8(pos Position2D[T]) iter.Seq[Position2D[T]] {
+	return func(yield func(Position2D[T]) bool) {
+		for neighbor := range Neighbours8(pos) {
+			if g.Contains(neighbor) {
+				if !yield(neighbor) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (g *Grid2D[T, V]) TurnRight() Grid2D[T, V] {
