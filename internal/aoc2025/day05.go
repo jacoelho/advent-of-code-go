@@ -75,10 +75,6 @@ func mergeRanges(ranges [][2]int) [][2]int {
 	return merged
 }
 
-func rangeLength(r [2]int) int {
-	return r[1] - r[0] + 1
-}
-
 func inRange(ranges [][2]int, n int) bool {
 	_, found := slices.BinarySearchFunc(ranges, n, func(r [2]int, target int) int {
 		if target < r[0] {
@@ -107,6 +103,10 @@ func day05p01(r io.Reader) (string, error) {
 	}
 
 	return strconv.Itoa(count), nil
+}
+
+func rangeLength(r [2]int) int {
+	return r[1] - r[0] + 1
 }
 
 func day05p02(r io.Reader) (string, error) {
