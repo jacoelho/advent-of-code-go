@@ -61,7 +61,7 @@ func traceTachyonBeam(
 			return grid.Position2D[int]{}, false
 		}
 		switch v {
-		case '.', 'S':
+		case '.':
 			pos = next
 		case '^':
 			return next, true
