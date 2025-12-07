@@ -28,11 +28,11 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
 		return xslices.Map(func(v byte) rune { return rune(v) }, b), nil
 	})
+
+	g := grid.NewGrid2D[int](slices.Collect(s.Values()))
 	if err := s.Err(); err != nil {
 		return nil, grid.Position2D[int]{}, 0, err
 	}
-
-	g := grid.NewGrid2D[int](slices.Collect(s.Values()))
 	_, _, _, maxY := g.Dimensions()
 
 	pair, found := xmaps.Find(g, func(_ grid.Position2D[int], v rune) bool {
@@ -120,6 +120,9 @@ func day07p02(r io.Reader) (string, error) {
 		}
 		if rightPos := splitter.Add(right); diagram.Contains(rightPos) {
 			rightTimelines = countTimelines(rightPos)
+		}
+		if leftTimelines == 0 && rightTimelines == 0 {
+			return 1
 		}
 		return leftTimelines + rightTimelines
 	})
