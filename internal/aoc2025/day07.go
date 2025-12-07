@@ -45,14 +45,14 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 	return g, pair.K, maxY, nil
 }
 
-// traceTachyonBeam traces a beam downward from pos until hitting a splitter or exiting.
+// traceTachyonBeam traces a beam downward until hitting a splitter or exiting.
 func traceTachyonBeam(
 	g grid.Grid2D[int, rune],
 	maxY int,
-	current grid.Position2D[int],
+	pos grid.Position2D[int],
 ) (grid.Position2D[int], bool) {
 	for {
-		next := current.Add(down)
+		next := pos.Add(down)
 		if next.Y > maxY {
 			return grid.Position2D[int]{}, false
 		}
@@ -62,7 +62,7 @@ func traceTachyonBeam(
 		}
 		switch v {
 		case '.', 'S':
-			current = next
+			pos = next
 		case '^':
 			return next, true
 		}
