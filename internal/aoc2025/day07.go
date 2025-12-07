@@ -10,6 +10,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
+	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 var (
@@ -25,11 +26,7 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 	error,
 ) {
 	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
-		res := make([]rune, len(b))
-		for i, v := range b {
-			res[i] = rune(v)
-		}
-		return res, nil
+		return xslices.Map(func(v byte) rune { return rune(v) }, b), nil
 	})
 	if err := s.Err(); err != nil {
 		return nil, grid.Position2D[int]{}, 0, err
