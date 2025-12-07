@@ -22,7 +22,6 @@ var (
 func parseTachyonManifoldDiagram(r io.Reader) (
 	grid.Grid2D[int, rune],
 	grid.Position2D[int],
-	int,
 	error,
 ) {
 	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
@@ -31,9 +30,8 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 
 	g := grid.NewGrid2D[int](slices.Collect(s.Values()))
 	if err := s.Err(); err != nil {
-		return nil, grid.Position2D[int]{}, 0, err
+		return nil, grid.Position2D[int]{}, err
 	}
-	_, _, _, maxY := g.Dimensions()
 
 	pair, found := xmaps.Find(g, func(_ grid.Position2D[int], v rune) bool {
 		return v == 'S'
@@ -42,20 +40,16 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 		panic("start position 'S' not found")
 	}
 
-	return g, pair.K, maxY, nil
+	return g, pair.K, nil
 }
 
 // traceTachyonBeam traces a beam downward until hitting a splitter or exiting.
 func traceTachyonBeam(
 	g grid.Grid2D[int, rune],
-	maxY int,
 	pos grid.Position2D[int],
 ) (grid.Position2D[int], bool) {
 	for {
 		next := pos.Add(down)
-		if next.Y > maxY {
-			return grid.Position2D[int]{}, false
-		}
 		v, exists := g[next]
 		if !exists {
 			return grid.Position2D[int]{}, false
@@ -70,7 +64,7 @@ func traceTachyonBeam(
 }
 
 func day07p01(r io.Reader) (string, error) {
-	diagram, start, maxY, err := parseTachyonManifoldDiagram(r)
+	diagram, start, err := parseTachyonManifoldDiagram(r)
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +73,7 @@ func day07p01(r io.Reader) (string, error) {
 
 	var countBeamSplits func(pos grid.Position2D[int]) int
 	countBeamSplits = func(pos grid.Position2D[int]) int {
-		splitter, found := traceTachyonBeam(diagram, maxY, pos)
+		splitter, found := traceTachyonBeam(diagram, pos)
 		if !found {
 			return 0
 		}
@@ -102,14 +96,14 @@ func day07p01(r io.Reader) (string, error) {
 }
 
 func day07p02(r io.Reader) (string, error) {
-	diagram, start, maxY, err := parseTachyonManifoldDiagram(r)
+	diagram, start, err := parseTachyonManifoldDiagram(r)
 	if err != nil {
 		return "", err
 	}
 
 	var countTimelines func(pos grid.Position2D[int]) int
 	countTimelines = funcs.Memoize(func(pos grid.Position2D[int]) int {
-		splitter, found := traceTachyonBeam(diagram, maxY, pos)
+		splitter, found := traceTachyonBeam(diagram, pos)
 		if !found {
 			return 1
 		}
