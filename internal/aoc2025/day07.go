@@ -1,6 +1,7 @@
 package aoc2025
 
 import (
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
@@ -37,7 +38,7 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 		return v == 'S'
 	})
 	if !found {
-		panic("start position 'S' not found")
+		return nil, grid.Position2D[int]{}, fmt.Errorf("start position 'S' not found")
 	}
 
 	return g, pair.K, nil
