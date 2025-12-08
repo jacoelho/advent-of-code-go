@@ -32,3 +32,8 @@ func (p *Position3D[T]) Sub(other Position3D[T]) Position3D[T] {
 func (p *Position3D[T]) Distance(other Position3D[T]) T {
 	return xmath.Abs(p.X-other.X) + xmath.Abs(p.Y-other.Y) + xmath.Abs(p.Z-other.Z)
 }
+
+func (p *Position3D[T]) EuclideanDistanceSquared(other Position3D[T]) T {
+	dx, dy, dz := p.X-other.X, p.Y-other.Y, p.Z-other.Z
+	return dx*dx + dy*dy + dz*dz
+}
