@@ -89,7 +89,7 @@ func crossProduct(p1, p2, p3 grid.Position2D[int]) int {
 }
 
 // orientation returns the orientation of three points.
-// Returns -1 for clockwise, 0 for collinear, and +1 for counterclockwise.
+// -1 for clockwise, 0 for collinear, and +1 for counterclockwise.
 func orientation(p1, p2, p3 grid.Position2D[int]) int {
 	cross := crossProduct(p1, p2, p3)
 	switch {
@@ -107,7 +107,7 @@ type edge struct {
 	start, end grid.Position2D[int]
 }
 
-// contains reports whether the edge contains the given point.
+// contains checks whether the edge contains the given point.
 func (e edge) contains(point grid.Position2D[int]) bool {
 	if crossProduct(e.start, e.end, point) != 0 {
 		return false
@@ -128,7 +128,7 @@ func (e edge) intersects(other edge) bool {
 }
 
 // findMaxRectangle finds the maximum area rectangle formed by pairs of tiles
-// that satisfy the given validator function.
+// and satisfy the given validator function.
 func findMaxRectangle(tiles []grid.Position2D[int], validator func(rectangle) bool) int {
 	var maxArea int
 	for pair := range xslices.Pairwise(tiles) {
@@ -161,7 +161,7 @@ func polygonEdgesSet(polygon []grid.Position2D[int]) collections.Set[edge] {
 	return edges
 }
 
-// isPointInside reports whether point is inside the polygon using the ray casting algorithm.
+// isPointInside checks whether point is inside the polygon using the ray casting algorithm.
 func isPointInside(polygon []grid.Position2D[int], point grid.Position2D[int]) bool {
 	intersectionCount := 0
 	numVertices := len(polygon)
