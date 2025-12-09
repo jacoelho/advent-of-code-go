@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
@@ -66,14 +65,11 @@ func (r rectangle) Area() int {
 }
 
 // intersectsPolygon reports whether any edge of the rectangle intersects with any polygon edge.
-func (r rectangle) intersectsPolygon(polygonEdges collections.Set[edge]) bool {
+func (r rectangle) intersectsPolygon(polygonEdges []edge) bool {
 	return xslices.Any(func(rectEdge edge) bool {
-		for polyEdge := range polygonEdges {
-			if rectEdge.intersects(polyEdge) {
-				return true
-			}
-		}
-		return false
+		return xslices.Any(func(polyEdge edge) bool {
+			return rectEdge.intersects(polyEdge)
+		}, polygonEdges)
 	}, r.Edges())
 }
 
@@ -143,14 +139,14 @@ func day09p01(r io.Reader) (string, error) {
 	return strconv.Itoa(maxArea), nil
 }
 
-func polygonEdgesSet(polygon []grid.Position2D[int]) collections.Set[edge] {
+func polygonEdges(polygon []grid.Position2D[int]) []edge {
 	n := len(polygon)
-	edges := collections.NewSet[edge]()
+	edges := make([]edge, n)
 	for i := range n {
-		edges.Add(edge{
+		edges[i] = edge{
 			start: polygon[i],
 			end:   polygon[(i+1)%n],
-		})
+		}
 	}
 	return edges
 }
@@ -194,11 +190,11 @@ func day09p02(r io.Reader) (string, error) {
 		return isPointInside(tiles, point)
 	})
 
-	polygonEdges := polygonEdgesSet(tiles)
+	polyEdges := polygonEdges(tiles)
 
 	maxArea := findMaxRectangle(tiles, func(rect rectangle) bool {
 		cornersInside := xslices.Every(isPointInsideMemo, rect.Corners())
-		return cornersInside && !rect.intersectsPolygon(polygonEdges)
+		return cornersInside && !rect.intersectsPolygon(polyEdges)
 	})
 	return strconv.Itoa(maxArea), nil
 }
