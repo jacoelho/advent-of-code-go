@@ -32,14 +32,8 @@ type rectangle struct {
 
 func newRectangle(p1, p2 grid.Position2D[int]) rectangle {
 	return rectangle{
-		bottomLeftCorner: grid.Position2D[int]{
-			X: min(p1.X, p2.X),
-			Y: min(p1.Y, p2.Y),
-		},
-		topRightCorner: grid.Position2D[int]{
-			X: max(p1.X, p2.X),
-			Y: max(p1.Y, p2.Y),
-		},
+		bottomLeftCorner: grid.NewPosition2D(min(p1.X, p2.X), min(p1.Y, p2.Y)),
+		topRightCorner:   grid.NewPosition2D(max(p1.X, p2.X), max(p1.Y, p2.Y)),
 	}
 }
 
