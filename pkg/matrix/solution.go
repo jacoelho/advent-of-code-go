@@ -2,23 +2,17 @@ package matrix
 
 import "github.com/jacoelho/advent-of-code-go/pkg/xmath"
 
-// Rational interface for types that can be scaled to integers
-type Rational[T any] interface {
-	Field[T]
-	Numerator() int64
-	Denominator() int64
-}
-
-// ParametricSolution represents the parametric solution to Ax = b
-type ParametricSolution[T Field[T]] struct {
-	Base      []T   // base solution vector
-	Coeffs    [][]T // coefficient matrix for free variables
-	FreeCols  []int // indices of free variable columns
-	PivotCols []int // indices of pivot columns
+// ParametricSolution represents the parametric solution to Ax = b.
+// The solution is expressed as: x = Base + sum(FreeCols[i] * Coeffs[i])
+type ParametricSolution struct {
+	Base      []Rat   // base solution vector
+	Coeffs    [][]Rat // coefficient matrix for free variables (each row is a free variable)
+	FreeCols  []int   // indices of free variable columns
+	PivotCols []int   // indices of pivot columns
 }
 
 // findPivotRowMapping maps each pivot column to its row index
-func findPivotRowMapping[T Field[T]](m *Matrix[T], varCount int) map[int]int {
+func findPivotRowMapping(m *Matrix, varCount int) map[int]int {
 	pivotForCol := make(map[int]int)
 	for r := range m.data {
 		row := m.data[r]
@@ -48,32 +42,32 @@ func findFreeColumns(varCount int, pivotCols []int) []int {
 }
 
 // ExtractParametricSolution extracts parametric solution from RREF matrix.
+// The matrix m should be in RREF form (typically after calling RREF).
 // varCount is the number of variables (excludes RHS column).
-func ExtractParametricSolution[T Field[T]](
-	m *Matrix[T],
+// pivotCols are the column indices that have pivots.
+func ExtractParametricSolution(
+	m *Matrix,
 	pivotCols []int,
 	varCount int,
-) ParametricSolution[T] {
+) ParametricSolution {
 	pivotForCol := findPivotRowMapping(m, varCount)
 	freeCols := findFreeColumns(varCount, pivotCols)
 	freeCount := len(freeCols)
 
-	var zero T
-	zero = zero.Zero()
-	base := make([]T, varCount)
+	zero := NewRat(0, 1)
+	base := make([]Rat, varCount)
 	for i := range base {
 		base[i] = zero
 	}
-	coeffs := New[T](freeCount, varCount)
+	coeffs := New(freeCount, varCount)
 
-	// Set free variable coefficients to identity
-	var one T
-	one = one.One()
+	// set free variable coefficients to identity
+	one := NewRat(1, 1)
 	for idx, freeCol := range freeCols {
 		coeffs.Set(idx, freeCol, one)
 	}
 
-	// Extract base solution and pivot column coefficients
+	// extract base solution and pivot column coefficients
 	rhsCol := m.Cols() - 1
 	for _, pivotCol := range pivotCols {
 		rowIdx := pivotForCol[pivotCol]
@@ -83,19 +77,20 @@ func ExtractParametricSolution[T Field[T]](
 		}
 	}
 
-	return ParametricSolution[T]{
+	return ParametricSolution{
 		Base:      base,
-		Coeffs:    coeffs.Data(),
+		Coeffs:    coeffs.data,
 		FreeCols:  freeCols,
 		PivotCols: pivotCols,
 	}
 }
 
 // ScaleToIntegers scales a parametric solution with rational coefficients to integer representation.
-// Returns scaled base vector, scaled coefficient matrix, and common denominator.
-func ScaleToIntegers[T Rational[T]](
-	base []T,
-	coeffs [][]T,
+// Computes the LCM of all denominators and scales base and coefficients accordingly.
+// Returns scaled base vector, scaled coefficient matrix, and the common denominator used.
+func ScaleToIntegers(
+	base []Rat,
+	coeffs [][]Rat,
 ) ([]int64, [][]int64, int64) {
 	buttonCount := len(base)
 	freeCount := len(coeffs)

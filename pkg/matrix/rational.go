@@ -2,12 +2,11 @@ package matrix
 
 import "github.com/jacoelho/advent-of-code-go/pkg/xmath"
 
-// Rat represents a rational number using integers
+// Rat represents a rational number using integers stored in reduced form (normalized)
 type Rat struct {
-	Num, Den int64
+	numerator, denominator int64
 }
 
-// NewRat creates a new rational number, normalizing it to reduced form
 func NewRat(num, den int64) Rat {
 	if den == 0 {
 		panic("rational number with zero denominator")
@@ -20,55 +19,49 @@ func NewRat(num, den int64) Rat {
 		num /= g
 		den /= g
 	}
-	return Rat{Num: num, Den: den}
+	return Rat{numerator: num, denominator: den}
 }
 
-// Field[Rat] interface implementation
 func (r Rat) Add(other Rat) Rat {
-	lcm := xmath.LCM(r.Den, other.Den)
-	num := r.Num*(lcm/r.Den) + other.Num*(lcm/other.Den)
+	if r.denominator == other.denominator {
+		return NewRat(r.numerator+other.numerator, r.denominator)
+	}
+	lcm := xmath.LCM(r.denominator, other.denominator)
+	num := r.numerator*(lcm/r.denominator) + other.numerator*(lcm/other.denominator)
 	return NewRat(num, lcm)
 }
 
 func (r Rat) Sub(other Rat) Rat {
-	lcm := xmath.LCM(r.Den, other.Den)
-	num := r.Num*(lcm/r.Den) - other.Num*(lcm/other.Den)
+	if r.denominator == other.denominator {
+		return NewRat(r.numerator-other.numerator, r.denominator)
+	}
+	lcm := xmath.LCM(r.denominator, other.denominator)
+	num := r.numerator*(lcm/r.denominator) - other.numerator*(lcm/other.denominator)
 	return NewRat(num, lcm)
 }
 
 func (r Rat) Mul(other Rat) Rat {
-	return NewRat(r.Num*other.Num, r.Den*other.Den)
+	return NewRat(r.numerator*other.numerator, r.denominator*other.denominator)
 }
 
 func (r Rat) Div(other Rat) Rat {
-	if other.Num == 0 {
+	if other.numerator == 0 {
 		panic("division by zero")
 	}
-	return NewRat(r.Num*other.Den, r.Den*other.Num)
+	return NewRat(r.numerator*other.denominator, r.denominator*other.numerator)
 }
 
 func (r Rat) Neg() Rat {
-	return Rat{Num: -r.Num, Den: r.Den}
+	return Rat{numerator: -r.numerator, denominator: r.denominator}
 }
 
 func (r Rat) IsZero() bool {
-	return r.Num == 0
+	return r.numerator == 0
 }
-
-func (r Rat) Zero() Rat {
-	return NewRat(0, 1)
-}
-
-func (r Rat) One() Rat {
-	return NewRat(1, 1)
-}
-
-// Numerator returns the numerator of the rational number
 func (r Rat) Numerator() int64 {
-	return r.Num
+	return r.numerator
 }
 
-// Denominator returns the denominator of the rational number
 func (r Rat) Denominator() int64 {
-	return r.Den
+	return r.denominator
 }
