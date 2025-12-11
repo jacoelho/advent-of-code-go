@@ -27,37 +27,6 @@ func parseDevicesList(r io.Reader) (map[string][]string, error) {
 	return result, s.Err()
 }
 
-func countPathsToTarget(graph map[string][]string, target string, device string) int {
-	var countPaths func(string) int
-	countPaths = funcs.Memoize(func(d string) int {
-		if d == target {
-			return 1
-		}
-
-		neighbors, exists := graph[d]
-		if !exists {
-			return 0
-		}
-
-		count := 0
-		for _, neighbor := range neighbors {
-			count += countPaths(neighbor)
-		}
-		return count
-	})
-	return countPaths(device)
-}
-
-func day11p01(r io.Reader) (string, error) {
-	graph, err := parseDevicesList(r)
-	if err != nil {
-		return "", err
-	}
-
-	count := countPathsToTarget(graph, "out", "you")
-	return strconv.Itoa(count), nil
-}
-
 type deviceState struct {
 	device string
 	state  int
@@ -73,7 +42,7 @@ func setVisitedBit(state int, bitIndex int) int {
 	return state | (1 << bitIndex)
 }
 
-func countPathsWithRequiredNodes(
+func countPaths(
 	graph map[string][]string,
 	required []string,
 	target string,
@@ -113,6 +82,16 @@ func countPathsWithRequiredNodes(
 	return countPaths(deviceState{device: device, state: 0})
 }
 
+func day11p01(r io.Reader) (string, error) {
+	graph, err := parseDevicesList(r)
+	if err != nil {
+		return "", err
+	}
+
+	count := countPaths(graph, nil, "out", "you")
+	return strconv.Itoa(count), nil
+}
+
 func day11p02(r io.Reader) (string, error) {
 	graph, err := parseDevicesList(r)
 	if err != nil {
@@ -121,6 +100,6 @@ func day11p02(r io.Reader) (string, error) {
 
 	required := []string{"dac", "fft"}
 
-	count := countPathsWithRequiredNodes(graph, required, "out", "svr")
+	count := countPaths(graph, required, "out", "svr")
 	return strconv.Itoa(count), nil
 }
