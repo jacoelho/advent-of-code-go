@@ -6,38 +6,28 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-type deviceEntry struct {
-	device  string
-	outputs []string
-}
-
-func parseDevicesList(r io.Reader) (map[string]collections.Set[string], error) {
-	s := scanner.NewScanner(r, func(line []byte) (deviceEntry, error) {
+func parseDevicesList(r io.Reader) (map[string][]string, error) {
+	s := scanner.NewScanner(r, func(line []byte) ([]string, error) {
 		fields := strings.FieldsFunc(string(line), func(r rune) bool {
 			return r == ':' || r == ' '
 		})
-		return deviceEntry{
-			device:  fields[0],
-			outputs: fields[1:],
-		}, nil
+		return fields, nil
 	})
 
 	entries := slices.Collect(s.Values())
-	result := make(map[string]collections.Set[string], len(entries))
+	result := make(map[string][]string, len(entries))
 	for _, entry := range entries {
-		result[entry.device] = collections.NewSet(entry.outputs...)
+		result[entry[0]] = entry[1:]
 	}
 
 	return result, s.Err()
 }
 
-func countPathsToTarget(graph map[string]collections.Set[string], target string, device string) int {
+func countPathsToTarget(graph map[string][]string, target string, device string) int {
 	var countPaths func(string) int
 	countPaths = funcs.Memoize(func(d string) int {
 		if d == target {
@@ -50,7 +40,7 @@ func countPathsToTarget(graph map[string]collections.Set[string], target string,
 		}
 
 		count := 0
-		for neighbor := range neighbors {
+		for _, neighbor := range neighbors {
 			count += countPaths(neighbor)
 		}
 		return count
@@ -84,17 +74,17 @@ func setVisitedBit(state int, bitIndex int) int {
 }
 
 func countPathsWithRequiredNodes(
-	graph map[string]collections.Set[string],
-	required collections.Set[string],
+	graph map[string][]string,
+	required []string,
 	target string,
 	device string,
 ) int {
-	requiredMap := make(map[string]int)
-	for i, node := range xiter.Enumerate(required.Iter()) {
+	requiredMap := make(map[string]int, len(required))
+	for i, node := range required {
 		requiredMap[node] = i
 	}
 
-	allVisitedMaskValue := allVisitedMask(required.Len())
+	allVisitedMaskValue := allVisitedMask(len(required))
 
 	var countPaths func(deviceState) int
 	countPaths = funcs.Memoize(func(ds deviceState) int {
@@ -111,7 +101,7 @@ func countPathsWithRequiredNodes(
 		}
 
 		count := 0
-		for neighbor := range neighbors {
+		for _, neighbor := range neighbors {
 			newState := ds.state
 			if bitIndex, ok := requiredMap[neighbor]; ok {
 				newState = setVisitedBit(newState, bitIndex)
@@ -129,7 +119,7 @@ func day11p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	required := collections.NewSet("dac", "fft")
+	required := []string{"dac", "fft"}
 
 	count := countPathsWithRequiredNodes(graph, required, "out", "svr")
 	return strconv.Itoa(count), nil
