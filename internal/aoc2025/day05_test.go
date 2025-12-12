@@ -45,7 +45,7 @@ func Test_day05p02(t *testing.T) {
 11
 17
 32`),
-			Want:  "14",
+			Want: "14",
 		},
 		{
 			Input: aoc.FileInput(t, 2025, 05),
