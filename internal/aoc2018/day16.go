@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type opcodeSample struct {
@@ -183,12 +184,9 @@ func day16p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	count := 0
-	for _, sample := range samples {
-		if bits.OnesCount16(matchingOperations(sample)) >= 3 {
-			count++
-		}
-	}
+	count := xiter.FromSlice(samples).Filter(func(sample opcodeSample) bool {
+		return bits.OnesCount16(matchingOperations(sample)) >= 3
+	}).Count()
 	return strconv.Itoa(count), nil
 }
 

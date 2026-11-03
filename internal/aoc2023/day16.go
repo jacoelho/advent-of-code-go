@@ -153,11 +153,7 @@ func day16p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	maxEnergized := xiter.Reduce(
-		func(maxSoFar, count int) int { return max(maxSoFar, count) },
-		0,
-		xiter.Map(func(b beam) int { return simulate(g, b) }, edgeBeams(g)),
-	)
+	maxEnergized := xiter.From(edgeBeams(g)).Map(func(b beam) int { return simulate(g, b) }).Reduce(0, func(maxSoFar, count int) int { return max(maxSoFar, count) })
 
 	return strconv.Itoa(maxEnergized), nil
 }

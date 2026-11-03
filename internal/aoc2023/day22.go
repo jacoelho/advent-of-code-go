@@ -12,7 +12,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type brick struct {
@@ -133,9 +132,9 @@ func day22p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	safeCount := xslices.CountFunc(func(b brick) bool {
+	safeCount := xiter.FromSlice(settledBricks).Filter(func(b brick) bool {
 		return canSafelyDisintegrate(b.ID, supports, supportedBy)
-	}, settledBricks)
+	}).Count()
 
 	return strconv.Itoa(safeCount), nil
 }
@@ -214,8 +213,12 @@ func canSafelyDisintegrate(brickID int, supports, supportedBy map[int]collection
 }
 
 func allSupportersHaveFallen(brickID int, supportedBy map[int]collections.Set[int], fallen collections.Set[int]) bool {
-	supporters := slices.Collect(supportedBy[brickID].Iter())
-	return xslices.Every(fallen.Contains, supporters)
+	for supporter := range supportedBy[brickID] {
+		if !fallen.Contains(supporter) {
+			return false
+		}
+	}
+	return true
 }
 
 func countFallingBricks(brickID int, supports, supportedBy map[int]collections.Set[int]) int {
@@ -243,9 +246,9 @@ func day22p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	totalFalling := xslices.Sum(xslices.Map(func(b brick) int {
+	totalFalling := xiter.FromSlice(settledBricks).SumBy(func(b brick) int {
 		return countFallingBricks(b.ID, supports, supportedBy)
-	}, settledBricks))
+	})
 
 	return strconv.Itoa(totalFalling), nil
 }

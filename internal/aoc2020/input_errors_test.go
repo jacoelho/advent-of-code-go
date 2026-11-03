@@ -43,6 +43,18 @@ func TestCombatInputErrors(t *testing.T) {
 	}
 }
 
+func TestTilePathReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, solve := range []func(io.Reader) (string, error){day24p01, day24p02} {
+		for _, prefix := range []string{"", "e\n"} {
+			reader := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure))
+			if _, err := solve(reader); !errors.Is(err, failure) {
+				t.Fatalf("prefix %q: got %v, want input failure", prefix, err)
+			}
+		}
+	}
+}
+
 func TestPortedDaysRejectMalformedInput(t *testing.T) {
 	for _, tt := range []struct {
 		name, input string

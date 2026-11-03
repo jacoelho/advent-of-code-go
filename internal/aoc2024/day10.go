@@ -10,7 +10,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseTopographicMap(r io.Reader) (grid.Grid2D[int, int], error) {
@@ -58,11 +57,11 @@ func day10p01(r io.Reader) (string, error) {
 
 	var summits int
 	for _, trail := range trailheads(m) {
-		paths := xiter.Frequencies(xiter.Map(func(in grid.Position2D[int]) int {
-			return m[in]
-		}, search.BFS(trail, day10neighbours(m))))
-
-		summits += paths[9]
+		for position := range search.BFS(trail, day10neighbours(m)) {
+			if m[position] == 9 {
+				summits++
+			}
+		}
 	}
 
 	return strconv.Itoa(summits), nil
@@ -94,11 +93,11 @@ func day10p02(r io.Reader) (string, error) {
 
 	var summits int
 	for _, trail := range trailheads(m) {
-		paths := xiter.Frequencies(xiter.Map(func(in grid.Position2D[int]) int {
-			return m[in]
-		}, multiVisitBFS(trail, day10neighbours(m))))
-
-		summits += paths[9]
+		for position := range multiVisitBFS(trail, day10neighbours(m)) {
+			if m[position] == 9 {
+				summits++
+			}
+		}
 	}
 
 	return strconv.Itoa(summits), nil

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type messageRule struct {
@@ -148,12 +149,9 @@ func matchesMessage(rules map[int]messageRule, message string) bool {
 }
 
 func countGrammarMatches(rules map[int]messageRule, messages []string) string {
-	count := 0
-	for _, message := range messages {
-		if matchesMessage(rules, message) {
-			count++
-		}
-	}
+	count := xiter.FromSlice(messages).Filter(func(message string) bool {
+		return matchesMessage(rules, message)
+	}).Count()
 	return strconv.Itoa(count)
 }
 

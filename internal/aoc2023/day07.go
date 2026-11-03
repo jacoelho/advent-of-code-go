@@ -9,7 +9,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type handType int
@@ -51,7 +51,7 @@ func classifyHand(cards string, jokerRule bool) handType {
 		filtered = strings.ReplaceAll(cards, "J", "")
 	}
 
-	frequencies := xslices.Frequencies([]rune(filtered))
+	frequencies := xiter.Frequencies(slices.Values([]rune(filtered)))
 	counts := slices.Sorted(maps.Values(frequencies))
 	slices.Reverse(counts)
 

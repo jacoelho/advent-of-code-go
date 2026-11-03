@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type syntaxLine struct {
@@ -50,10 +52,7 @@ func day10p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var total uint64
-	for _, line := range lines {
-		total += line.corrupt
-	}
+	total := xiter.FromSlice(lines).SumBy(func(line syntaxLine) uint64 { return line.corrupt })
 	return strconv.FormatUint(total, 10), nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parsePassports(r io.Reader) ([]map[string]string, error) {
@@ -103,12 +104,7 @@ func countPassports(r io.Reader, valid func(map[string]string) bool) (string, er
 	if err != nil {
 		return "", err
 	}
-	count := 0
-	for _, passport := range passports {
-		if valid(passport) {
-			count++
-		}
-	}
+	count := xiter.FromSlice(passports).Filter(valid).Count()
 	return strconv.Itoa(count), nil
 }
 

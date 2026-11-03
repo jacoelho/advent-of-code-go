@@ -22,6 +22,7 @@ func TestPuzzleReaderErrors(t *testing.T) {
 		name, prefix string
 		solve        func(io.Reader) (string, error)
 	}{
+		{"day01p01", "12\n", day01p01}, {"day01p02", "12\n", day01p02},
 		{"day11p01", "99", day11p01}, {"day11p02", "99", day11p02},
 		{"day13p01", "99", day13p01}, {"day13p02", "99", day13p02},
 		{"day15p01", "99", day15p01}, {"day15p02", "99", day15p02},

@@ -105,5 +105,5 @@ func (s Set[T]) Union(other Set[T]) Set[T] {
 }
 
 func (s Set[T]) Next() (T, bool) {
-	return xiter.Next(s.Iter())
+	return xiter.From(s.Iter()).First()
 }

@@ -78,9 +78,9 @@ func day06p01(r io.Reader) (string, error) {
 	}
 
 	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
-	count := xiter.Len(xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
+	count := xiter.From(xiter.Unique(xiter.From(positions.Iter()).Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
 		return in[0]
-	}, positions.Iter())))
+	}).All())).Count()
 
 	return strconv.Itoa(count), nil
 }
@@ -96,9 +96,9 @@ func day06p02(r io.Reader) (string, error) {
 	}
 
 	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
-	candidates := xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
+	candidates := xiter.Unique(xiter.From(positions.Iter()).Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
 		return in[0]
-	}, positions.Iter()))
+	}).All())
 
 	var count int
 	for candidate := range candidates {

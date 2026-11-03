@@ -11,6 +11,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type encryptedRoom struct {
@@ -18,8 +19,8 @@ type encryptedRoom struct {
 	sector         int
 }
 
-func parseRooms(r io.Reader) ([]encryptedRoom, error) {
-	s := scanner.NewScanner(r, func(line []byte) (encryptedRoom, error) {
+func roomRecords(r io.Reader) *scanner.Scanner[encryptedRoom] {
+	return scanner.NewScanner(r, func(line []byte) (encryptedRoom, error) {
 		body, checksum, ok := bytes.Cut(line, []byte{'['})
 		checksum, closed := bytes.CutSuffix(checksum, []byte{']'})
 		dash := bytes.LastIndexByte(body, '-')
@@ -40,7 +41,6 @@ func parseRooms(r io.Reader) ([]encryptedRoom, error) {
 		}
 		return encryptedRoom{string(body[:dash]), string(checksum), sector}, nil
 	})
-	return slices.Collect(s.Values()), s.Err()
 }
 
 func (room encryptedRoom) real() bool {
@@ -75,22 +75,20 @@ func (room encryptedRoom) decryptedName() string {
 }
 
 func day04p01(r io.Reader) (string, error) {
-	rooms, err := parseRooms(r)
-	if err != nil {
+	s := roomRecords(r)
+	total := xiter.From(s.Values()).Filter(encryptedRoom.real).SumBy(func(room encryptedRoom) int {
+		return room.sector
+	})
+	if err := s.Err(); err != nil {
 		return "", err
-	}
-	total := 0
-	for _, room := range rooms {
-		if room.real() {
-			total += room.sector
-		}
 	}
 	return strconv.Itoa(total), nil
 }
 
 func day04p02(r io.Reader) (string, error) {
-	rooms, err := parseRooms(r)
-	if err != nil {
+	s := roomRecords(r)
+	rooms := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
 		return "", err
 	}
 	for _, room := range rooms {

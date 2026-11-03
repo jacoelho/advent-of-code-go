@@ -7,12 +7,11 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parsePattern(data []byte) ([]string, error) {
-	lines := strings.Split(string(data), "\n")
-	return xslices.Filter(func(line string) bool { return len(line) > 0 }, lines), nil
+	lines := strings.SplitSeq(string(data), "\n")
+	return xiter.From(lines).Filter(func(line string) bool { return len(line) > 0 }).Collect(), nil
 }
 
 func countDifferences(a, b string) int {
@@ -76,7 +75,7 @@ func findHorizontalReflection(pattern []string, allowedSmudges int) int {
 func day13(r io.Reader, allowedSmudges int) (string, error) {
 	s := scanner.NewScannerWithSplit(r, scanner.SplitBySeparator([]byte("\n\n")), parsePattern)
 
-	result := xiter.Sum(xiter.Map(func(pattern []string) int {
+	result := xiter.From(s.Values()).SumBy(func(pattern []string) int {
 		if v := findVerticalReflection(pattern, allowedSmudges); v > 0 {
 			return v
 		}
@@ -84,7 +83,7 @@ func day13(r io.Reader, allowedSmudges int) (string, error) {
 			return h * 100
 		}
 		return 0
-	}, s.Values()))
+	})
 
 	return strconv.Itoa(result), s.Err()
 }

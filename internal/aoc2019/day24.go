@@ -4,12 +4,10 @@ import (
 	"bufio"
 	"io"
 	"math/bits"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 const (
@@ -31,9 +29,13 @@ func gridPosition(x, y int) int {
 }
 
 func countBugsInPositions(grid uint32, positions []int) int {
-	return xiter.CountBy(func(pos int) bool {
-		return isBug(grid, pos)
-	}, slices.Values(positions))
+	var count int
+	for _, pos := range positions {
+		if isBug(grid, pos) {
+			count++
+		}
+	}
+	return count
 }
 
 func shouldHaveBug(hasBug bool, adjacent int) bool {
@@ -70,13 +72,17 @@ func isBug(state uint32, pos int) bool { return state&(1<<pos) != 0 }
 
 func countAdjacent(state uint32, x, y int) int {
 	pos := grid.NewPosition2D(x, y)
-	return xiter.CountBy(func(neighbor grid.Position2D[int]) bool {
+	var count int
+	for neighbor := range grid.Neighbours4(pos) {
 		if neighbor.X < 0 || neighbor.X >= gridSize || neighbor.Y < 0 || neighbor.Y >= gridSize {
-			return false
+			continue
 		}
 		neighborPos := gridPosition(neighbor.X, neighbor.Y)
-		return isBug(state, neighborPos)
-	}, grid.Neighbours4(pos))
+		if isBug(state, neighborPos) {
+			count++
+		}
+	}
+	return count
 }
 
 func step(state uint32) uint32 {

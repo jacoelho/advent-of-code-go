@@ -11,9 +11,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseAsteroidMap(r io.Reader) ([]grid.Position2D[int], error) {
@@ -27,13 +26,9 @@ func parseAsteroidMap(r io.Reader) ([]grid.Position2D[int], error) {
 	}
 
 	g := grid.NewGrid2D[int](rows)
-	asteroidPairs := xmaps.Filter(func(_ grid.Position2D[int], char rune) bool {
-		return char == '#'
-	}, g)
-
-	return xslices.Map(func(p xmaps.Pair[grid.Position2D[int], rune]) grid.Position2D[int] {
-		return p.K
-	}, asteroidPairs), nil
+	return xiter.From(maps.Keys(g)).Filter(func(pos grid.Position2D[int]) bool {
+		return g[pos] == '#'
+	}).Collect(), nil
 }
 
 func normalizeDirection(station, asteroid grid.Position2D[int]) grid.Position2D[int] {
@@ -62,9 +57,9 @@ func countVisibleAsteroids(station grid.Position2D[int], asteroids []grid.Positi
 }
 
 func findBestLocation(asteroids []grid.Position2D[int]) (grid.Position2D[int], int) {
-	bestLocation := xslices.MaxBy(func(a, b grid.Position2D[int]) bool {
-		return countVisibleAsteroids(a, asteroids) < countVisibleAsteroids(b, asteroids)
-	}, asteroids)
+	bestLocation := slices.MaxFunc(asteroids, func(a, b grid.Position2D[int]) int {
+		return cmp.Compare(countVisibleAsteroids(a, asteroids), countVisibleAsteroids(b, asteroids))
+	})
 
 	return bestLocation, countVisibleAsteroids(bestLocation, asteroids)
 }

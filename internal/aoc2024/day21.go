@@ -12,7 +12,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 	"github.com/jacoelho/advent-of-code-go/pkg/xstrings"
 )
 
@@ -60,13 +59,16 @@ type robotCacheItem struct {
 }
 
 func sequencePressCost(cache map[robotCacheItem]int, robot int, sequence string) int {
-	return xslices.Reduce(func(total int, pair []rune) int {
+	var total int
+	for _, pair := range xstrings.Pairs("A" + sequence) {
 		if robot == 0 {
-			return total + 1
+			total++
+			continue
 		}
 		k := robotCacheItem{robot: robot, from: pair[0], to: pair[1]}
-		return total + cache[k]
-	}, 0, xstrings.Pairs("A"+sequence))
+		total += cache[k]
+	}
+	return total
 }
 
 func fillRobotBestPath(

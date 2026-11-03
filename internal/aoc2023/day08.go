@@ -3,12 +3,14 @@ package aoc2023
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 const (
@@ -264,12 +266,9 @@ func day08p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var starts []string
-	for node := range net {
-		if strings.HasSuffix(node, "A") {
-			starts = append(starts, node)
-		}
-	}
+	starts := xiter.From(maps.Keys(net)).Filter(func(node string) bool {
+		return strings.HasSuffix(node, "A")
+	}).Collect()
 	if len(starts) == 0 || len(starts) > 1024 {
 		return "", fmt.Errorf("expected 1 to 1024 navigation starts")
 	}

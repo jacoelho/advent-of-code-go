@@ -13,7 +13,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var seaMonsterPattern = []grid.Position2D[int]{
@@ -38,7 +38,10 @@ func parseImageTile(s string) (imageTile, error) {
 		return imageTile{}, fmt.Errorf("failed to parse tile ID")
 	}
 
-	rows := xslices.Map(func(in string) []rune { return []rune(in) }, lines[1:])
+	rows := make([][]rune, len(lines)-1)
+	for i, line := range lines[1:] {
+		rows[i] = []rune(line)
+	}
 
 	return imageTile{
 		id:   digits[0],
@@ -90,15 +93,15 @@ func countMatchingBorders(tile imageTile, allTiles []imageTile) int {
 
 	matchCount := 0
 	for _, border := range tileBorders {
-		if xslices.Any(func(otherTile imageTile) bool {
+		if xiter.FromSlice(allTiles).Any(func(otherTile imageTile) bool {
 			if tile.id == otherTile.id {
 				return false
 			}
 			otherBorders := getBorders(otherTile)
-			return xslices.Any(func(otherBorder string) bool {
+			return xiter.FromSlice(otherBorders).Any(func(otherBorder string) bool {
 				return bordersMatch(border, otherBorder)
-			}, otherBorders)
-		}, allTiles) {
+			})
+		}) {
 			matchCount++
 		}
 	}
@@ -106,10 +109,10 @@ func countMatchingBorders(tile imageTile, allTiles []imageTile) int {
 	return matchCount
 }
 
-func findCorners(tiles []imageTile) []imageTile {
-	return xslices.Filter(func(tile imageTile) bool {
+func findCorners(tiles []imageTile) xiter.Seq[imageTile] {
+	return xiter.FromSlice(tiles).Filter(func(tile imageTile) bool {
 		return countMatchingBorders(tile, tiles) == 2
-	}, tiles)
+	})
 }
 
 func day20p01(r io.Reader) (string, error) {
@@ -118,10 +121,9 @@ func day20p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	corners := findCorners(tiles)
-
-	ids := xslices.Map(func(t imageTile) int { return t.id }, corners)
-	result := xslices.Product(ids)
+	result := findCorners(tiles).
+		Map(func(tile imageTile) int { return tile.id }).
+		Reduce(1, func(product, id int) int { return product * id })
 
 	return strconv.Itoa(result), nil
 }
@@ -181,13 +183,12 @@ func findMatchingTileOrientation(tiles []imageTile, used map[int]bool, leftBorde
 }
 
 func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
-	corners := findCorners(tiles)
-	if len(corners) == 0 {
+	cornerTile, ok := findCorners(tiles).First()
+	if !ok {
 		return nil
 	}
 
-	// start with first corner, orient it so matching borders face right and down
-	cornerTile := corners[0]
+	// Orient the first corner so matching borders face right and down.
 
 	var startOriented grid.Grid2D[int, rune]
 

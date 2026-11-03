@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type terminalDirectory struct {
@@ -121,12 +122,8 @@ func day07p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var total int64
-	for _, size := range sizes {
-		if size <= 100_000 {
-			total += size
-		}
-	}
+	small := xiter.FromSlice(sizes).Filter(func(size int64) bool { return size <= 100_000 })
+	total := xiter.Sum(small.All())
 	return strconv.FormatInt(total, 10), nil
 }
 

@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type problem struct {
@@ -52,7 +52,7 @@ func readProblems(r io.Reader) ([][]rune, error) {
 }
 
 func isSeparatorColumn(grid [][]rune, col int) bool {
-	return xslices.Every(func(row []rune) bool { return row[col] == ' ' }, grid)
+	return xiter.FromSlice(grid).Every(func(row []rune) bool { return row[col] == ' ' })
 }
 
 func digitsToNumber(chars []rune) int {
@@ -142,9 +142,10 @@ func totalProblems(problems []problem) int {
 	for _, p := range problems {
 		switch p.op {
 		case '+':
-			total += xslices.Sum(p.numbers)
+			total += xiter.Sum(slices.Values(p.numbers))
 		case '*':
-			total += xslices.Product(p.numbers)
+			total += xiter.Product(slices.Values(p.numbers))
+
 		default:
 			panic("unknown operator")
 		}

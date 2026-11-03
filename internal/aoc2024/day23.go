@@ -70,9 +70,13 @@ func day23p02(r io.Reader) (string, error) {
 	}
 
 	cliques := graph.MaximalCliques(m)
-	longest := xiter.MaxBy(func(a, b collections.Set[string]) bool {
+	longest, ok := xiter.MaxBy(func(a, b collections.Set[string]) bool {
 		return b.Len() > a.Len()
 	}, cliques)
+
+	if !ok {
+		return "", fmt.Errorf("network has no clique")
+	}
 
 	result := slices.Collect(longest.Iter())
 	slices.Sort(result)

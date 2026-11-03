@@ -1,23 +1,27 @@
 package aoc2025
 
 import (
+	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-func parseBatteryBank(r io.Reader) ([][]int, error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]int, error) {
-		digits := make([]int, len(b))
-		for i, ch := range b {
-			digits[i] = int(ch - '0')
+func parseBatteryBank(b []byte, numBatteries int) ([]int, error) {
+	if len(b) < numBatteries {
+		return nil, fmt.Errorf("battery bank needs at least %d digits", numBatteries)
+	}
+	digits := make([]int, len(b))
+	for i, ch := range b {
+		if ch < '0' || ch > '9' {
+			return nil, fmt.Errorf("invalid battery digit %q", ch)
 		}
-		return digits, nil
-	})
-	return slices.Collect(s.Values()), s.Err()
+		digits[i] = int(ch - '0')
+	}
+	return digits, nil
 }
 
 func largestJoltage(bank []int, k int) int {
@@ -36,14 +40,14 @@ func largestJoltage(bank []int, k int) int {
 }
 
 func day03(r io.Reader, numBatteries int) (string, error) {
-	banks, err := parseBatteryBank(r)
-	if err != nil {
+	s := scanner.NewScanner(r, func(b []byte) ([]int, error) {
+		return parseBatteryBank(b, numBatteries)
+	})
+	total := xiter.From(s.Values()).SumBy(func(bank []int) int {
+		return largestJoltage(bank, numBatteries)
+	})
+	if err := s.Err(); err != nil {
 		return "", err
-	}
-
-	total := 0
-	for _, bank := range banks {
-		total += largestJoltage(bank, numBatteries)
 	}
 	return strconv.Itoa(total), nil
 }

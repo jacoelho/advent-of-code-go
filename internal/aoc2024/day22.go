@@ -1,13 +1,13 @@
 package aoc2024
 
 import (
+	"fmt"
 	"io"
 	"iter"
 	"maps"
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/conc"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
@@ -20,7 +20,7 @@ func parseSecretNumbers(r io.Reader) ([]int, error) {
 }
 
 func secretNumberIter(n int) iter.Seq[int] {
-	return xiter.Apply(n, func(i int) int {
+	return xiter.Apply(n, func(n int) int {
 		n = (n ^ (n << 6)) & 16777215
 		n = (n ^ (n >> 5)) & 16777215
 		n = (n ^ (n << 11)) & 16777215
@@ -29,7 +29,7 @@ func secretNumberIter(n int) iter.Seq[int] {
 }
 
 func secretNumberIterationN(n int) int {
-	v, ok := xiter.Next(xiter.Skip(secretNumberIter(n), 2000))
+	v, ok := xiter.From(secretNumberIter(n)).Skip(2000).First()
 	if !ok {
 		panic("next not found")
 	}
@@ -50,18 +50,22 @@ func day22p01(r io.Reader) (string, error) {
 }
 
 func sellSequences(n int) map[[4]int]int {
-	digitSecretNumberIter := xiter.Map(func(v int) int { return v % 10 }, xiter.Take(2001, secretNumberIter(n)))
-
-	seen := collections.NewSet[[4]int]()
+	prices := xiter.From(secretNumberIter(n)).Take(2001).Map(func(v int) int { return v % 10 })
 	total := make(map[[4]int]int)
-	for v := range xiter.Window(5, digitSecretNumberIter) {
-		a, b, c, d, e := v[0], v[1], v[2], v[3], v[4]
-		seq := [4]int{b - a, c - b, d - c, e - d}
-		if seen.Contains(seq) {
+	var changes [4]int
+	previous := n % 10
+	for i, price := range xiter.Enumerate(prices.All()) {
+		if i == 0 {
 			continue
 		}
-		seen.Add(seq)
-		total[seq] = total[seq] + e
+		changes = [4]int{changes[1], changes[2], changes[3], price - previous}
+		previous = price
+		if i < len(changes) {
+			continue
+		}
+		if _, seen := total[changes]; !seen {
+			total[changes] = price
+		}
 	}
 	return total
 }
@@ -78,6 +82,9 @@ func day22p02(r io.Reader) (string, error) {
 			total[k] += v
 		}
 	}
-	maxBananas := xiter.Max(maps.Values(total))
+	maxBananas, ok := xiter.Max(maps.Values(total))
+	if !ok {
+		return "", fmt.Errorf("no secret numbers")
+	}
 	return strconv.Itoa(maxBananas), nil
 }

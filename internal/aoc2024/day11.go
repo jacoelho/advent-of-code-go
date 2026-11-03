@@ -9,7 +9,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseStoneArrangement(r io.Reader) ([]int64, error) {
@@ -64,9 +64,9 @@ func memoizeCount() func(int64, int64) int64 {
 func countBlinks(stones []int64, steps int64) int64 {
 	countFunc := memoizeCount()
 
-	return xslices.Reduce(func(sum int64, stone int64) int64 {
-		return sum + countFunc(stone, steps)
-	}, 0, stones)
+	return xiter.FromSlice(stones).SumBy(func(stone int64) int64 {
+		return countFunc(stone, steps)
+	})
 }
 
 func day11p01(r io.Reader) (string, error) {

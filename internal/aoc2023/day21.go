@@ -69,9 +69,9 @@ func isGardenPlot(g grid.Grid2D[int, rune], pos grid.Position2D[int]) bool {
 
 func gardenNeighbours(g grid.Grid2D[int, rune]) func(grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
 	return func(pos grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-		return xiter.Filter(func(next grid.Position2D[int]) bool {
+		return xiter.From(grid.Neighbours4(pos)).Filter(func(next grid.Position2D[int]) bool {
 			return isGardenPlot(g, next)
-		}, grid.Neighbours4(pos))
+		}).All()
 	}
 }
 
@@ -80,9 +80,9 @@ func countReachableInSteps(distances map[grid.Position2D[int]]int, targetSteps i
 		return 0
 	}
 	targetParity := targetSteps % 2
-	return xiter.CountBy(func(d int) bool {
+	return xiter.From(maps.Values(distances)).Filter(func(d int) bool {
 		return d <= targetSteps && d%2 == targetParity
-	}, maps.Values(distances))
+	}).Count()
 }
 
 func day21(r io.Reader, steps int) (string, error) {

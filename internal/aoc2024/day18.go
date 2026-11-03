@@ -53,9 +53,9 @@ func parseFallingBytes(r io.Reader, dimensions, steps int) ([]grid.Position2D[in
 
 func memoryNeighbours(memory map[grid.Position2D[int]]bool, dimensions int) func(grid.Position2D[int]) []grid.Position2D[int] {
 	return func(p grid.Position2D[int]) []grid.Position2D[int] {
-		return slices.Collect(xiter.Filter(func(v grid.Position2D[int]) bool {
+		return xiter.From(grid.Neighbours4(p)).Filter(func(v grid.Position2D[int]) bool {
 			return v.X >= 0 && v.X <= dimensions && v.Y >= 0 && v.Y <= dimensions && !memory[v]
-		}, grid.Neighbours4(p)))
+		}).Collect()
 	}
 }
 

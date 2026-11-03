@@ -3,10 +3,9 @@ package aoc2020
 import (
 	"bufio"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseCups(r io.Reader) ([]int, error) {
@@ -34,7 +33,7 @@ func cupRing(cups []int, total int) ([]int, int) {
 		next[cups[i]] = cups[i+1]
 	}
 	last := cups[len(cups)-1]
-	maxCup := xslices.Max(cups)
+	maxCup := slices.Max(cups)
 	if total > len(cups) {
 		next[last] = maxCup + 1
 		for x := maxCup + 1; x < total; x++ {

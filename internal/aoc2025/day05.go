@@ -8,6 +8,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseInventory(r io.Reader) ([][2]int, []int, error) {
@@ -95,12 +96,9 @@ func day05p01(r io.Reader) (string, error) {
 	}
 
 	merged := mergeRanges(ranges)
-	count := 0
-	for _, n := range integers {
-		if inRange(merged, n) {
-			count++
-		}
-	}
+	count := xiter.FromSlice(integers).Filter(func(n int) bool {
+		return inRange(merged, n)
+	}).Count()
 
 	return strconv.Itoa(count), nil
 }
@@ -116,10 +114,7 @@ func day05p02(r io.Reader) (string, error) {
 	}
 
 	merged := mergeRanges(ranges)
-	total := 0
-	for _, r := range merged {
-		total += rangeLength(r)
-	}
+	total := xiter.FromSlice(merged).SumBy(rangeLength)
 
 	return strconv.Itoa(total), nil
 }

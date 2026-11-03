@@ -3,11 +3,13 @@ package aoc2019
 import (
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
@@ -35,7 +37,7 @@ func parse(r io.Reader) (int, int, error) {
 }
 
 func hasPair(digits []int) bool {
-	return xmaps.Any(func(k int, v int) bool { return v >= 2 }, xslices.Frequencies(digits))
+	return xiter.From(maps.Values(xiter.Frequencies(slices.Values(digits)))).Any(func(count int) bool { return count >= 2 })
 }
 
 func isNonDecreasing(digits []int) bool {
@@ -48,7 +50,7 @@ func isNonDecreasing(digits []int) bool {
 }
 
 func hasExactlyOnePair(digits []int) bool {
-	return xmaps.Any(func(k int, v int) bool { return v == 2 }, xslices.Frequencies(digits))
+	return xiter.From(maps.Values(xiter.Frequencies(slices.Values(digits)))).Any(func(count int) bool { return count == 2 })
 }
 
 func day04p01(r io.Reader) (string, error) {

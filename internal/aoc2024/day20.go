@@ -10,7 +10,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
@@ -26,11 +25,12 @@ func parseRaceTrack(r io.Reader) (grid.Grid2D[int, rune], error) {
 }
 
 func raceStartPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
-	element, ok := xmaps.Find(g, func(p grid.Position2D[int], v rune) bool { return v == 'S' })
-	if !ok {
-		return grid.Position2D[int]{}, fmt.Errorf("race track has no start")
+	for position, value := range g {
+		if value == 'S' {
+			return position, nil
+		}
 	}
-	return element.K, nil
+	return grid.Position2D[int]{}, fmt.Errorf("race track has no start")
 }
 
 func day20Heuristic(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) int {

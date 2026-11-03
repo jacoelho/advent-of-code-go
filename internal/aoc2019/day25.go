@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var (
@@ -84,9 +84,9 @@ func parseGameOutput(text string) adventureRoom {
 
 func isDeath(text string) bool {
 	deathPhrases := []string{"ejected", "are frozen", "crushed", "knocked"}
-	return xslices.Any(func(phrase string) bool {
+	return xiter.FromSlice(deathPhrases).Any(func(phrase string) bool {
 		return strings.Contains(text, phrase)
-	}, deathPhrases)
+	})
 }
 
 func isSecurityCheck(text string) bool {

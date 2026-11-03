@@ -7,7 +7,6 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseWordSearch(r io.Reader) (grid.Grid2D[int, rune], error) {
@@ -53,7 +52,7 @@ func day04p02(r io.Reader) (string, error) {
 	}
 
 	// order matters after for the match
-	corners := []grid.Position2D[int]{
+	corners := [4]grid.Position2D[int]{
 		{X: -1, Y: -1},
 		{X: -1, Y: 1},
 		{X: 1, Y: 1},
@@ -66,11 +65,11 @@ func day04p02(r io.Reader) (string, error) {
 			continue
 		}
 
-		neighbours := string(
-			xslices.Map(func(offset grid.Position2D[int]) rune {
-				return m[p.Add(offset)]
-			}, corners),
-		)
+		var values [4]rune
+		for i, offset := range corners {
+			values[i] = m[p.Add(offset)]
+		}
+		neighbours := string(values[:])
 
 		if neighbours == "MMSS" ||
 			neighbours == "MSSM" ||

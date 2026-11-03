@@ -17,6 +17,8 @@ func Test2025ReaderErrors(t *testing.T) {
 	}{
 		{"day01p01", day01p01, "R1\n"},
 		{"day01p02", day01p02, "R1\n"},
+		{"day03p01", day03p01, "123456789012\n"},
+		{"day03p02", day03p02, "123456789012\n"},
 		{"day06p01", day06p01, "12\n3\n+\n"},
 		{"day06p02", day06p02, "12\n3\n+\n"},
 		{"day07p01", day07p01, "S\n"},

@@ -58,7 +58,7 @@ func day11(expansionFactor int) func(r io.Reader) (string, error) {
 			return "", err
 		}
 
-		result := xiter.Sum(xiter.Map(func(pair xslices.Pair[grid.Position2D[int], grid.Position2D[int]]) int {
+		result := xiter.From(xslices.Pairwise(galaxies)).SumBy(func(pair xslices.Pair[grid.Position2D[int], grid.Position2D[int]]) int {
 			g1, g2 := pair.V1, pair.V2
 
 			baseDistance := g1.Distance(g2)
@@ -66,7 +66,7 @@ func day11(expansionFactor int) func(r io.Reader) (string, error) {
 			emptyCols := countEmptyBetween(g1.X, g2.X, colsWithGalaxies)
 
 			return baseDistance + (expansionFactor-1)*emptyRows + (expansionFactor-1)*emptyCols
-		}, xslices.Pairwise(galaxies)))
+		})
 
 		return strconv.Itoa(result), nil
 	}

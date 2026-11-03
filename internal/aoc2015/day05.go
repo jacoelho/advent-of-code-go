@@ -1,10 +1,12 @@
 package aoc2015
 
 import (
-	"bufio"
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func niceString(word string) bool {
@@ -45,13 +47,8 @@ func nicerString(word string) bool {
 }
 
 func countNiceStrings(r io.Reader, nice func(string) bool) (string, error) {
-	s := bufio.NewScanner(r)
-	count := 0
-	for s.Scan() {
-		if nice(s.Text()) {
-			count++
-		}
-	}
+	s := scanner.NewScanner(r, func(line []byte) (string, error) { return string(line), nil })
+	count := xiter.From(s.Values()).Filter(nice).Count()
 	if err := s.Err(); err != nil {
 		return "", err
 	}

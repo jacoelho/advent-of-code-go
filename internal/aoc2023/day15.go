@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func hash(s string) int {
@@ -43,10 +44,7 @@ func day15p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := 0
-	for step := range strings.SplitSeq(sequence, ",") {
-		sum += hash(step)
-	}
+	sum := xiter.From(strings.SplitSeq(sequence, ",")).SumBy(hash)
 	return strconv.Itoa(sum), nil
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type ipv7Address struct{ supernets, hypernets []string }
@@ -51,17 +52,8 @@ func containsABBA(text string) bool {
 }
 
 func supportsTLS(address ipv7Address) bool {
-	for _, text := range address.hypernets {
-		if containsABBA(text) {
-			return false
-		}
-	}
-	for _, text := range address.supernets {
-		if containsABBA(text) {
-			return true
-		}
-	}
-	return false
+	return !xiter.FromSlice(address.hypernets).Any(containsABBA) &&
+		xiter.FromSlice(address.supernets).Any(containsABBA)
 }
 
 func supportsSSL(address ipv7Address) bool {
@@ -85,12 +77,7 @@ func supportsSSL(address ipv7Address) bool {
 
 func countIPv7(r io.Reader, supports func(ipv7Address) bool) (string, error) {
 	s := scanner.NewScanner(r, parseIPv7)
-	count := 0
-	for address := range s.Values() {
-		if supports(address) {
-			count++
-		}
-	}
+	count := xiter.From(s.Values()).Filter(supports).Count()
 	if err := s.Err(); err != nil {
 		return "", err
 	}

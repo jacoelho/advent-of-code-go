@@ -7,7 +7,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseSequence(line []byte) ([]int, error) {
@@ -26,7 +25,7 @@ func differences(seq []int) []int {
 }
 
 func allZeros(seq []int) bool {
-	return xslices.Every(func(v int) bool { return v == 0 }, seq)
+	return xiter.FromSlice(seq).Every(func(v int) bool { return v == 0 })
 }
 
 func extrapolateForward(seq []int) int {
@@ -47,7 +46,7 @@ func extrapolateBackward(seq []int) int {
 
 func day09p01(r io.Reader) (string, error) {
 	s := scanner.NewScanner(r, parseSequence)
-	total := xiter.Sum(xiter.Map(extrapolateForward, s.Values()))
+	total := xiter.From(s.Values()).SumBy(extrapolateForward)
 	if err := s.Err(); err != nil {
 		return "", err
 	}
@@ -56,7 +55,7 @@ func day09p01(r io.Reader) (string, error) {
 
 func day09p02(r io.Reader) (string, error) {
 	s := scanner.NewScanner(r, parseSequence)
-	total := xiter.Sum(xiter.Map(extrapolateBackward, s.Values()))
+	total := xiter.From(s.Values()).SumBy(extrapolateBackward)
 	if err := s.Err(); err != nil {
 		return "", err
 	}

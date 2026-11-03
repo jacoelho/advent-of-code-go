@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func runAmplifierChain(program []int, phaseSettings []int) (int, error) {
@@ -75,7 +74,7 @@ func runAmplifierFeedbackLoop(program []int, phaseSettings []int) (int, error) {
 			signal = output
 		}
 
-		if xslices.Every(func(amp *IntcodeComputer) bool { return amp.IsHalted() }, amps) {
+		if xiter.FromSlice(amps).Every(func(amp *IntcodeComputer) bool { return amp.IsHalted() }) {
 			break
 		}
 

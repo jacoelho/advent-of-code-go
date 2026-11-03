@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var memoryInstructionPattern = regexp.MustCompile(`do\(\)|don't\(\)|mul\(([0-9]{1,3}),([0-9]{1,3})\)`)
@@ -63,12 +64,11 @@ func day03p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var total int64
-	for _, instruction := range instructions {
-		if instruction.operation == memoryMultiply {
-			total += instruction.a * instruction.b
-		}
-	}
+	total := xiter.FromSlice(instructions).Filter(func(instruction memoryInstruction) bool {
+		return instruction.operation == memoryMultiply
+	}).SumBy(func(instruction memoryInstruction) int64 {
+		return instruction.a * instruction.b
+	})
 	return strconv.FormatInt(total, 10), nil
 }
 

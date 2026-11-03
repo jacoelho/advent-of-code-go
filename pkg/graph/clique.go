@@ -36,7 +36,7 @@ func MaximalCliques[T comparable](graph map[T]collections.Set[T]) iter.Seq[colle
 			}
 
 			// choose a pivot to reduce the number of iterations
-			pivot, _ := xiter.Next(current.potential.Iter())
+			pivot, _ := xiter.From(current.potential.Iter()).First()
 			nonNeighbors := current.potential.Difference(graph[pivot])
 
 			for vertex := range nonNeighbors.Iter() {

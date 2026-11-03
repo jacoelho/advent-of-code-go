@@ -9,6 +9,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func spreadsheetRows(r io.Reader) *scanner.Scanner[[]int] {
@@ -33,10 +34,9 @@ func spreadsheetRows(r io.Reader) *scanner.Scanner[[]int] {
 
 func day02p01(r io.Reader) (string, error) {
 	s := spreadsheetRows(r)
-	total := 0
-	for row := range s.Values() {
-		total += slices.Max(row) - slices.Min(row)
-	}
+	total := xiter.From(s.Values()).SumBy(func(row []int) int {
+		return slices.Max(row) - slices.Min(row)
+	})
 	if err := s.Err(); err != nil {
 		return "", err
 	}

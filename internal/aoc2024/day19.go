@@ -9,7 +9,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 	"github.com/jacoelho/advent-of-code-go/pkg/xstrings"
 )
 
@@ -61,11 +60,11 @@ func day19p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	longestDesign := xiter.Max(xiter.Map(func(s string) int { return len(s) }, designs.Iter()))
+	longestDesign, _ := xiter.Max(xiter.From(designs.Iter()).Map(func(s string) int { return len(s) }).All())
 
-	matches := xslices.CountFunc(func(s string) bool {
+	matches := xiter.FromSlice(patterns).Filter(func(s string) bool {
 		return countMatches(designs, longestDesign, s) > 0
-	}, patterns)
+	}).Count()
 	return strconv.Itoa(matches), nil
 }
 
@@ -74,11 +73,11 @@ func day19p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	longestDesign := xiter.Max(xiter.Map(func(s string) int { return len(s) }, designs.Iter()))
+	longestDesign, _ := xiter.Max(xiter.From(designs.Iter()).Map(func(s string) int { return len(s) }).All())
 
-	count := xslices.Reduce(func(sum int, pattern string) int {
-		return sum + countMatches(designs, longestDesign, pattern)
-	}, 0, patterns)
+	count := xiter.FromSlice(patterns).SumBy(func(pattern string) int {
+		return countMatches(designs, longestDesign, pattern)
+	})
 
 	return strconv.Itoa(count), nil
 }
