@@ -97,6 +97,59 @@ func TestDeviceTerminalPaths(t *testing.T) {
 	}
 }
 
+func TestDeviceLabels(t *testing.T) {
+	for _, test := range []struct {
+		name, input string
+		want        [2]string
+	}{
+		{
+			name:  "forward references and required visits",
+			input: "you: merge\nsvr: dac fft both out\nboth: dac\ndac: fft merge\nfft: merge\nmerge: out sink",
+			want:  [2]string{"1", "2"},
+		},
+		{
+			name:  "zero contribution target is terminal",
+			input: "you: out\nsvr: out\nout: svr",
+			want:  [2]string{"1", "0"},
+		},
+		{
+			name:  "last definition replaces edges",
+			input: "you: out\nyou: out out\nsvr: dac\ndac: fft\nfft: out",
+			want:  [2]string{"2", "1"},
+		},
+		{
+			name:  "missing starting devices",
+			input: "other: out",
+			want:  [2]string{"0", "0"},
+		},
+		{
+			name:  "mixed separators and colonless records",
+			input: ": :you :: out : out:\nsvr dac\n::dac: fft:\nfft out",
+			want:  [2]string{"2", "1"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for part, solve := range []func(io.Reader) (string, error){day11p01, day11p02} {
+				got, err := solve(strings.NewReader(test.input))
+				if err != nil || got != test.want[part] {
+					t.Fatalf("part %d: got %q, %v; want %q", part+1, got, err, test.want[part])
+				}
+			}
+		})
+	}
+}
+
+func TestDeviceRequiredTarget(t *testing.T) {
+	network, err := parseDevicesList(strings.NewReader("source: out out"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := countPaths(network, []string{"out"}, "out", "source")
+	if err != nil || got != 2 {
+		t.Fatalf("got %d, %v; want two paths through the required target", got, err)
+	}
+}
+
 func TestDay11ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, solve := range []func(io.Reader) (string, error){day11p01, day11p02} {

@@ -12,53 +12,59 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
-func parseTopographicMap(r io.Reader) (grid.Grid2D[int, int], error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]int, error) {
-		res := make([]int, len(b))
+func parseTopographicMap(r io.Reader) ([][]byte, error) {
+	s := scanner.NewScanner(r, func(b []byte) ([]byte, error) {
+		res := make([]byte, len(b))
+		// Preserve the byte-wrapped heights accepted for nondigits.
 		for i, v := range b {
-			res[i] = int(v - '0')
+			res[i] = v - '0'
 		}
 		return res, nil
 	})
-	return grid.NewGrid2D[int, int](slices.Collect(s.Values())), s.Err()
+	return slices.Collect(s.Values()), s.Err()
 }
 
-func day10neighbours(m grid.Grid2D[int, int]) func(grid.Position2D[int], func(grid.Position2D[int]) bool) {
+func day10neighbours(heights [][]byte) func(grid.Position2D[int], func(grid.Position2D[int]) bool) {
 	return func(p grid.Position2D[int], yield func(grid.Position2D[int]) bool) {
-		slope := m[p]
+		slope := int(heights[p.Y][p.X])
 		for _, offset := range grid.OffsetsNeighbours4[int]() {
 			v := p.Add(offset)
-			if height, exists := m[v]; exists && height == slope+1 && !yield(v) {
+			if v.Y < 0 || v.Y >= len(heights) || v.X < 0 || v.X >= len(heights[v.Y]) {
+				continue
+			}
+			if int(heights[v.Y][v.X]) == slope+1 && !yield(v) {
 				return
 			}
 		}
 	}
 }
 
-func trailheads(m grid.Grid2D[int, int]) []grid.Position2D[int] {
+func trailheads(heights [][]byte) []grid.Position2D[int] {
 	var trailheads []grid.Position2D[int]
-	for k, slope := range m {
-		if slope == 0 {
-			trailheads = append(trailheads, k)
+	for y, row := range heights {
+		for x, slope := range row {
+			if slope == 0 {
+				trailheads = append(trailheads, grid.Position2D[int]{X: x, Y: y})
+			}
 		}
 	}
 	return trailheads
 }
 
 func day10p01(r io.Reader) (string, error) {
-	m, err := parseTopographicMap(r)
+	heights, err := parseTopographicMap(r)
 	if err != nil {
 		return "", err
 	}
 
-	visit := day10neighbours(m)
+	visit := day10neighbours(heights)
 	neighbours := func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
 		return func(yield func(grid.Position2D[int]) bool) { visit(p, yield) }
 	}
 	var summits int
-	for _, trail := range trailheads(m) {
+	for _, trail := range trailheads(heights) {
 		for position := range search.BFS(trail, neighbours) {
-			if m[position] == 9 {
+			if heights[position.Y][position.X] == 9 {
 				summits++
 			}
 		}
@@ -68,13 +74,13 @@ func day10p01(r io.Reader) (string, error) {
 }
 
 func day10p02(r io.Reader) (string, error) {
-	m, err := parseTopographicMap(r)
+	heights, err := parseTopographicMap(r)
 	if err != nil {
 		return "", err
 	}
 
-	summits, err := graph.CountDAGPaths(trailheads(m), day10neighbours(m), func(position grid.Position2D[int]) (int, bool) {
-		return 1, m[position] == 9
+	summits, err := graph.CountDAGPaths(trailheads(heights), day10neighbours(heights), func(position grid.Position2D[int]) (int, bool) {
+		return 1, heights[position.Y][position.X] == 9
 	})
 	if err != nil {
 		return "", err
