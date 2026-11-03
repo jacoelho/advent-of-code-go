@@ -49,9 +49,17 @@ func parseShuffle(line []byte) (shuffle, error) {
 }
 
 func parseShuffleInstructions(r io.Reader) ([]shuffle, error) {
-	s := scanner.NewScanner(r, parseShuffle)
+	const inputLimit = 4 << 20
+	limited := &io.LimitedReader{R: r, N: inputLimit + 1}
+	s := scanner.NewScanner(limited, parseShuffle)
 	instructions := slices.Collect(s.Values())
-	return instructions, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if limited.N == 0 || len(instructions) > 100_000 {
+		return nil, fmt.Errorf("shuffle input exceeds byte or instruction limit")
+	}
+	return instructions, nil
 }
 
 func trackCardPosition(instructions []shuffle, deckSize, cardNumber int) int {
@@ -93,24 +101,18 @@ func modInv(a, m *big.Int) *big.Int {
 	return new(big.Int).ModInverse(a, m)
 }
 
-// linearFunc represents a linear transformation f(x) = (a*x + b) mod m in modular arithmetic.
-//
-// part 2 requires shuffling a deck of ~10^14 cards ~10^14 times, making simulation impossible.
-// each shuffle operation is a linear transformation that can be composed into a single function.
-// we build the inverse function directly and raise it to the power of 10^14 using fast exponentiation
-// to solve the inverse problem: "which card ends up at position 2020?"
+// linearFunc represents f(x) = (a*x + b) mod m.
 type linearFunc struct {
 	a, b, mod *big.Int
 }
 
-// evaluates f(x)
 func (f linearFunc) apply(x *big.Int) *big.Int {
 	ax := new(big.Int).Mul(f.a, x)
 	result := new(big.Int).Add(ax, f.b)
 	return bigMod(result, f.mod)
 }
 
-// combines two linear functions (f o g)
+// compose returns f(g(x)).
 func (f linearFunc) compose(g linearFunc) linearFunc {
 	newA := new(big.Int).Mul(f.a, g.a)
 	newA.Mod(newA, f.mod)
@@ -122,36 +124,22 @@ func (f linearFunc) compose(g linearFunc) linearFunc {
 	return linearFunc{a: newA, b: newB, mod: f.mod}
 }
 
-// raises function to nth power using the geometric series formula
-// f^n(x) = a^n * x + b * (a^n - 1) / (a - 1) mod m
-func (f linearFunc) pow(n int64) linearFunc {
-	if n == 0 {
-		return linearFunc{a: big.NewInt(1), b: big.NewInt(0), mod: f.mod}
+func (f linearFunc) pow(n uint64) linearFunc {
+	result := linearFunc{a: big.NewInt(1), b: big.NewInt(0), mod: f.mod}
+	for n > 0 {
+		if n&1 != 0 {
+			result = result.compose(f)
+		}
+		n >>= 1
+		if n > 0 {
+			f = f.compose(f)
+		}
 	}
-	if n == 1 {
-		return f
-	}
-
-	nBig := big.NewInt(n)
-	aPow := new(big.Int).Exp(f.a, nBig, f.mod)
-
-	// Compute b * (a^n - 1) / (a - 1) mod m (geometric series)
-	aMinus1 := new(big.Int).Sub(f.a, big.NewInt(1))
-	aMinus1.Mod(aMinus1, f.mod)
-	aMinus1Inv := modInv(aMinus1, f.mod)
-
-	aPowMinus1 := new(big.Int).Sub(aPow, big.NewInt(1))
-	aPowMinus1.Mod(aPowMinus1, f.mod)
-
-	bCoeff := new(big.Int).Mul(f.b, aPowMinus1)
-	bCoeff.Mul(bCoeff, aMinus1Inv)
-	bCoeff.Mod(bCoeff, f.mod)
-
-	return linearFunc{a: aPow, b: bCoeff, mod: f.mod}
+	return result
 }
 
-// converts shuffle operations to inverse linear form f^-1(x) = ax + b (mod m)
-func shuffleToLinear(s shuffle, mod *big.Int) linearFunc {
+// shuffleToLinear returns the inverse of s as an affine transformation modulo mod.
+func shuffleToLinear(s shuffle, mod *big.Int) (linearFunc, error) {
 	switch s.op {
 	// f(x) = -x-1 is self-inverse, so f^-1(x) = -x-1
 	case dealNewStack:
@@ -159,39 +147,43 @@ func shuffleToLinear(s shuffle, mod *big.Int) linearFunc {
 			a:   big.NewInt(-1),
 			b:   big.NewInt(-1),
 			mod: mod,
-		}
+		}, nil
 	// f(x) = x-n, so f^-1(x) = x+n
 	case cut:
 		return linearFunc{
 			a:   big.NewInt(1),
 			b:   big.NewInt(int64(s.n)),
 			mod: mod,
-		}
+		}, nil
 	// f(x) = n*x, so f^-1(x) = modinv(n)*x
 	case dealIncrement:
 		n := big.NewInt(int64(s.n))
 		invN := modInv(n, mod)
-		return linearFunc{a: invN, b: big.NewInt(0), mod: mod}
-	default:
-		return linearFunc{
-			a:   big.NewInt(1),
-			b:   big.NewInt(0),
-			mod: mod,
+		if invN == nil {
+			return linearFunc{}, fmt.Errorf("increment %d is not invertible modulo %s", s.n, mod)
 		}
+		return linearFunc{a: invN, b: big.NewInt(0), mod: mod}, nil
+	default:
+		return linearFunc{}, fmt.Errorf("unknown shuffle operation")
 	}
 }
 
-// composeInverse composes all shuffle operations into a single inverse linear function
-func composeInverse(instructions []shuffle, mod *big.Int) linearFunc {
+// composeInverse returns the inverse of the instruction sequence.
+// Since the inverse of g(f(x)) is f^-1(g^-1(x)), it composes inverses in input order.
+func composeInverse(instructions []shuffle, mod *big.Int) (linearFunc, error) {
 	f := linearFunc{
 		a:   big.NewInt(1),
 		b:   big.NewInt(0),
 		mod: mod,
 	}
 	for _, inst := range instructions {
-		f = f.compose(shuffleToLinear(inst, mod))
+		operation, err := shuffleToLinear(inst, mod)
+		if err != nil {
+			return linearFunc{}, err
+		}
+		f = f.compose(operation)
 	}
-	return f
+	return f, nil
 }
 
 func day22p02(r io.Reader) (string, error) {
@@ -201,10 +193,13 @@ func day22p02(r io.Reader) (string, error) {
 	}
 
 	deckSize := big.NewInt(119315717514047)
-	iterations := int64(101741582076661)
+	iterations := uint64(101741582076661)
 	position := big.NewInt(2020)
 
-	fInverse := composeInverse(instructions, deckSize)
+	fInverse, err := composeInverse(instructions, deckSize)
+	if err != nil {
+		return "", err
+	}
 	fInversePow := fInverse.pow(iterations)
 	result := fInversePow.apply(position)
 

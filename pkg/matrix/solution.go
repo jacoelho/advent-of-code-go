@@ -1,32 +1,19 @@
 package matrix
 
-import "github.com/jacoelho/advent-of-code-go/pkg/xmath"
+import (
+	"fmt"
+	"math/big"
+)
 
-// ParametricSolution represents the parametric solution to Ax = b.
-// The solution is expressed as: x = Base + sum(FreeCols[i] * Coeffs[i])
+// ParametricSolution expresses x = Base + sum(parameters[i] * Coeffs[i]).
+// FreeCols[i] identifies the component of x equal to parameters[i].
 type ParametricSolution struct {
-	Base      []Rat   // base solution vector
-	Coeffs    [][]Rat // coefficient matrix for free variables (each row is a free variable)
-	FreeCols  []int   // indices of free variable columns
-	PivotCols []int   // indices of pivot columns
+	Base      []Rat
+	Coeffs    [][]Rat
+	FreeCols  []int
+	PivotCols []int
 }
 
-// findPivotRowMapping maps each pivot column to its row index
-func findPivotRowMapping(m *Matrix, varCount int) map[int]int {
-	pivotForCol := make(map[int]int)
-	for r := range m.data {
-		row := m.data[r]
-		for c := range varCount {
-			if !row[c].IsZero() {
-				pivotForCol[c] = r
-				break
-			}
-		}
-	}
-	return pivotForCol
-}
-
-// findFreeColumns returns columns that are not pivot columns
 func findFreeColumns(varCount int, pivotCols []int) []int {
 	isPivot := make([]bool, varCount)
 	for _, c := range pivotCols {
@@ -41,16 +28,14 @@ func findFreeColumns(varCount int, pivotCols []int) []int {
 	return freeCols
 }
 
-// ExtractParametricSolution extracts parametric solution from RREF matrix.
-// The matrix m should be in RREF form (typically after calling RREF).
-// varCount is the number of variables (excludes RHS column).
-// pivotCols are the column indices that have pivots.
+// ExtractParametricSolution returns the solutions of a consistent augmented
+// matrix m already reduced by [RREF]. pivotCols must contain its pivot columns;
+// varCount excludes the right-hand-side column.
 func ExtractParametricSolution(
 	m *Matrix,
 	pivotCols []int,
 	varCount int,
 ) ParametricSolution {
-	pivotForCol := findPivotRowMapping(m, varCount)
 	freeCols := findFreeColumns(varCount, pivotCols)
 	freeCount := len(freeCols)
 
@@ -61,16 +46,13 @@ func ExtractParametricSolution(
 	}
 	coeffs := New(freeCount, varCount)
 
-	// set free variable coefficients to identity
 	one := NewRat(1, 1)
 	for idx, freeCol := range freeCols {
 		coeffs.Set(idx, freeCol, one)
 	}
 
-	// extract base solution and pivot column coefficients
 	rhsCol := m.Cols() - 1
-	for _, pivotCol := range pivotCols {
-		rowIdx := pivotForCol[pivotCol]
+	for rowIdx, pivotCol := range pivotCols {
 		base[pivotCol] = m.data[rowIdx][rhsCol]
 		for fi, freeCol := range freeCols {
 			coeffs.Set(fi, pivotCol, m.data[rowIdx][freeCol].Neg())
@@ -85,38 +67,51 @@ func ExtractParametricSolution(
 	}
 }
 
-// ScaleToIntegers scales a parametric solution with rational coefficients to integer representation.
-// Computes the LCM of all denominators and scales base and coefficients accordingly.
-// Returns scaled base vector, scaled coefficient matrix, and the common denominator used.
-func ScaleToIntegers(
-	base []Rat,
-	coeffs [][]Rat,
-) ([]int64, [][]int64, int64) {
-	buttonCount := len(base)
-	freeCount := len(coeffs)
-
-	commonDen := int64(1)
-	for _, b := range base {
-		commonDen = xmath.LCM(commonDen, b.Denominator())
+// ScaleToIntegers multiplies base and coeffs by one positive common
+// denominator. It returns the scaled base, scaled coefficients and denominator,
+// or an error if any scaled value or the denominator cannot fit in int64.
+func ScaleToIntegers(base []Rat, coeffs [][]Rat) ([]int64, [][]int64, int64, error) {
+	commonDen := big.NewInt(1)
+	includeDenominator := func(value Rat) {
+		denominator := value.rational().Denom()
+		gcd := new(big.Int).GCD(nil, nil, commonDen, denominator)
+		commonDen.Quo(commonDen, gcd)
+		commonDen.Mul(commonDen, denominator)
+	}
+	for _, value := range base {
+		includeDenominator(value)
 	}
 	for _, row := range coeffs {
-		for _, v := range row {
-			commonDen = xmath.LCM(commonDen, v.Denominator())
+		for _, value := range row {
+			includeDenominator(value)
 		}
 	}
-
-	scaledBase := make([]int64, buttonCount)
-	for i, b := range base {
-		scaledBase[i] = b.Numerator() * (commonDen / b.Denominator())
+	if !commonDen.IsInt64() {
+		return nil, nil, 0, fmt.Errorf("common denominator exceeds int64")
 	}
 
-	scaledCoeffs := make([][]int64, freeCount)
-	for k := range freeCount {
-		scaledCoeffs[k] = make([]int64, buttonCount)
-		for i, v := range coeffs[k] {
-			scaledCoeffs[k][i] = v.Numerator() * (commonDen / v.Denominator())
+	scale := func(values []Rat) ([]int64, error) {
+		result := make([]int64, len(values))
+		for i, value := range values {
+			factor := new(big.Int).Quo(commonDen, value.rational().Denom())
+			numerator := new(big.Int).Mul(value.rational().Num(), factor)
+			if !numerator.IsInt64() {
+				return nil, fmt.Errorf("scaled value %d exceeds int64", i)
+			}
+			result[i] = numerator.Int64()
+		}
+		return result, nil
+	}
+	scaledBase, err := scale(base)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("scale base: %w", err)
+	}
+	scaledCoeffs := make([][]int64, len(coeffs))
+	for i, row := range coeffs {
+		scaledCoeffs[i], err = scale(row)
+		if err != nil {
+			return nil, nil, 0, fmt.Errorf("scale coefficient row %d: %w", i, err)
 		}
 	}
-
-	return scaledBase, scaledCoeffs, commonDen
+	return scaledBase, scaledCoeffs, commonDen.Int64(), nil
 }

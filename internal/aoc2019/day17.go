@@ -3,11 +3,11 @@ package aoc2019
 import (
 	"fmt"
 	"io"
-	"iter"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
@@ -20,15 +20,6 @@ func calculateAlignmentSum(scaffoldGrid grid.Grid2D[int, rune]) int {
 		}
 	}
 	return alignmentSum
-}
-
-func day17p1(r io.Reader) (string, error) {
-	scaffoldGrid, err := parseScaffoldGrid(r)
-	if err != nil {
-		return "", err
-	}
-
-	return strconv.Itoa(calculateAlignmentSum(scaffoldGrid)), nil
 }
 
 func day17p01(r io.Reader) (string, error) {
@@ -107,27 +98,50 @@ func isIntersection(scaffoldGrid grid.Grid2D[int, rune], pos grid.Position2D[int
 	return neighborCount == 4
 }
 
-func findRobot(scaffoldGrid grid.Grid2D[int, rune]) (grid.Position2D[int], grid.Position2D[int]) {
+func findRobot(scaffoldGrid grid.Grid2D[int, rune]) (grid.Position2D[int], grid.Position2D[int], error) {
+	var position, direction grid.Position2D[int]
+	found := false
 	for pos, ch := range scaffoldGrid {
+		var dir grid.Position2D[int]
 		switch ch {
 		case '^':
-			return pos, grid.Position2D[int]{X: 0, Y: -1}
+			dir = grid.Position2D[int]{X: 0, Y: -1}
 		case 'v':
-			return pos, grid.Position2D[int]{X: 0, Y: 1}
+			dir = grid.Position2D[int]{X: 0, Y: 1}
 		case '<':
-			return pos, grid.Position2D[int]{X: -1, Y: 0}
+			dir = grid.Position2D[int]{X: -1, Y: 0}
 		case '>':
-			return pos, grid.Position2D[int]{X: 1, Y: 0}
+			dir = grid.Position2D[int]{X: 1, Y: 0}
+		default:
+			continue
 		}
+		if found {
+			return position, direction, fmt.Errorf("multiple scaffold robots")
+		}
+		position, direction = pos, dir
+		found = true
 	}
-	return grid.Position2D[int]{}, grid.Position2D[int]{}
+	if !found {
+		return position, direction, fmt.Errorf("scaffold robot not found")
+	}
+	return position, direction, nil
 }
 
-func generatePath(scaffoldGrid grid.Grid2D[int, rune]) []string {
-	pos, dir := findRobot(scaffoldGrid)
+func generatePath(scaffoldGrid grid.Grid2D[int, rune]) ([]string, error) {
+	pos, dir, err := findRobot(scaffoldGrid)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[[2]grid.Position2D[int]]bool)
 	var path []string
 
 	for {
+		state := [2]grid.Position2D[int]{pos, dir}
+		if seen[state] {
+			return nil, fmt.Errorf("scaffold route repeats position %v facing %v", pos, dir)
+		}
+		seen[state] = true
+
 		nextPos := pos.Add(dir)
 		if scaffoldGrid.Contains(nextPos) {
 			steps := 0
@@ -157,125 +171,126 @@ func generatePath(scaffoldGrid grid.Grid2D[int, rune]) []string {
 		break
 	}
 
-	return path
+	return path, nil
 }
 
-func generatePatterns(path []string, maxLen int) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		for length := 1; length <= len(path); length++ {
-			pattern := strings.Join(path[:length], ",")
-			if len(pattern) > maxLen {
-				return
+type movementProgram struct {
+	main      string
+	functions [3]string
+}
+
+func compressPath(path []string) (movementProgram, error) {
+	const (
+		lineLimit   = 20
+		callLimit   = 10
+		searchLimit = 1_000_000
+	)
+
+	// Ten calls to functions of at most five pairs cannot encode a longer route.
+	if len(path) == 0 || len(path)%2 != 0 || len(path) > 100 {
+		return movementProgram{}, fmt.Errorf("movement path must contain 1 to 50 turn/count pairs")
+	}
+	for i := 0; i < len(path); i += 2 {
+		if path[i] != "L" && path[i] != "R" {
+			return movementProgram{}, fmt.Errorf("invalid movement turn %q", path[i])
+		}
+		count := path[i+1]
+		if len(count) == 0 || len(count)+2 > lineLimit || count[0] < '0' || count[0] > '9' {
+			return movementProgram{}, fmt.Errorf("invalid movement count %q", count)
+		}
+		steps, err := convert.ScanNumber[int]([]byte(count))
+		if err != nil || steps <= 0 {
+			return movementProgram{}, fmt.Errorf("invalid movement count %q", count)
+		}
+	}
+	if len(strings.Join(path, ",")) > callLimit*lineLimit+callLimit-1 {
+		return movementProgram{}, fmt.Errorf("movement path exceeds the maximum expanded routine length")
+	}
+
+	var functions [3][]string
+	main := make([]string, 0, callLimit)
+	visited := 0
+	exhausted := false
+
+	var search func(int) bool
+	search = func(offset int) bool {
+		if exhausted {
+			return false
+		}
+		visited++
+		if visited > searchLimit {
+			exhausted = true
+			return false
+		}
+		if offset == len(path) {
+			return true
+		}
+		if len(main) == callLimit {
+			return false
+		}
+
+		nextFunction := -1
+		for i, function := range functions {
+			if len(function) == 0 {
+				nextFunction = i
+				break
 			}
-			if !yield(pattern) {
-				return
+			end := offset + len(function)
+			if end > len(path) || !slices.Equal(path[offset:end], function) {
+				continue
 			}
-		}
-	}
-}
-
-func extractParts(text, exclude string) []string {
-	var result []string
-	parts := strings.SplitSeq(text, exclude)
-	for part := range parts {
-		part = strings.Trim(part, " ,")
-		if part != "" {
-			result = append(result, part)
-		}
-	}
-	return result
-}
-
-func generateUniquePatterns(parts []string, maxLen int) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		seen := make(map[string]bool)
-		for _, part := range parts {
-			tokens := strings.Split(part, ",")
-			for length := 1; length <= len(tokens); length++ {
-				pattern := strings.Join(tokens[:length], ",")
-				if len(pattern) > maxLen || seen[pattern] {
-					continue
-				}
-				seen[pattern] = true
-				if !yield(pattern) {
-					return
-				}
+			main = append(main, "ABC"[i:i+1])
+			if search(end) {
+				return true
 			}
+			main = main[:len(main)-1]
 		}
-	}
-}
-
-func extractPatternsFrom(text string, exclude string, maxLen int) iter.Seq[string] {
-	parts := extractParts(text, exclude)
-	return generateUniquePatterns(parts, maxLen)
-}
-
-func tryCompression(fullPath, funcA, funcB, funcC string) string {
-	replacer := strings.NewReplacer(funcA, "A", funcB, "B", funcC, "C")
-	result := replacer.Replace(fullPath)
-
-	for _, ch := range result {
-		if ch == ',' {
-			continue
+		if nextFunction < 0 {
+			return false
 		}
-		if ch != 'A' && ch != 'B' && ch != 'C' {
-			return ""
+
+		maxEnd := offset
+		for end := offset + 2; end <= len(path); end += 2 {
+			if len(strings.Join(path[offset:end], ",")) > lineLimit {
+				break
+			}
+			maxEnd = end
 		}
-	}
-
-	if len(result) <= 20 {
-		return result
-	}
-	return ""
-}
-
-func findValidFunctionC(fullPath, testB, funcA, funcB string) (string, string, bool) {
-	for funcC := range extractPatternsFrom(testB, " B ", 20) {
-		if funcC == funcA || funcC == funcB {
-			continue
+		for end := maxEnd; end > offset; end -= 2 {
+			functions[nextFunction] = path[offset:end]
+			main = append(main, "ABC"[nextFunction:nextFunction+1])
+			if search(end) {
+				return true
+			}
+			main = main[:len(main)-1]
 		}
-		if main := tryCompression(fullPath, funcA, funcB, funcC); main != "" {
-			return main, funcC, true
-		}
-	}
-	return "", "", false
-}
-
-func tryFunctionsBC(fullPath, testA, funcA string) (string, string, string, string, bool) {
-	for funcB := range extractPatternsFrom(testA, " A ", 20) {
-		if funcB == funcA {
-			continue
-		}
-		testB := strings.ReplaceAll(testA, funcB, " B ")
-
-		if main, funcC, ok := findValidFunctionC(fullPath, testB, funcA, funcB); ok {
-			return main, funcA, funcB, funcC, true
-		}
-	}
-	return "", "", "", "", false
-}
-
-func compressPath(path []string) (string, string, string, string, bool) {
-	fullPath := strings.Join(path, ",")
-
-	for funcA := range generatePatterns(path, 20) {
-		testA := strings.ReplaceAll(fullPath, funcA, " A ")
-
-		if main, a, b, c, ok := tryFunctionsBC(fullPath, testA, funcA); ok {
-			return main, a, b, c, true
-		}
+		functions[nextFunction] = nil
+		return false
 	}
 
-	return "", "", "", "", false
-}
+	if !search(0) {
+		if exhausted {
+			return movementProgram{}, fmt.Errorf("movement compression exceeds %d search states", searchLimit)
+		}
+		return movementProgram{}, fmt.Errorf("movement path cannot fit three 20-character routines")
+	}
 
-func buildMovementInput(main, funcA, funcB, funcC string) []int {
-	return StringsToASCII(main, funcA, funcB, funcC, "n")
+	result := movementProgram{main: strings.Join(main, ",")}
+	for i, function := range functions {
+		// The robot reads all three definitions even when main uses fewer.
+		if len(function) == 0 {
+			function = functions[0]
+		}
+		result.functions[i] = strings.Join(function, ",")
+	}
+	return result, nil
 }
 
 func runVacuumRobot(program []int, inputs []int) (int, error) {
-	program[0] = 2
 	computer := New(program)
+	if err := computer.SetMemory(0, 2); err != nil {
+		return 0, err
+	}
 	computer.SetInput(inputs...)
 
 	if err := computer.Run(); err != nil {
@@ -283,6 +298,17 @@ func runVacuumRobot(program []int, inputs []int) (int, error) {
 	}
 
 	output := computer.GetOutput()
+	if !computer.IsHalted() {
+		return 0, fmt.Errorf("vacuum robot requested more input before finishing")
+	}
+	if len(output) == 0 || output[len(output)-1] <= 255 {
+		return 0, fmt.Errorf("vacuum robot halted without a dust result")
+	}
+	for _, value := range output[:len(output)-1] {
+		if value < 0 || value > 255 {
+			return 0, fmt.Errorf("unexpected vacuum robot output %d before the dust result", value)
+		}
+	}
 	return output[len(output)-1], nil
 }
 
@@ -298,13 +324,16 @@ func day17p02(r io.Reader) (string, error) {
 	}
 	scaffoldGrid := parseScaffoldFromASCII(computer.GetOutput())
 
-	path := generatePath(scaffoldGrid)
-	main, funcA, funcB, funcC, ok := compressPath(path)
-	if !ok {
-		return "", fmt.Errorf("failed to compress path")
+	path, err := generatePath(scaffoldGrid)
+	if err != nil {
+		return "", err
+	}
+	movement, err := compressPath(path)
+	if err != nil {
+		return "", err
 	}
 
-	inputs := buildMovementInput(main, funcA, funcB, funcC)
+	inputs := StringsToASCII(movement.main, movement.functions[0], movement.functions[1], movement.functions[2], "n")
 	dust, err := runVacuumRobot(program, inputs)
 	if err != nil {
 		return "", err

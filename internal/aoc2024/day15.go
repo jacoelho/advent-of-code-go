@@ -1,84 +1,113 @@
 package aoc2024
 
 import (
-	"bufio"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-func convertDirection(r rune) grid.Position2D[int] {
+func convertDirection(r rune) (grid.Position2D[int], error) {
 	switch r {
 	case '<':
-		return grid.Position2D[int]{X: -1, Y: 0}
+		return grid.Position2D[int]{X: -1, Y: 0}, nil
 	case '>':
-		return grid.Position2D[int]{X: 1, Y: 0}
+		return grid.Position2D[int]{X: 1, Y: 0}, nil
 	case 'v':
-		return grid.Position2D[int]{X: 0, Y: 1}
+		return grid.Position2D[int]{X: 0, Y: 1}, nil
 	case '^':
-		return grid.Position2D[int]{X: 0, Y: -1}
+		return grid.Position2D[int]{X: 0, Y: -1}, nil
 	default:
-		panic("unreachable")
+		return grid.Position2D[int]{}, fmt.Errorf("invalid warehouse movement %q", r)
 	}
 }
 
-func warehouseIdentityTile(r rune) []rune { return []rune{r} }
+func warehouseIdentityTile(r rune) []rune {
+	return []rune{r}
+}
 
 func warehouseScaleUpTile(r rune) []rune {
 	switch r {
-	case '#', '.':
-		return []rune{r, r}
 	case 'O':
 		return []rune{'[', ']'}
 	case '@':
 		return []rune{'@', '.'}
 	}
-	panic("unreachable")
+	return []rune{r, r}
 }
 
 func parseWarehouse(
 	r io.Reader,
 	transform func(r rune) []rune,
-) (grid.Grid2D[int, rune], []grid.Position2D[int]) {
-	s := bufio.NewScanner(r)
-	s.Split(scanner.SplitBySeparator([]byte{'\n', '\n'}))
-
-	_, mapString := s.Scan(), s.Text()
-	_, movementString := s.Scan(), s.Text()
-	if s.Err() != nil {
-		panic(s.Err())
+) (grid.Grid2D[int, rune], []grid.Position2D[int], error) {
+	const inputLimit = 128 << 10
+	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(data) > inputLimit {
+		return nil, nil, fmt.Errorf("warehouse input exceeds 128 KiB")
+	}
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	mapString, movementString, ok := strings.Cut(text, "\n\n")
+	if !ok {
+		return nil, nil, fmt.Errorf("warehouse needs a map and movement section")
 	}
 
-	mapLines := xslices.Map(func(in string) []rune {
-		var result []rune
-		for _, r := range in {
-			result = append(result, transform(r)...)
+	rows := strings.Split(mapString, "\n")
+	width := len(rows[0])
+	if width < 3 || len(rows) < 3 {
+		return nil, nil, fmt.Errorf("warehouse needs an enclosed map")
+	}
+	mapLines := make([][]rune, len(rows))
+	for y, row := range rows {
+		if len(row) != width {
+			return nil, nil, fmt.Errorf("warehouse row %d has inconsistent width", y+1)
 		}
-		return result
-	}, strings.Split(mapString, "\n"))
-
-	var movementLines []grid.Position2D[int]
-	for line := range strings.SplitSeq(movementString, "\n") {
-		for _, ch := range line {
-			movementLines = append(movementLines, convertDirection(ch))
+		for x, tile := range row {
+			if tile != '#' && tile != '.' && tile != 'O' && tile != '@' {
+				return nil, nil, fmt.Errorf("invalid warehouse tile %q", tile)
+			}
+			if (x == 0 || x == width-1 || y == 0 || y == len(rows)-1) && tile != '#' {
+				return nil, nil, fmt.Errorf("warehouse boundary must be walls")
+			}
+			mapLines[y] = append(mapLines[y], transform(tile)...)
 		}
 	}
 
-	return grid.NewGrid2D[int](mapLines), movementLines
+	var movements []grid.Position2D[int]
+	for _, ch := range movementString {
+		if ch == '\n' {
+			continue
+		}
+		direction, err := convertDirection(ch)
+		if err != nil {
+			return nil, nil, err
+		}
+		movements = append(movements, direction)
+	}
+	return grid.NewGrid2D[int](mapLines), movements, nil
 }
 
-func robotStartPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {
-	element, ok := xmaps.Find(g, func(p grid.Position2D[int], v rune) bool { return v == '@' })
-	if !ok {
-		panic("robot not found")
+func robotStartPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
+	var position grid.Position2D[int]
+	found := false
+	for p, tile := range g {
+		if tile != '@' {
+			continue
+		}
+		if found {
+			return position, fmt.Errorf("warehouse has multiple robots")
+		}
+		position, found = p, true
 	}
-	return element.K
+	if !found {
+		return position, fmt.Errorf("warehouse robot not found")
+	}
+	return position, nil
 }
 
 func move(
@@ -113,8 +142,14 @@ LOOP:
 }
 
 func day15p01(r io.Reader) (string, error) {
-	warehouse, movements := parseWarehouse(r, warehouseIdentityTile)
-	robotPosition := robotStartPosition(warehouse)
+	warehouse, movements, err := parseWarehouse(r, warehouseIdentityTile)
+	if err != nil {
+		return "", err
+	}
+	robotPosition, err := robotStartPosition(warehouse)
+	if err != nil {
+		return "", err
+	}
 
 	for _, direction := range movements {
 		robotPosition = move(warehouse, robotPosition, direction)
@@ -200,8 +235,14 @@ func moveMultiple(
 }
 
 func day15p02(r io.Reader) (string, error) {
-	warehouse, movements := parseWarehouse(r, warehouseScaleUpTile)
-	robotPosition := robotStartPosition(warehouse)
+	warehouse, movements, err := parseWarehouse(r, warehouseScaleUpTile)
+	if err != nil {
+		return "", err
+	}
+	robotPosition, err := robotStartPosition(warehouse)
+	if err != nil {
+		return "", err
+	}
 
 	for _, direction := range movements {
 		robotPosition = moveMultiple(warehouse, robotPosition, direction)

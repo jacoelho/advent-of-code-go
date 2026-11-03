@@ -1,7 +1,7 @@
 package convert
 
 import (
-	"fmt"
+	"strconv"
 
 	"golang.org/x/exp/constraints"
 )
@@ -66,31 +66,15 @@ func ExtractDigits[T constraints.Signed](line string) []T {
 }
 
 func ScanNumber[T constraints.Signed](line []byte) (T, error) {
-	if len(line) == 0 {
-		return 0, fmt.Errorf("empty input")
+	n, err := strconv.ParseInt(string(line), 10, 64)
+	if err != nil {
+		return 0, err
 	}
-
-	var n T
-	negative := false
-	start := 0
-
-	if line[0] == '-' {
-		negative = true
-		start = 1
+	value := T(n)
+	if int64(value) != n {
+		return 0, &strconv.NumError{Func: "ScanNumber", Num: string(line), Err: strconv.ErrRange}
 	}
-
-	for i := start; i < len(line); i++ {
-		ch := line[i] - '0'
-		if ch > 9 {
-			return n, fmt.Errorf("invalid character '%c'", line[i])
-		}
-		n = n*10 + T(ch)
-	}
-
-	if negative {
-		n = -n
-	}
-	return n, nil
+	return value, nil
 }
 
 func FromBinaryToBase10(digits []int) int {

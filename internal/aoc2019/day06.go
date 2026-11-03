@@ -45,7 +45,7 @@ func getAncestors(parents map[string]string, node string) []string {
 	return ancestors
 }
 
-func day6p01(r io.Reader) (string, error) {
+func day06p01(r io.Reader) (string, error) {
 	parents, err := parseOrbitMap(r)
 	if err != nil {
 		return "", err
@@ -60,7 +60,7 @@ func day6p01(r io.Reader) (string, error) {
 	return strconv.Itoa(totalOrbits), nil
 }
 
-func day6p02(r io.Reader) (string, error) {
+func day06p02(r io.Reader) (string, error) {
 	parents, err := parseOrbitMap(r)
 	if err != nil {
 		return "", err

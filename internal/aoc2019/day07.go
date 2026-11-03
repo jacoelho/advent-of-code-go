@@ -2,13 +2,12 @@ package aoc2019
 
 import (
 	"io"
+	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-// runAmplifierChain runs a series of 5 amplifiers with the given phase settings
 func runAmplifierChain(program []int, phaseSettings []int) (int, error) {
 	signal := 0
 
@@ -28,9 +27,8 @@ func runAmplifierChain(program []int, phaseSettings []int) (int, error) {
 	return signal, nil
 }
 
-// findMaxSignal finds the maximum signal by trying all permutations of phase settings
 func findMaxSignal(program []int, phaseSettings []int, runFunc func([]int, []int) (int, error)) (int, error) {
-	maxSignal := 0
+	maxSignal := math.MinInt
 	for perm := range xiter.Permutations(phaseSettings) {
 		signal, err := runFunc(program, perm)
 		if err != nil {
@@ -41,7 +39,7 @@ func findMaxSignal(program []int, phaseSettings []int, runFunc func([]int, []int
 	return maxSignal, nil
 }
 
-func day7p01(r io.Reader) (string, error) {
+func day07p01(r io.Reader) (string, error) {
 	program, err := ParseIntcodeInput(r)
 	if err != nil {
 		return "", err
@@ -55,7 +53,6 @@ func day7p01(r io.Reader) (string, error) {
 	return strconv.Itoa(maxSignal), nil
 }
 
-// runAmplifierFeedbackLoop runs 5 amplifiers in feedback loop mode
 func runAmplifierFeedbackLoop(program []int, phaseSettings []int) (int, error) {
 	amps := make([]*IntcodeComputer, 5)
 	for i := range 5 {
@@ -77,7 +74,7 @@ func runAmplifierFeedbackLoop(program []int, phaseSettings []int) (int, error) {
 			signal = output
 		}
 
-		if xslices.Every(func(amp *IntcodeComputer) bool { return amp.IsHalted() }, amps) {
+		if xiter.FromSlice(amps).Every(func(amp *IntcodeComputer) bool { return amp.IsHalted() }) {
 			break
 		}
 
@@ -87,7 +84,7 @@ func runAmplifierFeedbackLoop(program []int, phaseSettings []int) (int, error) {
 	return signal, nil
 }
 
-func day7p02(r io.Reader) (string, error) {
+func day07p02(r io.Reader) (string, error) {
 	program, err := ParseIntcodeInput(r)
 	if err != nil {
 		return "", err

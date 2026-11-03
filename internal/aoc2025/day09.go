@@ -1,133 +1,245 @@
 package aoc2025
 
 import (
+	"cmp"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-func parseRedTilesLayout(r io.Reader) ([]grid.Position2D[int], error) {
-	s := scanner.NewScanner(r, func(line []byte) (grid.Position2D[int], error) {
-		nums := convert.ExtractDigits[int](string(line))
-		if len(nums) != 2 {
-			return grid.Position2D[int]{}, fmt.Errorf("expected 2 integers, got %d", len(nums))
+func parseRedTilesLayout(r io.Reader) ([]grid.Position2D[int64], error) {
+	s := scanner.NewScanner(r, func(line []byte) (grid.Position2D[int64], error) {
+		xText, yText, ok := strings.Cut(string(line), ",")
+		if !ok {
+			return grid.Position2D[int64]{}, fmt.Errorf("red tile needs two comma-separated coordinates")
 		}
-		return grid.NewPosition2D(nums[0], nums[1]), nil
+		x, err := convert.ScanNumber[int64]([]byte(xText))
+		if err != nil {
+			return grid.Position2D[int64]{}, fmt.Errorf("red tile x coordinate: %w", err)
+		}
+		y, err := convert.ScanNumber[int64]([]byte(yText))
+		if err != nil {
+			return grid.Position2D[int64]{}, fmt.Errorf("red tile y coordinate: %w", err)
+		}
+		return grid.NewPosition2D(x, y), nil
 	})
-	return slices.Collect(s.Values()), s.Err()
+	var tiles []grid.Position2D[int64]
+	for tile := range s.Values() {
+		if len(tiles) == 1024 {
+			return nil, fmt.Errorf("layout exceeds 1024 red tiles")
+		}
+		tiles = append(tiles, tile)
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(tiles) < 2 {
+		return nil, fmt.Errorf("layout needs at least two red tiles")
+	}
+	seen := make(map[grid.Position2D[int64]]bool)
+	for _, tile := range tiles {
+		if seen[tile] {
+			return nil, fmt.Errorf("duplicate red tile")
+		}
+		seen[tile] = true
+	}
+	return tiles, nil
 }
 
-type rectangle struct {
-	bottomLeftCorner, topRightCorner grid.Position2D[int]
+type tileRectangle struct {
+	min, max grid.Position2D[int64]
 }
 
-func newRectangle(p1, p2 grid.Position2D[int]) rectangle {
-	return rectangle{
-		bottomLeftCorner: grid.NewPosition2D(min(p1.X, p2.X), min(p1.Y, p2.Y)),
-		topRightCorner:   grid.NewPosition2D(max(p1.X, p2.X), max(p1.Y, p2.Y)),
+func newTileRectangle(a, b grid.Position2D[int64]) tileRectangle {
+	return tileRectangle{
+		min: grid.NewPosition2D(min(a.X, b.X), min(a.Y, b.Y)),
+		max: grid.NewPosition2D(max(a.X, b.X), max(a.Y, b.Y)),
 	}
 }
 
-// Corners returns all four corners of the rectangle in order: bottom-left, top-left, bottom-right, top-right.
-func (r rectangle) Corners() []grid.Position2D[int] {
-	return []grid.Position2D[int]{
-		r.bottomLeftCorner,
-		grid.NewPosition2D(r.bottomLeftCorner.X, r.topRightCorner.Y),
-		grid.NewPosition2D(r.topRightCorner.X, r.bottomLeftCorner.Y),
-		r.topRightCorner,
+func (r tileRectangle) area() (int64, error) {
+	// Unsigned differences retain the full distance across signed coordinate extremes.
+	dx := uint64(r.max.X) - uint64(r.min.X)
+	dy := uint64(r.max.Y) - uint64(r.min.Y)
+	if dx >= math.MaxInt64 || dy >= math.MaxInt64 {
+		return 0, fmt.Errorf("rectangle area exceeds int64")
 	}
-}
-
-// Edges returns all four edges of the rectangle in order: bottom, right, top, left.
-func (r rectangle) Edges() []edge {
-	corners := r.Corners()
-	return []edge{
-		{corners[0], corners[2]},
-		{corners[2], corners[3]},
-		{corners[3], corners[1]},
-		{corners[1], corners[0]},
+	width, height := int64(dx)+1, int64(dy)+1
+	if width > math.MaxInt64/height {
+		return 0, fmt.Errorf("rectangle area exceeds int64")
 	}
+	return width * height, nil
 }
 
-// Area returns the area of the rectangle including boundary points.
-func (r rectangle) Area() int {
-	dx := r.topRightCorner.X - r.bottomLeftCorner.X
-	dy := r.topRightCorner.Y - r.bottomLeftCorner.Y
-	return (xmath.Abs(dx) + 1) * (xmath.Abs(dy) + 1)
-}
-
-// intersectsPolygon reports whether any edge of the rectangle intersects with any polygon edge.
-func (r rectangle) intersectsPolygon(polygonEdges []edge) bool {
-	return xslices.Any(func(rectEdge edge) bool {
-		return xslices.Any(func(polyEdge edge) bool {
-			return rectEdge.intersects(polyEdge)
-		}, polygonEdges)
-	}, r.Edges())
-}
-
-// crossProduct calculates the cross product of vectors (p2-p1) and (p3-p1).
-func crossProduct(p1, p2, p3 grid.Position2D[int]) int {
-	return (p2.X-p1.X)*(p3.Y-p1.Y) - (p2.Y-p1.Y)*(p3.X-p1.X)
-}
-
-// orientation returns the orientation of three points.
-// -1 for clockwise, 0 for collinear, and +1 for counterclockwise.
-func orientation(p1, p2, p3 grid.Position2D[int]) int {
-	cross := crossProduct(p1, p2, p3)
-	switch {
-	case cross < 0:
-		return -1
-	case cross > 0:
-		return 1
-	default:
-		return 0
+func tilePolygonEdges(tiles []grid.Position2D[int64]) ([]tileRectangle, error) {
+	if len(tiles) < 4 {
+		return nil, fmt.Errorf("tile polygon needs at least four vertices")
 	}
+	edges := make([]tileRectangle, len(tiles))
+	for i, a := range tiles {
+		b := tiles[(i+1)%len(tiles)]
+		if a == b || a.X != b.X && a.Y != b.Y {
+			return nil, fmt.Errorf("tile polygon edges must be nonzero and axis-aligned")
+		}
+		edges[i] = newTileRectangle(a, b)
+	}
+	for i, a := range edges {
+		for j := i + 1; j < len(edges); j++ {
+			b := edges[j]
+			left, right := max(a.min.X, b.min.X), min(a.max.X, b.max.X)
+			bottom, top := max(a.min.Y, b.min.Y), min(a.max.Y, b.max.Y)
+			if left > right || bottom > top {
+				continue
+			}
+			adjacent := j == i+1 || i == 0 && j == len(edges)-1
+			if !adjacent || left != right || bottom != top {
+				return nil, fmt.Errorf("tile polygon must be simple")
+			}
+		}
+	}
+	return edges, nil
 }
 
-// edge represents a line segment between two points.
-type edge struct {
-	start, end grid.Position2D[int]
+func tileAxis(values []int64) []int64 {
+	slices.Sort(values)
+	values = slices.Compact(values)
+	axis := make([]int64, 0, 2*len(values)-1)
+	for i, value := range values {
+		axis = append(axis, value)
+		if i+1 < len(values) && uint64(values[i+1])-uint64(value) > 1 {
+			axis = append(axis, value+1)
+		}
+	}
+	return axis
 }
 
-// contains checks whether the edge contains the given point.
-func (e edge) contains(point grid.Position2D[int]) bool {
-	if crossProduct(e.start, e.end, point) != 0 {
+type tileSpan struct {
+	low, high int64
+}
+
+func coloredTileRow(edges []tileRectangle, y int64) ([]tileSpan, error) {
+	var crossings []int64
+	var spans []tileSpan
+	for _, edge := range edges {
+		if edge.min.X == edge.max.X {
+			if edge.min.Y <= y && y < edge.max.Y {
+				crossings = append(crossings, edge.min.X)
+			}
+			if edge.min.Y <= y && y <= edge.max.Y {
+				spans = append(spans, tileSpan{low: edge.min.X, high: edge.min.X})
+			}
+		} else if edge.min.Y == y {
+			spans = append(spans, tileSpan{low: edge.min.X, high: edge.max.X})
+		}
+	}
+	slices.Sort(crossings)
+	if len(crossings)%2 != 0 {
+		return nil, fmt.Errorf("tile polygon has an unmatched scanline crossing")
+	}
+	for i := 0; i < len(crossings); i += 2 {
+		spans = append(spans, tileSpan{low: crossings[i], high: crossings[i+1]})
+	}
+	slices.SortFunc(spans, func(a, b tileSpan) int { return cmp.Compare(a.low, b.low) })
+	merged := spans[:0]
+	for _, span := range spans {
+		if len(merged) > 0 {
+			last := &merged[len(merged)-1]
+			if span.low <= last.high || last.high < math.MaxInt64 && span.low == last.high+1 {
+				last.high = max(last.high, span.high)
+				continue
+			}
+		}
+		merged = append(merged, span)
+	}
+	return merged, nil
+}
+
+type redTileFloor struct {
+	xs, ys  []int64
+	stride  int
+	outside []uint32
+}
+
+func newRedTileFloor(tiles []grid.Position2D[int64]) (*redTileFloor, error) {
+	edges, err := tilePolygonEdges(tiles)
+	if err != nil {
+		return nil, err
+	}
+	xs, ys := make([]int64, len(tiles)), make([]int64, len(tiles))
+	for i, tile := range tiles {
+		xs[i], ys[i] = tile.X, tile.Y
+	}
+	xs, ys = tileAxis(xs), tileAxis(ys)
+	if len(xs) > 4_000_000/len(ys) {
+		return nil, fmt.Errorf("tile floor exceeds four million compressed cells")
+	}
+	floor := &redTileFloor{
+		xs:      xs,
+		ys:      ys,
+		stride:  len(xs) + 1,
+		outside: make([]uint32, (len(xs)+1)*(len(ys)+1)),
+	}
+	// Color is constant within every vertex singleton or intervening integer band.
+	for row, y := range ys {
+		spans, err := coloredTileRow(edges, y)
+		if err != nil {
+			return nil, err
+		}
+		span := 0
+		var outside uint32
+		for column, x := range xs {
+			for span < len(spans) && spans[span].high < x {
+				span++
+			}
+			if span == len(spans) || x < spans[span].low {
+				outside++
+			}
+			floor.outside[(row+1)*floor.stride+column+1] = floor.outside[row*floor.stride+column+1] + outside
+		}
+	}
+	return floor, nil
+}
+
+func tileAxisIndex(axis []int64, value int64) int {
+	index, found := slices.BinarySearch(axis, value)
+	if !found {
+		index--
+	}
+	return index
+}
+
+func (f *redTileFloor) contains(r tileRectangle) bool {
+	if r.min.X < f.xs[0] || r.max.X > f.xs[len(f.xs)-1] || r.min.Y < f.ys[0] || r.max.Y > f.ys[len(f.ys)-1] {
 		return false
 	}
-
-	// is point is within the edge's bounding box.
-	return (point.X >= min(e.start.X, e.end.X) && point.X <= max(e.start.X, e.end.X)) &&
-		(point.Y >= min(e.start.Y, e.end.Y) && point.Y <= max(e.start.Y, e.end.Y))
+	left, right := tileAxisIndex(f.xs, r.min.X), tileAxisIndex(f.xs, r.max.X)+1
+	bottom, top := tileAxisIndex(f.ys, r.min.Y), tileAxisIndex(f.ys, r.max.Y)+1
+	return f.outside[top*f.stride+right]+f.outside[bottom*f.stride+left] ==
+		f.outside[top*f.stride+left]+f.outside[bottom*f.stride+right]
 }
 
-// intersects reports whether this edge intersects with another edge.
-func (e edge) intersects(other edge) bool {
-	o1 := orientation(e.start, e.end, other.start)
-	o2 := orientation(e.start, e.end, other.end)
-	o3 := orientation(other.start, other.end, e.start)
-	o4 := orientation(other.start, other.end, e.end)
-	return o1*o2 < 0 && o3*o4 < 0
-}
-
-// findMaxRectangle finds the maximum area rectangle formed by pairs of tiles
-// and satisfy the given validator function.
-func findMaxRectangle(tiles []grid.Position2D[int], validator func(rectangle) bool) int {
-	var maxArea int
+func largestTileRectangle(tiles []grid.Position2D[int64], allowed func(tileRectangle) bool) (int64, error) {
+	var largest int64
 	for pair := range xslices.Pairwise(tiles) {
-		rect := newRectangle(pair.V1, pair.V2)
-		if validator(rect) {
-			maxArea = max(maxArea, rect.Area())
+		rectangle := newTileRectangle(pair.V1, pair.V2)
+		if !allowed(rectangle) {
+			continue
 		}
+		area, err := rectangle.area()
+		if err != nil {
+			return 0, err
+		}
+		largest = max(largest, area)
 	}
-	return maxArea
+	return largest, nil
 }
 
 func day09p01(r io.Reader) (string, error) {
@@ -135,49 +247,11 @@ func day09p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	maxArea := findMaxRectangle(tiles, func(rectangle) bool { return true })
-	return strconv.Itoa(maxArea), nil
-}
-
-func polygonEdges(polygon []grid.Position2D[int]) []edge {
-	n := len(polygon)
-	edges := make([]edge, n)
-	for i := range n {
-		edges[i] = edge{
-			start: polygon[i],
-			end:   polygon[(i+1)%n],
-		}
+	area, err := largestTileRectangle(tiles, func(tileRectangle) bool { return true })
+	if err != nil {
+		return "", err
 	}
-	return edges
-}
-
-// isPointInside checks whether point is inside the polygon using the ray casting algorithm.
-func isPointInside(polygon []grid.Position2D[int], point grid.Position2D[int]) bool {
-	intersectionCount := 0
-	numVertices := len(polygon)
-
-	for i := range numVertices {
-		vertex1 := polygon[i]
-		vertex2 := polygon[(i+1)%numVertices]
-
-		boundaryEdge := edge{start: vertex1, end: vertex2}
-		if boundaryEdge.contains(point) {
-			return true
-		}
-
-		// skip if both endpoints are on same side of ray or segment is horizontal.
-		if (vertex1.Y > point.Y) == (vertex2.Y > point.Y) || vertex1.Y == vertex2.Y {
-			continue
-		}
-
-		// count intersections with horizontal ray going right.
-		intersectionX := (vertex2.X-vertex1.X)*(point.Y-vertex1.Y)/(vertex2.Y-vertex1.Y) + vertex1.X
-		if point.X < intersectionX {
-			intersectionCount++
-		}
-	}
-
-	return intersectionCount%2 == 1
+	return strconv.FormatInt(area, 10), nil
 }
 
 func day09p02(r io.Reader) (string, error) {
@@ -185,16 +259,13 @@ func day09p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	isPointInsideMemo := funcs.Memoize(func(point grid.Position2D[int]) bool {
-		return isPointInside(tiles, point)
-	})
-
-	polyEdges := polygonEdges(tiles)
-
-	maxArea := findMaxRectangle(tiles, func(rect rectangle) bool {
-		cornersInside := xslices.Every(isPointInsideMemo, rect.Corners())
-		return cornersInside && !rect.intersectsPolygon(polyEdges)
-	})
-	return strconv.Itoa(maxArea), nil
+	floor, err := newRedTileFloor(tiles)
+	if err != nil {
+		return "", err
+	}
+	area, err := largestTileRectangle(tiles, floor.contains)
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatInt(area, 10), nil
 }

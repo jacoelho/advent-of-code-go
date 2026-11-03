@@ -9,6 +9,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
@@ -52,56 +53,38 @@ func nextBeam(pos, dir position) beam {
 }
 
 func simulate(g grid.Grid2D[int, rune], start beam) int {
-	queue := collections.NewDeque[beam](16)
-	queue.PushBack(start)
-	visited := collections.NewSet[beam]()
-	energized := collections.NewSet[position]()
-
-	for current, ok := queue.PopFront(); ok; current, ok = queue.PopFront() {
-		if visited.Contains(current) {
-			continue
-		}
-		visited.Add(current)
-
-		tile, exists := g[current.pos]
-		if !exists {
-			continue
-		}
-
-		energized.Add(current.pos)
-
-		var nextBeams []beam
-
-		switch tile {
-		case '.':
-			nextBeams = append(nextBeams, nextBeam(current.pos, current.dir))
-
-		case '/', '\\':
-			newDir := reflect(current.dir, tile)
-			nextBeams = append(nextBeams, nextBeam(current.pos, newDir))
-
-		case '|':
-			if current.dir == left || current.dir == right {
-				nextBeams = append(nextBeams, nextBeam(current.pos, up))
-				nextBeams = append(nextBeams, nextBeam(current.pos, down))
-			} else {
-				nextBeams = append(nextBeams, nextBeam(current.pos, current.dir))
+	children := func(current beam) iter.Seq[beam] {
+		return func(yield func(beam) bool) {
+			switch tile := g[current.pos]; tile {
+			case '.':
+				yield(nextBeam(current.pos, current.dir))
+			case '/', '\\':
+				yield(nextBeam(current.pos, reflect(current.dir, tile)))
+			case '|':
+				if current.dir == left || current.dir == right {
+					if yield(nextBeam(current.pos, up)) {
+						yield(nextBeam(current.pos, down))
+					}
+				} else {
+					yield(nextBeam(current.pos, current.dir))
+				}
+			case '-':
+				if current.dir == up || current.dir == down {
+					if yield(nextBeam(current.pos, left)) {
+						yield(nextBeam(current.pos, right))
+					}
+				} else {
+					yield(nextBeam(current.pos, current.dir))
+				}
 			}
-
-		case '-':
-			if current.dir == up || current.dir == down {
-				nextBeams = append(nextBeams, nextBeam(current.pos, left))
-				nextBeams = append(nextBeams, nextBeam(current.pos, right))
-			} else {
-				nextBeams = append(nextBeams, nextBeam(current.pos, current.dir))
-			}
-		}
-
-		for _, b := range nextBeams {
-			queue.PushBack(b)
 		}
 	}
-
+	energized := collections.NewSet[position]()
+	for current := range search.DFS(start, children) {
+		if g.Contains(current.pos) {
+			energized.Add(current.pos)
+		}
+	}
 	return energized.Len()
 }
 
@@ -153,11 +136,7 @@ func day16p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	maxEnergized := xiter.Reduce(
-		func(maxSoFar, count int) int { return max(maxSoFar, count) },
-		0,
-		xiter.Map(func(b beam) int { return simulate(g, b) }, edgeBeams(g)),
-	)
+	maxEnergized := xiter.From(edgeBeams(g)).Map(func(b beam) int { return simulate(g, b) }).Reduce(0, func(maxSoFar, count int) int { return max(maxSoFar, count) })
 
 	return strconv.Itoa(maxEnergized), nil
 }

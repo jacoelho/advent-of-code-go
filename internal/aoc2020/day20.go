@@ -13,7 +13,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var seaMonsterPattern = []grid.Position2D[int]{
@@ -38,7 +38,10 @@ func parseImageTile(s string) (imageTile, error) {
 		return imageTile{}, fmt.Errorf("failed to parse tile ID")
 	}
 
-	rows := xslices.Map(func(in string) []rune { return []rune(in) }, lines[1:])
+	rows := make([][]rune, len(lines)-1)
+	for i, line := range lines[1:] {
+		rows[i] = []rune(line)
+	}
 
 	return imageTile{
 		id:   digits[0],
@@ -90,15 +93,15 @@ func countMatchingBorders(tile imageTile, allTiles []imageTile) int {
 
 	matchCount := 0
 	for _, border := range tileBorders {
-		if xslices.Any(func(otherTile imageTile) bool {
+		if xiter.FromSlice(allTiles).Any(func(otherTile imageTile) bool {
 			if tile.id == otherTile.id {
 				return false
 			}
 			otherBorders := getBorders(otherTile)
-			return xslices.Any(func(otherBorder string) bool {
+			return xiter.FromSlice(otherBorders).Any(func(otherBorder string) bool {
 				return bordersMatch(border, otherBorder)
-			}, otherBorders)
-		}, allTiles) {
+			})
+		}) {
 			matchCount++
 		}
 	}
@@ -106,10 +109,10 @@ func countMatchingBorders(tile imageTile, allTiles []imageTile) int {
 	return matchCount
 }
 
-func findCorners(tiles []imageTile) []imageTile {
-	return xslices.Filter(func(tile imageTile) bool {
+func findCorners(tiles []imageTile) xiter.Seq[imageTile] {
+	return xiter.FromSlice(tiles).Filter(func(tile imageTile) bool {
 		return countMatchingBorders(tile, tiles) == 2
-	}, tiles)
+	})
 }
 
 func day20p01(r io.Reader) (string, error) {
@@ -118,19 +121,17 @@ func day20p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	corners := findCorners(tiles)
-
-	ids := xslices.Map(func(t imageTile) int { return t.id }, corners)
-	result := xslices.Product(ids)
+	result := findCorners(tiles).
+		Map(func(tile imageTile) int { return tile.id }).
+		Reduce(1, func(product, id int) int { return product * id })
 
 	return strconv.Itoa(result), nil
 }
 
-// Generate all 8 orientations of a tile grid
+// allOrientations yields the four rotations of g and of its horizontal reflection.
 func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] {
 	return func(yield func(grid.Grid2D[int, rune]) bool) {
 		current := g
-		// 4 rotations
 		for range 4 {
 			if !yield(current) {
 				return
@@ -138,7 +139,6 @@ func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] 
 			current = current.TurnRight()
 		}
 
-		// flip and 4 more rotations
 		current = g.FlipHorizontal()
 		for range 4 {
 			if !yield(current) {
@@ -149,7 +149,6 @@ func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] 
 	}
 }
 
-// find which tile has a border matching the given border
 func findTileWithBorder(border string, tiles []imageTile, excludeID int) (int, bool) {
 	for _, tile := range tiles {
 		if tile.id == excludeID {
@@ -165,7 +164,6 @@ func findTileWithBorder(border string, tiles []imageTile, excludeID int) (int, b
 	return 0, false
 }
 
-// find a tile and orientation that matches the given border constraints
 func findMatchingTileOrientation(tiles []imageTile, used map[int]bool, leftBorder, topBorder string) (imageTile, bool) {
 	for _, tile := range tiles {
 		if used[tile.id] {
@@ -184,20 +182,16 @@ func findMatchingTileOrientation(tiles []imageTile, used map[int]bool, leftBorde
 	return imageTile{}, false
 }
 
-// assemble tiles into a grid layout
 func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
-	corners := findCorners(tiles)
-	if len(corners) == 0 {
+	cornerTile, ok := findCorners(tiles).First()
+	if !ok {
 		return nil
 	}
 
-	// start with first corner, orient it so matching borders face right and down
-	cornerTile := corners[0]
+	// Orient the first corner so matching borders face right and down.
 
-	// find an orientation where the corner has matches on right and bottom
 	var startOriented grid.Grid2D[int, rune]
 
-	// try all orientations to find one where right and bottom match other tiles
 	for oriented := range allOrientations(cornerTile.grid) {
 		rightBorder := string(oriented.Right())
 		bottomBorder := string(oriented.Bottom())
@@ -216,20 +210,17 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 	used := make(map[int]bool)
 	used[cornerTile.id] = true
 
-	// determine grid size
 	gridSize := 1
 	for gridSize*gridSize < len(tiles) {
 		gridSize++
 	}
 
-	// fill the grid row by row
 	for y := 0; y < gridSize; y++ {
 		for x := 0; x < gridSize; x++ {
 			if x == 0 && y == 0 {
 				continue
 			}
 
-			// get constraints from placed neighbors
 			var leftBorder, topBorder string
 			if x > 0 {
 				if leftTile, exists := placed[grid.Position2D[int]{X: x - 1, Y: y}]; exists {
@@ -246,7 +237,6 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 				continue
 			}
 
-			// find a tile that matches the constraints
 			if matchedTile, found := findMatchingTileOrientation(tiles, used, leftBorder, topBorder); found {
 				placed[grid.Position2D[int]{X: x, Y: y}] = matchedTile
 				used[matchedTile.id] = true
@@ -257,7 +247,6 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 	return placed
 }
 
-// remove borders from a tile (remove first and last row/column)
 func removeBorder(g grid.Grid2D[int, rune]) grid.Grid2D[int, rune] {
 	minX, maxX, minY, maxY := g.Dimensions()
 	result := make(grid.Grid2D[int, rune])
@@ -287,7 +276,6 @@ func mergeToSingleGrid(assembled map[grid.Position2D[int]]imageTile) grid.Grid2D
 		minX, maxX, minY, maxY := borderless.Dimensions()
 		tileWidth := maxX - minX + 1
 
-		// copy borderless tile to final position
 		for y := minY; y <= maxY; y++ {
 			for x := minX; x <= maxX; x++ {
 				val := borderless[grid.Position2D[int]{X: x, Y: y}]
@@ -325,7 +313,7 @@ func findSeaMonsters(g grid.Grid2D[int, rune]) []grid.Position2D[int] {
 	return monsters
 }
 
-// count water roughness (# not part of sea monsters)
+// countRoughness counts lit pixels that do not belong to any sea monster.
 func countRoughness(g grid.Grid2D[int, rune], monsters []grid.Position2D[int]) int {
 	allHash := collections.NewSet[grid.Position2D[int]]()
 	for pos, val := range g {

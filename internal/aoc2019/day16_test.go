@@ -1,11 +1,41 @@
 package aoc2019
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
+
+func TestApplyFFTPhase(t *testing.T) {
+	signal := []int{1, 2, 3, 4, 5, 6, 7, 8}
+	for phase, want := range [][]int{
+		{4, 8, 2, 2, 6, 1, 5, 8},
+		{3, 4, 0, 4, 0, 4, 3, 8},
+		{0, 3, 4, 1, 5, 5, 1, 8},
+		{0, 1, 0, 2, 9, 4, 9, 8},
+	} {
+		signal = applyFFTPhase(signal)
+		if !slices.Equal(signal, want) {
+			t.Fatalf("phase %d: got %v, want %v", phase+1, signal, want)
+		}
+	}
+
+	for _, tt := range []struct {
+		name        string
+		input, want []int
+	}{
+		{"odd length", []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, []int{5, 8, 3, 2, 5, 0, 4, 7, 9}},
+		{"singleton", []int{9}, []int{9}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := applyFFTPhase(tt.input); !slices.Equal(got, tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func Test_day16p01(t *testing.T) {
 	tests := []aoc.TestInput{

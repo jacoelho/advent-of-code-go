@@ -1,101 +1,133 @@
 package aoc2024
 
 import (
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
-	"sync"
-	"sync/atomic"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-func parseGuardMap(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
-		res := make([]rune, len(b))
-		for i, v := range b {
-			res[i] = rune(v)
-		}
-		return res, nil
-	})
-	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
+type guardStep struct {
+	next, ahead int
 }
 
-func guardPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {
-	for p, v := range g {
-		if v != '#' && v != '.' {
-			return p
-		}
-	}
-	panic("guard not found")
+type guardMap struct {
+	steps []guardStep
+	start int
 }
 
-func followGuard(
-	g grid.Grid2D[int, rune],
-	position grid.Position2D[int],
-	extraObstacles collections.Set[grid.Position2D[int]],
-) (collections.Set[[2]grid.Position2D[int]], bool) {
-	seen := collections.NewSet[[2]grid.Position2D[int]]()
-	direction := grid.Position2D[int]{X: 0, Y: -1}
+type guardObstacle struct {
+	cell, before int
+}
 
-	keyFn := func(position, direction grid.Position2D[int]) [2]grid.Position2D[int] {
-		return [2]grid.Position2D[int]{position, direction}
+func parseGuardMap(r io.Reader) (guardMap, error) {
+	s := scanner.NewScanner(r, func(b []byte) (string, error) { return string(b), nil })
+	rows := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return guardMap{}, err
 	}
 
-	for g[position] != 0 && !seen.Contains(keyFn(position, direction)) {
-		seen.Add(keyFn(position, direction))
-		next := position.Add(direction)
+	offsets := make([]int, len(rows))
+	cellCount, start := 0, -1
+	multiple := false
+	for y, row := range rows {
+		if len(row) > int(^uint(0)>>1)/4-cellCount {
+			return guardMap{}, fmt.Errorf("guard map has too many cells")
+		}
+		offsets[y] = cellCount
+		for x := range len(row) {
+			if row[x] == '^' {
+				if start >= 0 {
+					multiple = true
+				} else {
+					start = 4 * (cellCount + x)
+				}
+			}
+		}
+		cellCount += len(row)
+	}
+	if multiple {
+		return guardMap{}, fmt.Errorf("guard map has multiple guards")
+	}
+	if start < 0 {
+		return guardMap{}, fmt.Errorf("guard not found")
+	}
 
-		if g[next] == '#' || extraObstacles.Contains(next) {
-			direction = direction.TurnRight()
-		} else {
-			position = next
+	// Each cell has north, east, south, and west states, including turns in place.
+	m := guardMap{steps: make([]guardStep, 4*cellCount), start: start}
+	dx, dy := [4]int{0, 1, 0, -1}, [4]int{-1, 0, 1, 0}
+	for y, row := range rows {
+		for x := range len(row) {
+			cell := offsets[y] + x
+			for direction := range 4 {
+				step := guardStep{next: -1, ahead: -1}
+				nx, ny := x+dx[direction], y+dy[direction]
+				if ny >= 0 && ny < len(rows) && nx >= 0 && nx < len(rows[ny]) && rows[ny][nx] != 0 {
+					step.ahead = offsets[ny] + nx
+					if rows[ny][nx] == '#' {
+						step.next = 4*cell + (direction+1)%4
+					} else {
+						step.next = 4*step.ahead + direction
+					}
+				}
+				m.steps[4*cell+direction] = step
+			}
 		}
 	}
+	return m, nil
+}
 
-	return seen, g[position] != 0
+func (m guardMap) obstacles(marks []int) []guardObstacle {
+	visited := make([]bool, len(m.steps)/4)
+	visited[m.start/4] = true
+	var obstacles []guardObstacle
+	for state := m.start; state >= 0 && marks[state] == 0; {
+		marks[state] = 1
+		next := m.steps[state].next
+		if next >= 0 && !visited[next/4] {
+			visited[next/4] = true
+			obstacles = append(obstacles, guardObstacle{cell: next / 4, before: state})
+		}
+		state = next
+	}
+	return obstacles
 }
 
 func day06p01(r io.Reader) (string, error) {
-	m := aoc.Must(parseGuardMap(r))
-	startPosition := guardPosition(m)
-
-	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
-	count := xiter.Len(xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
-		return in[0]
-	}, positions.Iter())))
-
-	return strconv.Itoa(count), nil
+	m, err := parseGuardMap(r)
+	if err != nil {
+		return "", err
+	}
+	marks := make([]int, len(m.steps))
+	return strconv.Itoa(len(m.obstacles(marks)) + 1), nil
 }
 
 func day06p02(r io.Reader) (string, error) {
-	m := aoc.Must(parseGuardMap(r))
-	startPosition := guardPosition(m)
-
-	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
-	candidates := xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
-		return in[0]
-	}, positions.Iter()))
-
-	var wg sync.WaitGroup
-	var count atomic.Int64
-	for candidate := range candidates {
-		if candidate == startPosition {
-			continue
-		}
-
-		wg.Go(func() {
-			if _, cycles := followGuard(m, startPosition, collections.NewSet(candidate)); cycles {
-				count.Add(1)
-			}
-		})
-
+	m, err := parseGuardMap(r)
+	if err != nil {
+		return "", err
 	}
-	wg.Wait()
-
-	return strconv.FormatInt(count.Load(), 10), nil
+	marks := make([]int, len(m.steps))
+	obstacles := m.obstacles(marks)
+	var count int
+	for i, obstacle := range obstacles {
+		generation := i + 2
+		// The unchanged prefix reaches this state; only the suffix needs replaying.
+		state := obstacle.before
+		for state >= 0 && marks[state] != generation {
+			marks[state] = generation
+			step := m.steps[state]
+			if step.ahead == obstacle.cell {
+				state = state&^3 | (state+1)&3
+			} else {
+				state = step.next
+			}
+		}
+		if state >= 0 {
+			count++
+		}
+	}
+	return strconv.Itoa(count), nil
 }

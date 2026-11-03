@@ -3,6 +3,8 @@ package aoc2025
 import (
 	"fmt"
 	"io"
+	"math"
+	"math/big"
 	"math/bits"
 	"slices"
 	"strconv"
@@ -11,238 +13,270 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/matrix"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-const noSolution = -1
+const (
+	noSolution        = -1
+	maxMachineWidth   = 64
+	maxMachineButtons = 24
+	maxMachines       = 1024
+	maxMachineWork    = 250_000_000
+)
 
 type machineRequirements struct {
-	lightsMask  uint
-	buttonMasks []uint
-	joltage     []int
+	lightsMask  uint64
+	buttonMasks []uint64
+	joltage     []int64
 }
 
-func parseLightsToken(token string) (mask uint, err error) {
-	if len(token) < 2 || token[0] != '[' || token[len(token)-1] != ']' {
-		return 0, fmt.Errorf("invalid lights token: %s", token)
+func parseLightsToken(token string) (uint64, error) {
+	if len(token) < 3 || token[0] != '[' || token[len(token)-1] != ']' {
+		return 0, fmt.Errorf("invalid lights token %q", token)
+	}
+	pattern := token[1 : len(token)-1]
+	if len(pattern) > maxMachineWidth {
+		return 0, fmt.Errorf("machine exceeds %d lights", maxMachineWidth)
 	}
 
-	pattern := token[1 : len(token)-1]
-	width := 0
-	for _, ch := range pattern {
+	var mask uint64
+	for i, ch := range pattern {
 		switch ch {
 		case '#':
-			mask |= 1 << width
-			width++
+			mask |= uint64(1) << i
 		case '.':
-			width++
 		default:
-			return 0, fmt.Errorf("invalid character '%c' in lights", ch)
+			return 0, fmt.Errorf("invalid light %q", ch)
 		}
 	}
-
 	return mask, nil
 }
 
-func parseButtonTokens(tokens []string) ([]uint, error) {
-	buttonMasks := make([]uint, 0, len(tokens))
-
+func parseButtonTokens(tokens []string, width int) ([]uint64, error) {
+	if len(tokens) > maxMachineButtons {
+		return nil, fmt.Errorf("machine exceeds %d buttons", maxMachineButtons)
+	}
+	buttonMasks := make([]uint64, 0, len(tokens))
 	for _, token := range tokens {
 		if len(token) < 2 || token[0] != '(' || token[len(token)-1] != ')' {
-			return nil, fmt.Errorf("invalid button token: %s", token)
+			return nil, fmt.Errorf("invalid button token %q", token)
 		}
-
-		indices := convert.ExtractDigits[int](token[1 : len(token)-1])
-
-		var mask uint
-		for _, idx := range indices {
-			mask |= 1 << idx
+		var mask uint64
+		if token != "()" {
+			for field := range strings.SplitSeq(token[1:len(token)-1], ",") {
+				idx, err := convert.ScanNumber[int]([]byte(field))
+				if err != nil {
+					return nil, fmt.Errorf("button index: %w", err)
+				}
+				if idx < 0 || idx >= width {
+					return nil, fmt.Errorf("button index %d outside %d lights", idx, width)
+				}
+				bit := uint64(1) << idx
+				if mask&bit != 0 {
+					return nil, fmt.Errorf("duplicate button index %d", idx)
+				}
+				mask |= bit
+			}
 		}
-
 		buttonMasks = append(buttonMasks, mask)
 	}
-
 	return buttonMasks, nil
 }
 
-func parseJoltageToken(token string) ([]int, error) {
-	if len(token) < 2 || token[0] != '{' || token[len(token)-1] != '}' {
-		return nil, fmt.Errorf("invalid joltage token: %s", token)
+func parseJoltageToken(token string, width int) ([]int64, error) {
+	if len(token) < 3 || token[0] != '{' || token[len(token)-1] != '}' {
+		return nil, fmt.Errorf("invalid joltage token %q", token)
 	}
+	var joltage []int64
+	for field := range strings.SplitSeq(token[1:len(token)-1], ",") {
+		value, err := convert.ScanNumber[int64]([]byte(field))
+		if err != nil {
+			return nil, fmt.Errorf("joltage count: %w", err)
+		}
+		if value < 0 {
+			return nil, fmt.Errorf("joltage count must be nonnegative")
+		}
+		joltage = append(joltage, value)
+		if len(joltage) > width {
+			return nil, fmt.Errorf("joltage width differs from lights")
+		}
+	}
+	if len(joltage) != width {
+		return nil, fmt.Errorf("joltage width differs from lights")
+	}
+	return joltage, nil
+}
 
-	return convert.ExtractDigits[int](token[1 : len(token)-1]), nil
+func parseMachine(line []byte) (machineRequirements, error) {
+	tokens := strings.Fields(string(line))
+	if len(tokens) < 2 {
+		return machineRequirements{}, fmt.Errorf("machine needs lights and joltage")
+	}
+	lights, err := parseLightsToken(tokens[0])
+	if err != nil {
+		return machineRequirements{}, err
+	}
+	width := len(tokens[0]) - 2
+	joltage, err := parseJoltageToken(tokens[len(tokens)-1], width)
+	if err != nil {
+		return machineRequirements{}, err
+	}
+	buttons, err := parseButtonTokens(tokens[1:len(tokens)-1], width)
+	if err != nil {
+		return machineRequirements{}, err
+	}
+	return machineRequirements{lightsMask: lights, buttonMasks: buttons, joltage: joltage}, nil
 }
 
 func parseInitializationProcedure(r io.Reader) ([]machineRequirements, error) {
+	machineIndex := 0
 	s := scanner.NewScanner(r, func(line []byte) (machineRequirements, error) {
-		tokens := strings.Fields(string(line))
-
-		lightsMask, err := parseLightsToken(tokens[0])
-		if err != nil {
-			return machineRequirements{}, err
+		machineIndex++
+		if machineIndex > maxMachines {
+			return machineRequirements{}, fmt.Errorf("machine %d: procedure exceeds %d machines", machineIndex, maxMachines)
 		}
-
-		joltage, err := parseJoltageToken(tokens[len(tokens)-1])
+		machine, err := parseMachine(line)
 		if err != nil {
-			return machineRequirements{}, err
+			return machineRequirements{}, fmt.Errorf("machine %d: %w", machineIndex, err)
 		}
-
-		buttonMasks, err := parseButtonTokens(tokens[1 : len(tokens)-1])
-		if err != nil {
-			return machineRequirements{}, err
-		}
-
-		return machineRequirements{
-			lightsMask:  lightsMask,
-			buttonMasks: buttonMasks,
-			joltage:     joltage,
-		}, nil
+		return machine, nil
 	})
-
-	return slices.Collect(s.Values()), s.Err()
+	steps := slices.Collect(s.Values())
+	return steps, s.Err()
 }
 
-// validateAndSum validates button values and computes their sum.
-// returns true if all values are non-negative and divisible by commonDen.
-func validateAndSum(scaledBase []int64, scaledCoeffs [][]int64, params []int, commonDen int64) (int, bool) {
-	total := 0
-	for i := range scaledBase {
-		value := scaledBase[i]
-		for k := range params {
-			value += scaledCoeffs[k][i] * int64(params[k])
+func validateAndSum(base []int64, coefficients [][]int64, params []int64, denominator int64) (int64, bool) {
+	var total int64
+	for i, value := range base {
+		for k, param := range params {
+			value += coefficients[k][i] * param
 		}
-		if value < 0 || value%commonDen != 0 {
+		if value < 0 || value%denominator != 0 {
 			return 0, false
 		}
-		total += int(value / commonDen)
+		total += value / denominator
 	}
 	return total, true
 }
 
-// buildCoefficientMatrix builds the coefficient matrix for the button press constraints.
 func buildCoefficientMatrix(step machineRequirements) *matrix.Matrix {
 	buttonCount := len(step.buttonMasks)
-	counterCount := len(step.joltage)
-
-	mat := matrix.New(counterCount, buttonCount+1)
-	for i := range counterCount {
-		mat.Set(i, buttonCount, matrix.NewRat(int64(step.joltage[i]), 1))
+	mat := matrix.New(len(step.joltage), buttonCount+1)
+	for i, target := range step.joltage {
+		mat.Set(i, buttonCount, matrix.NewRat(target, 1))
 	}
-
 	for j, mask := range step.buttonMasks {
-		for idx := range counterCount {
-			if mask&(1<<idx) != 0 {
-				mat.Set(idx, j, matrix.NewRat(1, 1))
+		for i := range step.joltage {
+			if mask&(uint64(1)<<i) != 0 {
+				mat.Set(i, j, matrix.NewRat(1, 1))
 			}
 		}
 	}
-
 	return mat
 }
 
-// computeFreeVarLimits computes bounds for free variables.
-// first computes upper bounds based on minimum joltage, then tightens them
-// by considering constraints from negative coefficients.
-func computeFreeVarLimits(step machineRequirements, scaledBase []int64, scaledCoeffs [][]int64, freeCols []int) []int {
-	buttonCount := len(step.buttonMasks)
-	freeCount := len(freeCols)
-
-	// compute upper bounds for each button based on minimum joltage it affects
-	upper := make([]int, buttonCount)
-	for buttonIndex, mask := range step.buttonMasks {
+func computeFreeVarLimits(step machineRequirements, base []int64, coefficients [][]int64, freeCols []int) []int64 {
+	upper := make([]int64, len(step.buttonMasks))
+	for i, mask := range step.buttonMasks {
 		if mask == 0 {
-			upper[buttonIndex] = 0
 			continue
 		}
-		minJoltage := -1
-		for counterIndex := 0; counterIndex < len(step.joltage); counterIndex++ {
-			if mask&(1<<counterIndex) != 0 {
-				if minJoltage == -1 || step.joltage[counterIndex] < minJoltage {
-					minJoltage = step.joltage[counterIndex]
-				}
+		upper[i] = math.MaxInt64
+		for counter, target := range step.joltage {
+			if mask&(uint64(1)<<counter) != 0 {
+				upper[i] = min(upper[i], target)
 			}
-		}
-		if minJoltage == -1 {
-			upper[buttonIndex] = 0
-		} else {
-			upper[buttonIndex] = minJoltage
 		}
 	}
 
-	// tighten bounds for free variables based on constraints
-	limits := make([]int, freeCount)
-	for freeVarIndex := range freeCount {
-		limit := upper[freeCols[freeVarIndex]]
-		for buttonIndex := range buttonCount {
-			coeff := scaledCoeffs[freeVarIndex][buttonIndex]
-			if coeff >= 0 {
+	limits := make([]int64, len(freeCols))
+	for k, col := range freeCols {
+		limit := upper[col]
+		for i, value := range base {
+			coefficient := coefficients[k][i]
+			if coefficient >= 0 {
 				continue
 			}
-
-			// compute maximum help from other free variables
-			maxHelp := int64(0)
-			for otherFreeVarIndex := range freeCount {
-				if otherFreeVarIndex == freeVarIndex {
-					continue
-				}
-				otherCoeff := scaledCoeffs[otherFreeVarIndex][buttonIndex]
-				if otherCoeff > 0 {
-					maxHelp += otherCoeff * int64(upper[freeCols[otherFreeVarIndex]])
+			// Maximize the other positive terms to bound this free variable while
+			// keeping the dependent variable nonnegative.
+			available := big.NewInt(value)
+			for other, freeCol := range freeCols {
+				if c := coefficients[other][i]; other != k && c > 0 {
+					term := new(big.Int).Mul(big.NewInt(c), big.NewInt(upper[freeCol]))
+					available.Add(available, term)
 				}
 			}
-
-			maxAllowed := max((scaledBase[buttonIndex]+maxHelp)/-coeff, 0)
-			if int64(limit) > maxAllowed {
-				limit = int(maxAllowed)
+			divisor := new(big.Int).Neg(big.NewInt(coefficient))
+			allowed := new(big.Int).Quo(available, divisor)
+			if allowed.Sign() < 0 {
+				limit = 0
+			} else if allowed.Cmp(big.NewInt(limit)) < 0 {
+				limit = allowed.Int64()
 			}
 		}
-		limits[freeVarIndex] = max(limit, 0)
+		limits[k] = limit
 	}
-
 	return limits
 }
 
-// findMinimum performs a DFS search to find the minimum valid sum of button values.
-// returns noSolution if no valid solution exists.
-func findMinimum(scaledBase []int64, scaledCoeffs [][]int64, commonDen int64, limits []int) int {
-	freeCount := len(limits)
-	best := noSolution
-	params := make([]int, freeCount)
+func admitJoltageArithmetic(base []int64, coefficients [][]int64, denominator int64, limits []int64) error {
+	totalBound := new(big.Int)
+	for i, value := range base {
+		bound := new(big.Int).Abs(big.NewInt(value))
+		for k, limit := range limits {
+			term := new(big.Int).Abs(big.NewInt(coefficients[k][i]))
+			term.Mul(term, big.NewInt(limit))
+			bound.Add(bound, term)
+		}
+		// This absolute bound also covers every partial sum used by pruning.
+		if !bound.IsInt64() {
+			return fmt.Errorf("unsupported joltage range: scaled expression exceeds int64")
+		}
+		totalBound.Add(totalBound, bound.Quo(bound, big.NewInt(denominator)))
+	}
+	if !totalBound.IsInt64() {
+		return fmt.Errorf("unsupported joltage range: press sum exceeds int64")
+	}
+	return nil
+}
 
-	var dfs func(freeVarIndex int)
-	dfs = func(freeVarIndex int) {
-		if freeVarIndex == freeCount {
-			total := 0
-			for i := range scaledBase {
-				value := scaledBase[i]
-				for k := range params {
-					value += scaledCoeffs[k][i] * int64(params[k])
-				}
-				if value < 0 || value%commonDen != 0 {
-					return
-				}
-				total += int(value / commonDen)
+func spendMachineWork(remaining *int, cost int) error {
+	if cost > *remaining {
+		return fmt.Errorf("machine search work limit exceeded")
+	}
+	*remaining -= cost
+	return nil
+}
+
+func findMinimum(base []int64, coefficients [][]int64, denominator int64, limits []int64, remaining *int) (int64, error) {
+	best := int64(noSolution)
+	params := make([]int64, len(limits))
+	work := 1 + len(base)*(len(limits)+1)
+
+	var dfs func(int) error
+	dfs = func(k int) error {
+		if k == len(limits) {
+			if err := spendMachineWork(remaining, work); err != nil {
+				return err
 			}
-			if best == noSolution || total < best {
+			if total, valid := validateAndSum(base, coefficients, params, denominator); valid && (best == noSolution || total < best) {
 				best = total
 			}
-			return
+			return nil
 		}
 
-		limit := limits[freeVarIndex]
-		for paramValue := 0; paramValue <= limit; paramValue++ {
-			params[freeVarIndex] = paramValue
-
+		for param := int64(0); ; param++ {
+			if err := spendMachineWork(remaining, work); err != nil {
+				return err
+			}
+			params[k] = param
 			feasible := true
-			for buttonIndex := range scaledBase {
-				value := scaledBase[buttonIndex]
-				for fv := 0; fv <= freeVarIndex; fv++ {
-					value += scaledCoeffs[fv][buttonIndex] * int64(params[fv])
+			for i, value := range base {
+				for j := 0; j <= k; j++ {
+					value += coefficients[j][i] * params[j]
 				}
-				for fv := freeVarIndex + 1; fv < freeCount; fv++ {
-					coeff := scaledCoeffs[fv][buttonIndex]
-					if coeff > 0 {
-						value += coeff * int64(limits[fv])
+				for j := k + 1; j < len(limits); j++ {
+					if coefficients[j][i] > 0 {
+						value += coefficients[j][i] * limits[j]
 					}
 				}
 				if value < 0 {
@@ -250,90 +284,87 @@ func findMinimum(scaledBase []int64, scaledCoeffs [][]int64, commonDen int64, li
 					break
 				}
 			}
-			if !feasible {
-				continue
+			if feasible {
+				if err := dfs(k + 1); err != nil {
+					return err
+				}
 			}
-
-			dfs(freeVarIndex + 1)
+			if param == limits[k] {
+				break
+			}
 		}
+		return nil
 	}
-
-	dfs(0)
-	return best
+	if err := dfs(0); err != nil {
+		return 0, err
+	}
+	return best, nil
 }
 
-// minButtonPresses finds the minimum number of button presses needed
-// to achieve the target lights configuration.
-func minButtonPresses(step machineRequirements) int {
-	target := step.lightsMask
+func minButtonPresses(step machineRequirements, remaining *int) (int64, error) {
 	n := len(step.buttonMasks)
-
-	minPresses := n + 1
-	for buttonMask := uint(0); buttonMask < (1 << n); buttonMask++ {
-		count := bits.OnesCount(buttonMask)
-		if count >= minPresses {
+	best := n + 1
+	for subset := uint64(0); subset < uint64(1)<<n; subset++ {
+		if err := spendMachineWork(remaining, n+1); err != nil {
+			return 0, err
+		}
+		count := bits.OnesCount64(subset)
+		if count >= best {
 			continue
 		}
-
-		var result uint
-		remainingMask := buttonMask
-		for remainingMask != 0 {
-			buttonIndex := bits.TrailingZeros(remainingMask)
-			result ^= step.buttonMasks[buttonIndex]
-			remainingMask &= remainingMask - 1
+		var result uint64
+		for selected := subset; selected != 0; selected &= selected - 1 {
+			result ^= step.buttonMasks[bits.TrailingZeros64(selected)]
 		}
-
-		if result == target {
-			minPresses = count
+		if result == step.lightsMask {
+			best = count
 		}
 	}
-	return minPresses
+	if best > n {
+		return 0, fmt.Errorf("lights have no reachable configuration")
+	}
+	return int64(best), nil
 }
 
-// solveSystem solves the system of equations for the button press constraints.
-func solveSystem(step machineRequirements) (scaledBase []int64, scaledCoeffs [][]int64, commonDen int64, freeCols []int, err error) {
+func solveSystem(step machineRequirements) (base []int64, coefficients [][]int64, denominator int64, freeCols []int, err error) {
 	buttonCount := len(step.buttonMasks)
 	mat := buildCoefficientMatrix(step)
-
 	result := matrix.RREF(mat)
 	if result.Inconsistent {
-		return nil, nil, 0, nil, fmt.Errorf("inconsistent system")
+		return nil, nil, 0, nil, fmt.Errorf("joltage has inconsistent constraints")
 	}
-
-	sol := matrix.ExtractParametricSolution(mat, result.PivotCols, buttonCount)
-	scaledBase, scaledCoeffs, commonDen = matrix.ScaleToIntegers(sol.Base, sol.Coeffs)
-	return scaledBase, scaledCoeffs, commonDen, sol.FreeCols, nil
-}
-
-// handleFreeVariables sets up the parametric system and finds the minimum solution when free variables exist.
-func handleFreeVariables(step machineRequirements, scaledBase []int64, scaledCoeffs [][]int64, commonDen int64, freeCols []int) int {
-	limits := computeFreeVarLimits(step, scaledBase, scaledCoeffs, freeCols)
-	return findMinimum(scaledBase, scaledCoeffs, commonDen, limits)
-}
-
-// minButtonPressesForJoltage finds the minimum number of button presses
-// needed to satisfy the joltage constraints.
-func minButtonPressesForJoltage(step machineRequirements) int {
-	buttonCount := len(step.buttonMasks)
-	if buttonCount == 0 || len(step.joltage) == 0 {
-		return 0
-	}
-
-	scaledBase, scaledCoeffs, commonDen, freeCols, err := solveSystem(step)
+	solution := matrix.ExtractParametricSolution(mat, result.PivotCols, buttonCount)
+	base, coefficients, denominator, err = matrix.ScaleToIntegers(solution.Base, solution.Coeffs)
 	if err != nil {
-		return noSolution
+		return nil, nil, 0, nil, fmt.Errorf("unsupported joltage range: %w", err)
+	}
+	return base, coefficients, denominator, solution.FreeCols, nil
+}
+
+func minButtonPressesForJoltage(step machineRequirements, remaining *int) (int64, error) {
+	n := len(step.buttonMasks)
+	if err := spendMachineWork(remaining, 1+len(step.joltage)*n*(n+1)); err != nil {
+		return 0, err
 	}
 
-	freeCount := len(freeCols)
-	if freeCount == 0 {
-		total, valid := validateAndSum(scaledBase, scaledCoeffs, nil, commonDen)
-		if !valid {
-			return noSolution
-		}
-		return total
+	base, coefficients, denominator, freeCols, err := solveSystem(step)
+	if err != nil {
+		return 0, err
 	}
 
-	return handleFreeVariables(step, scaledBase, scaledCoeffs, commonDen, freeCols)
+	limits := computeFreeVarLimits(step, base, coefficients, freeCols)
+	if err := admitJoltageArithmetic(base, coefficients, denominator, limits); err != nil {
+		return 0, err
+	}
+
+	minimum, err := findMinimum(base, coefficients, denominator, limits, remaining)
+	if err != nil {
+		return 0, err
+	}
+	if minimum == noSolution {
+		return 0, fmt.Errorf("joltage has no nonnegative integer solution")
+	}
+	return minimum, nil
 }
 
 func day10p01(r io.Reader) (string, error) {
@@ -342,8 +373,16 @@ func day10p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	total := xslices.Sum(xslices.Map(minButtonPresses, steps))
-	return strconv.Itoa(total), nil
+	remaining := maxMachineWork
+	var total int64
+	for i, step := range steps {
+		presses, err := minButtonPresses(step, &remaining)
+		if err != nil {
+			return "", fmt.Errorf("machine %d: %w", i+1, err)
+		}
+		total += presses
+	}
+	return strconv.FormatInt(total, 10), nil
 }
 
 func day10p02(r io.Reader) (string, error) {
@@ -352,6 +391,17 @@ func day10p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	total := xslices.Sum(xslices.Map(minButtonPressesForJoltage, steps))
-	return strconv.Itoa(total), nil
+	remaining := maxMachineWork
+	var total int64
+	for i, step := range steps {
+		presses, err := minButtonPressesForJoltage(step, &remaining)
+		if err != nil {
+			return "", fmt.Errorf("machine %d: %w", i+1, err)
+		}
+		if presses > math.MaxInt64-total {
+			return "", fmt.Errorf("machine %d: total presses exceed int64", i+1)
+		}
+		total += presses
+	}
+	return strconv.FormatInt(total, 10), nil
 }

@@ -1,105 +1,130 @@
 package aoc2025
 
 import (
+	"fmt"
 	"io"
-	"slices"
+	"math"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-func parseDevicesList(r io.Reader) (map[string][]string, error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]string, error) {
-		fields := strings.FieldsFunc(string(line), func(r rune) bool {
-			return r == ':' || r == ' '
-		})
-		return fields, nil
-	})
-
-	entries := slices.Collect(s.Values())
-	result := make(map[string][]string, len(entries))
-	for _, entry := range entries {
-		result[entry[0]] = entry[1:]
-	}
-
-	return result, s.Err()
+type deviceNetwork struct {
+	ids     map[string]int
+	targets []string
 }
 
-type deviceState struct {
-	device string
-	state  int
-}
+func isDeviceSeparator(c rune) bool { return c == ':' || c == ' ' }
 
-// allVisitedMask returns a bitmask with all bits set for the given count of required nodes.
-func allVisitedMask(requiredCount int) int {
-	return (1 << requiredCount) - 1
-}
-
-// setVisitedBit sets the bit at the given index in the state.
-func setVisitedBit(state int, bitIndex int) int {
-	return state | (1 << bitIndex)
-}
-
-func countPaths(
-	graph map[string][]string,
-	required []string,
-	target string,
-	device string,
-) int {
-	requiredMap := make(map[string]int, len(required))
-	for i, node := range required {
-		requiredMap[node] = i
-	}
-
-	allVisitedMaskValue := allVisitedMask(len(required))
-
-	var countPaths func(deviceState) int
-	countPaths = funcs.Memoize(func(ds deviceState) int {
-		if ds.device == target {
-			if ds.state == allVisitedMaskValue {
-				return 1
-			}
-			return 0
+func parseDevicesList(r io.Reader) (deviceNetwork, error) {
+	network := deviceNetwork{ids: make(map[string]int)}
+	s := scanner.NewScanner(r, func(line []byte) (string, error) { return string(line), nil })
+	for line := range s.Values() {
+		line = strings.TrimLeft(line, ": ")
+		if line == "" {
+			return deviceNetwork{}, fmt.Errorf("empty device record")
 		}
-
-		neighbors, exists := graph[ds.device]
+		end := strings.IndexAny(line, ": ")
+		if end < 0 {
+			end = len(line)
+		}
+		name := line[:end]
+		id, exists := network.ids[name]
 		if !exists {
-			return 0
+			id = len(network.targets)
+			network.targets = append(network.targets, "")
+		} else {
+			// Replace the key too, so it cannot retain the superseded line.
+			delete(network.ids, name)
 		}
+		network.ids[name] = id
+		network.targets[id] = line[end:]
+	}
+	if err := s.Err(); err != nil {
+		return deviceNetwork{}, err
+	}
+	if len(network.targets) == 0 {
+		return deviceNetwork{}, fmt.Errorf("empty device list")
+	}
+	return network, nil
+}
 
-		count := 0
-		for _, neighbor := range neighbors {
-			newState := ds.state
-			if bitIndex, ok := requiredMap[neighbor]; ok {
-				newState = setVisitedBit(newState, bitIndex)
-			}
-			count += countPaths(deviceState{device: neighbor, state: newState})
+func countPaths(devices deviceNetwork, required []string, target, start string) (int, error) {
+	startID, exists := devices.ids[start]
+	if !exists {
+		if start == target && len(required) == 0 {
+			return 1, nil
 		}
-		return count
-	})
-	return countPaths(deviceState{device: device, state: 0})
+		return 0, nil
+	}
+	targetID, exists := devices.ids[target]
+	if !exists {
+		targetID = len(devices.targets)
+	}
+	maskBits := len(required)
+	if maskBits >= strconv.IntSize || len(devices.targets) > math.MaxInt>>maskBits {
+		return 0, fmt.Errorf("device path state does not fit in int")
+	}
+	allRequired := (1 << maskBits) - 1
+	requiredBits := make([]int, len(devices.targets)+1)
+	for bit, name := range required {
+		if id, exists := devices.ids[name]; exists {
+			requiredBits[id] = 1 << bit
+		} else if name == target {
+			requiredBits[targetID] = 1 << bit
+		}
+	}
+	// Low bits record required visits; higher bits identify the device.
+	children := func(state int, yield func(int) bool) {
+		mask := state & allRequired
+		for name := range strings.FieldsFuncSeq(devices.targets[state>>maskBits], isDeviceSeparator) {
+			next, exists := devices.ids[name]
+			if !exists {
+				if name != target {
+					// Undefined nonterminal devices are leaves contributing no paths.
+					continue
+				}
+				next = targetID
+			}
+			if !yield(next<<maskBits | mask | requiredBits[next]) {
+				return
+			}
+		}
+	}
+	terminal := func(state int) (int, bool) {
+		if state>>maskBits != targetID {
+			return 0, false
+		}
+		if state&allRequired == allRequired {
+			return 1, true
+		}
+		return 0, true
+	}
+	return graph.CountDAGPaths([]int{startID << maskBits}, children, terminal)
 }
 
 func day11p01(r io.Reader) (string, error) {
-	graph, err := parseDevicesList(r)
+	network, err := parseDevicesList(r)
 	if err != nil {
 		return "", err
 	}
-
-	count := countPaths(graph, nil, "out", "you")
+	count, err := countPaths(network, nil, "out", "you")
+	if err != nil {
+		return "", fmt.Errorf("device paths: %w", err)
+	}
 	return strconv.Itoa(count), nil
 }
 
 func day11p02(r io.Reader) (string, error) {
-	graph, err := parseDevicesList(r)
+	network, err := parseDevicesList(r)
 	if err != nil {
 		return "", err
 	}
-
-	required := []string{"dac", "fft"}
-
-	count := countPaths(graph, required, "out", "svr")
+	count, err := countPaths(network, []string{"dac", "fft"}, "out", "svr")
+	if err != nil {
+		return "", fmt.Errorf("device paths: %w", err)
+	}
 	return strconv.Itoa(count), nil
 }

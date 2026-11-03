@@ -11,7 +11,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseJunctionBoxes(r io.Reader) ([]grid.Position3D[int], error) {
@@ -131,7 +131,8 @@ func day08p01(connections int) func(r io.Reader) (string, error) {
 			return "", fmt.Errorf("expected at least 3 circuits, got %d", len(circuits))
 		}
 
-		result := xslices.Product(circuits[:3])
+		result := xiter.Product(slices.Values(circuits[:3]))
+
 		return strconv.Itoa(result), nil
 	}
 }

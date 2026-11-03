@@ -14,12 +14,16 @@ func (s *Stack[T]) Push(value T) {
 	*s = append(*s, value)
 }
 
+// Pop removes and returns the top value, or (zero, false) when empty. It clears
+// the removed slot so unused storage does not retain references.
 func (s *Stack[T]) Pop() (T, bool) {
 	if len(*s) == 0 {
 		var zero T
 		return zero, false
 	}
 	el := (*s)[len(*s)-1]
+	var zero T
+	(*s)[len(*s)-1] = zero
 	*s = (*s)[:len(*s)-1]
 	return el, true
 }

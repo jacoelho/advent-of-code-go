@@ -3,10 +3,9 @@ package aoc2020
 import (
 	"bufio"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseCups(r io.Reader) ([]int, error) {
@@ -27,14 +26,16 @@ func parseCups(r io.Reader) ([]int, error) {
 	return cups, nil
 }
 
-// cupRing initializes the cups ring from the given cups, extending sequentially up to 'total' if needed.
+// cupRing returns a successor table indexed by cup label and the initial current cup.
+// When extending the ring, it appends consecutive labels after the largest
+// input label through total.
 func cupRing(cups []int, total int) ([]int, int) {
 	next := make([]int, total+1)
 	for i := 0; i < len(cups)-1; i++ {
 		next[cups[i]] = cups[i+1]
 	}
 	last := cups[len(cups)-1]
-	maxCup := xslices.Max(cups)
+	maxCup := slices.Max(cups)
 	if total > len(cups) {
 		next[last] = maxCup + 1
 		for x := maxCup + 1; x < total; x++ {
@@ -47,7 +48,7 @@ func cupRing(cups []int, total int) ([]int, int) {
 	return next, cups[0]
 }
 
-// simulate performs 'moves' crab-cups moves on the cups ring.
+// simulate updates next in place by playing the requested Crab Cups moves from current.
 func simulate(next []int, current, moves, maxCup int) {
 	for i := 0; i < moves; i++ {
 		a := next[current]

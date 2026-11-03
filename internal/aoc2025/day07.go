@@ -3,21 +3,14 @@ package aoc2025
 import (
 	"fmt"
 	"io"
-	"slices"
+	"iter"
+	"math/big"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
-)
-
-var (
-	down  = grid.Position2D[int]{X: 0, Y: 1}
-	left  = grid.Position2D[int]{X: -1, Y: 0}
-	right = grid.Position2D[int]{X: 1, Y: 0}
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 func parseTachyonManifoldDiagram(r io.Reader) (
@@ -25,32 +18,54 @@ func parseTachyonManifoldDiagram(r io.Reader) (
 	grid.Position2D[int],
 	error,
 ) {
-	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
-		return xslices.Map(func(v byte) rune { return rune(v) }, b), nil
+	s := scanner.NewScanner(r, func(b []byte) (string, error) {
+		return string(b), nil
 	})
-
-	g := grid.NewGrid2D[int](slices.Collect(s.Values()))
+	g := make(grid.Grid2D[int, rune])
+	var start grid.Position2D[int]
+	found := false
+	width, y := 0, 0
+	for row := range s.Values() {
+		if y == 0 {
+			width = len(row)
+		}
+		if len(row) == 0 || len(row) != width {
+			return nil, start, fmt.Errorf("manifold rows must be nonempty and have equal width")
+		}
+		if len(g)+len(row) > 100_000 || y == 4096 {
+			return nil, start, fmt.Errorf("manifold exceeds 100000 cells or 4096 rows")
+		}
+		for x, tile := range row {
+			if tile != '.' && tile != '^' && tile != 'S' {
+				return nil, start, fmt.Errorf("invalid manifold tile %q", tile)
+			}
+			pos := grid.NewPosition2D(x, y)
+			g[pos] = tile
+			if tile == 'S' {
+				if found {
+					return nil, start, fmt.Errorf("manifold has multiple starting positions")
+				}
+				start, found = pos, true
+			}
+		}
+		y++
+	}
 	if err := s.Err(); err != nil {
 		return nil, grid.Position2D[int]{}, err
 	}
-
-	pair, found := xmaps.Find(g, func(_ grid.Position2D[int], v rune) bool {
-		return v == 'S'
-	})
 	if !found {
 		return nil, grid.Position2D[int]{}, fmt.Errorf("start position 'S' not found")
 	}
 
-	return g, pair.K, nil
+	return g, start, nil
 }
 
-// traceTachyonBeam traces a beam downward until hitting a splitter or exiting.
 func traceTachyonBeam(
 	g grid.Grid2D[int, rune],
 	pos grid.Position2D[int],
 ) (grid.Position2D[int], bool) {
 	for {
-		next := pos.Add(down)
+		next := grid.NewPosition2D(pos.X, pos.Y+1)
 		v, exists := g[next]
 		if !exists {
 			return grid.Position2D[int]{}, false
@@ -70,30 +85,28 @@ func day07p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	seen := collections.NewSet[grid.Position2D[int]]()
-
-	var countBeamSplits func(pos grid.Position2D[int]) int
-	countBeamSplits = func(pos grid.Position2D[int]) int {
-		splitter, found := traceTachyonBeam(diagram, pos)
-		if !found {
-			return 0
-		}
-		if seen.Contains(splitter) {
-			return 0
-		}
-		seen.Add(splitter)
-
-		count := 1
-		if leftPos := splitter.Add(left); diagram.Contains(leftPos) {
-			count += countBeamSplits(leftPos)
-		}
-		if rightPos := splitter.Add(right); diagram.Contains(rightPos) {
-			count += countBeamSplits(rightPos)
-		}
-		return count
+	first, found := traceTachyonBeam(diagram, start)
+	if !found {
+		return "0", nil
 	}
-
-	return strconv.Itoa(countBeamSplits(start)), nil
+	children := func(splitter grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
+		return func(yield func(grid.Position2D[int]) bool) {
+			for _, dx := range [...]int{-1, 1} {
+				position := grid.NewPosition2D(splitter.X+dx, splitter.Y)
+				if !diagram.Contains(position) {
+					continue
+				}
+				if next, found := traceTachyonBeam(diagram, position); found && !yield(next) {
+					return
+				}
+			}
+		}
+	}
+	count := 0
+	for range search.DFS(first, children) {
+		count++
+	}
+	return strconv.Itoa(count), nil
 }
 
 func day07p02(r io.Reader) (string, error) {
@@ -102,25 +115,16 @@ func day07p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	var countTimelines func(pos grid.Position2D[int]) int
-	countTimelines = funcs.Memoize(func(pos grid.Position2D[int]) int {
+	var countTimelines func(pos grid.Position2D[int]) *big.Int
+	countTimelines = funcs.Memoize(func(pos grid.Position2D[int]) *big.Int {
 		splitter, found := traceTachyonBeam(diagram, pos)
 		if !found {
-			return 1
+			return big.NewInt(1)
 		}
-
-		leftTimelines, rightTimelines := 0, 0
-		if leftPos := splitter.Add(left); diagram.Contains(leftPos) {
-			leftTimelines = countTimelines(leftPos)
-		}
-		if rightPos := splitter.Add(right); diagram.Contains(rightPos) {
-			rightTimelines = countTimelines(rightPos)
-		}
-		if leftTimelines == 0 && rightTimelines == 0 {
-			return 1
-		}
-		return leftTimelines + rightTimelines
+		leftTimelines := countTimelines(grid.NewPosition2D(splitter.X-1, splitter.Y))
+		rightTimelines := countTimelines(grid.NewPosition2D(splitter.X+1, splitter.Y))
+		return new(big.Int).Add(leftTimelines, rightTimelines)
 	})
 
-	return strconv.Itoa(countTimelines(start)), nil
+	return countTimelines(start).String(), nil
 }

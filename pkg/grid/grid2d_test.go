@@ -174,7 +174,6 @@ func TestGrid2D_TurnRightFourTimes(t *testing.T) {
 	grid := NewGrid2D[int](input)
 	original := NewGrid2D[int](input)
 
-	// Rotate 4 times should return to original
 	rotated := (&grid).TurnRight()
 	rotated = (&rotated).TurnRight()
 	rotated = (&rotated).TurnRight()
@@ -196,7 +195,6 @@ func TestGrid2D_TurnLeftFourTimes(t *testing.T) {
 	grid := NewGrid2D[int](input)
 	original := NewGrid2D[int](input)
 
-	// Rotate 4 times should return to original
 	rotated := (&grid).TurnLeft()
 	rotated = (&rotated).TurnLeft()
 	rotated = (&rotated).TurnLeft()
@@ -218,7 +216,6 @@ func TestGrid2D_TurnRightThenLeft(t *testing.T) {
 	grid := NewGrid2D[int](input)
 	original := NewGrid2D[int](input)
 
-	// Right then left should return to original
 	rotated := (&grid).TurnRight()
 	rotated = (&rotated).TurnLeft()
 
@@ -242,7 +239,6 @@ func TestGrid2D_Turn180(t *testing.T) {
 	grid := NewGrid2D[int](input)
 	expectedGrid := NewGrid2D[int](expected)
 
-	// 180 degree rotation (two rights or two lefts)
 	rotated := (&grid).TurnRight()
 	rotated = (&rotated).TurnRight()
 

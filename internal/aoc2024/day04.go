@@ -5,10 +5,8 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 func parseWordSearch(r io.Reader) (grid.Grid2D[int, rune], error) {
@@ -23,11 +21,14 @@ func parseWordSearch(r io.Reader) (grid.Grid2D[int, rune], error) {
 }
 
 func day04p01(r io.Reader) (string, error) {
-	m := aoc.Must(parseWordSearch(r))
+	m, err := parseWordSearch(r)
+	if err != nil {
+		return "", err
+	}
 
 	var count int
 	for p, v := range m {
-		if v != 'X' { // start at X to avoid double counting
+		if v != 'X' {
 			continue
 		}
 		for _, offset := range grid.OffsetsNeighbours8[int]() {
@@ -45,10 +46,13 @@ func day04p01(r io.Reader) (string, error) {
 }
 
 func day04p02(r io.Reader) (string, error) {
-	m := aoc.Must(parseWordSearch(r))
+	m, err := parseWordSearch(r)
+	if err != nil {
+		return "", err
+	}
 
-	// order matters after for the match
-	corners := []grid.Position2D[int]{
+	// Keep opposite corners two entries apart for the pattern comparisons below.
+	corners := [4]grid.Position2D[int]{
 		{X: -1, Y: -1},
 		{X: -1, Y: 1},
 		{X: 1, Y: 1},
@@ -57,15 +61,15 @@ func day04p02(r io.Reader) (string, error) {
 
 	var count int
 	for p, v := range m {
-		if v != 'A' { // central point
+		if v != 'A' {
 			continue
 		}
 
-		neighbours := string(
-			xslices.Map(func(offset grid.Position2D[int]) rune {
-				return m[p.Add(offset)]
-			}, corners),
-		)
+		var values [4]rune
+		for i, offset := range corners {
+			values[i] = m[p.Add(offset)]
+		}
+		neighbours := string(values[:])
 
 		if neighbours == "MMSS" ||
 			neighbours == "MSSM" ||

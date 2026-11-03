@@ -1,145 +1,127 @@
 package aoc2023
 
 import (
+	"fmt"
 	"io"
-	"slices"
+	"math"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
+const maxHeatGridCells = 250_000
+
+type heatGrid struct {
+	width, height int
+	cells         []byte
+}
+
 type crucibleState struct {
-	position  grid.Position2D[int]
-	direction grid.Position2D[int]
-	steps     int
+	index int
+	heat  int
 }
 
-func crucibleNeighbours(heatMap grid.Grid2D[int, int], minSteps, maxSteps int) func(crucibleState) []crucibleState {
-	return func(s crucibleState) []crucibleState {
-		var neighbours []crucibleState
-
-		if s.steps < maxSteps {
-			nextPos := s.position.Add(s.direction)
-			if heatMap.Contains(nextPos) {
-				neighbours = append(neighbours, crucibleState{
-					position:  nextPos,
-					direction: s.direction,
-					steps:     s.steps + 1,
-				})
-			}
+func parseHeatGrid(r io.Reader) (heatGrid, error) {
+	var result heatGrid
+	s := scanner.NewScanner(r, func(line []byte) ([]byte, error) {
+		if len(line) == 0 || result.height > 0 && len(line) != result.width {
+			return nil, fmt.Errorf("empty or ragged heat grid at row %d", result.height+1)
+		}
+		if len(line) > maxHeatGridCells-len(result.cells) {
+			return nil, fmt.Errorf("heat grid exceeds %d cells", maxHeatGridCells)
 		}
 
-		if s.steps >= minSteps {
-			for _, turnDir := range []grid.Position2D[int]{s.direction.TurnLeft(), s.direction.TurnRight()} {
-				nextPos := s.position.Add(turnDir)
-				if heatMap.Contains(nextPos) {
-					neighbours = append(neighbours, crucibleState{
-						position:  nextPos,
-						direction: turnDir,
-						steps:     1,
-					})
-				}
-			}
-		}
-
-		return neighbours
-	}
-}
-
-func crucibleHeuristic(target grid.Position2D[int], minSteps int) func(crucibleState) int {
-	return func(s crucibleState) int {
-		if s.position == target && s.steps >= minSteps {
-			return 0
-		}
-		return 1
-	}
-}
-
-func crucibleStepCost(heatMap grid.Grid2D[int, int]) func(crucibleState, crucibleState) int {
-	return func(from, to crucibleState) int {
-		return heatMap[to.position]
-	}
-}
-
-func parseHeatGrid(r io.Reader) (grid.Grid2D[int, int], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]int, error) {
-		row := make([]int, len(line))
+		row := make([]byte, len(line))
 		for i, ch := range line {
-			row[i] = int(ch - '0')
+			if ch < '0' || ch > '9' {
+				return nil, fmt.Errorf("invalid heat digit %q at row %d", ch, result.height+1)
+			}
+			row[i] = ch - '0'
 		}
 		return row, nil
 	})
-
-	rows := slices.Collect(s.Values())
+	for row := range s.Values() {
+		result.width = len(row)
+		result.height++
+		result.cells = append(result.cells, row...)
+	}
 	if err := s.Err(); err != nil {
-		return nil, err
+		return heatGrid{}, err
+	}
+	if result.height == 0 {
+		return heatGrid{}, fmt.Errorf("empty heat grid")
+	}
+	return result, nil
+}
+
+func minimumHeat(heatMap heatGrid, minSteps, maxSteps int) (int, error) {
+	distance := make([]int, 2*len(heatMap.cells))
+	for i := range distance {
+		distance[i] = math.MaxInt
+	}
+	queue := collections.NewHeap(func(a, b crucibleState) bool { return a.heat < b.heat })
+	for axis := range 2 {
+		distance[axis] = 0
+		queue.Push(crucibleState{index: axis})
 	}
 
-	return grid.NewGrid2D[int](rows), nil
+	for current := range queue.PopSeq() {
+		if current.heat != distance[current.index] {
+			continue
+		}
+		cell := current.index / 2
+		if cell == len(heatMap.cells)-1 && (cell != 0 || minSteps == 1) {
+			return current.heat, nil
+		}
+
+		// A state ends a legal stride; its parity selects the next, perpendicular axis.
+		dx, dy := 1, 0
+		if current.index%2 == 1 {
+			dx, dy = 0, 1
+		}
+		nextAxis := 1 - current.index%2
+		for _, sign := range []int{-1, 1} {
+			x, y := cell%heatMap.width, cell/heatMap.width
+			heat := current.heat
+			for length := 1; length <= maxSteps; length++ {
+				x += sign * dx
+				y += sign * dy
+				if x < 0 || x >= heatMap.width || y < 0 || y >= heatMap.height {
+					break
+				}
+				next := y*heatMap.width + x
+				heat += int(heatMap.cells[next])
+				if length < minSteps {
+					continue
+				}
+				index := 2*next + nextAxis
+				if heat < distance[index] {
+					distance[index] = heat
+					queue.Push(crucibleState{index: index, heat: heat})
+				}
+			}
+		}
+	}
+	return 0, fmt.Errorf("heat-grid destination is unreachable with strides %d..%d", minSteps, maxSteps)
+}
+
+func crucibleHeat(r io.Reader, minSteps, maxSteps int) (string, error) {
+	heatMap, err := parseHeatGrid(r)
+	if err != nil {
+		return "", err
+	}
+	heat, err := minimumHeat(heatMap, minSteps, maxSteps)
+	if err != nil {
+		return "", err
+	}
+	return strconv.Itoa(heat), nil
 }
 
 func day17p01(r io.Reader) (string, error) {
-	heatMap, err := parseHeatGrid(r)
-	if err != nil {
-		return "", err
-	}
-
-	_, maxX, _, maxY := heatMap.Dimensions()
-	target := grid.Position2D[int]{X: maxX, Y: maxY}
-
-	minHeat := -1
-	for _, startDir := range []grid.Position2D[int]{{X: 1, Y: 0}, {X: 0, Y: 1}} {
-		start := crucibleState{
-			position:  grid.Position2D[int]{X: 0, Y: 0},
-			direction: startDir,
-			steps:     0,
-		}
-
-		heat, _, found := search.AStar(
-			start,
-			crucibleNeighbours(heatMap, 0, 3),
-			crucibleHeuristic(target, 0),
-			crucibleStepCost(heatMap),
-		)
-
-		if found && (minHeat == -1 || heat < minHeat) {
-			minHeat = heat
-		}
-	}
-
-	return strconv.Itoa(minHeat), nil
+	return crucibleHeat(r, 1, 3)
 }
 
 func day17p02(r io.Reader) (string, error) {
-	heatMap, err := parseHeatGrid(r)
-	if err != nil {
-		return "", err
-	}
-
-	_, maxX, _, maxY := heatMap.Dimensions()
-	target := grid.Position2D[int]{X: maxX, Y: maxY}
-
-	minHeat := -1
-	for _, startDir := range []grid.Position2D[int]{{X: 1, Y: 0}, {X: 0, Y: 1}} {
-		start := crucibleState{
-			position:  grid.Position2D[int]{X: 0, Y: 0},
-			direction: startDir,
-			steps:     0,
-		}
-
-		heat, _, found := search.AStar(
-			start,
-			crucibleNeighbours(heatMap, 4, 10),
-			crucibleHeuristic(target, 4),
-			crucibleStepCost(heatMap),
-		)
-
-		if found && (minHeat == -1 || heat < minHeat) {
-			minHeat = heat
-		}
-	}
-
-	return strconv.Itoa(minHeat), nil
+	return crucibleHeat(r, 4, 10)
 }

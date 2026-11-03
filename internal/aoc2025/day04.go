@@ -8,7 +8,6 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseRollsPaper(r io.Reader) (grid.Grid2D[int, rune], error) {
@@ -25,7 +24,10 @@ func parseRollsPaper(r io.Reader) (grid.Grid2D[int, rune], error) {
 func accessibleRolls(g grid.Grid2D[int, rune]) []grid.Position2D[int] {
 	var removable []grid.Position2D[int]
 	for pos := range g {
-		neighborCount := xiter.Len(g.ValidNeighbours8(pos))
+		var neighborCount int
+		for range g.ValidNeighbours8(pos) {
+			neighborCount++
+		}
 		if neighborCount < 4 {
 			removable = append(removable, pos)
 		}

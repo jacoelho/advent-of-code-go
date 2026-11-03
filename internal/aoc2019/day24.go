@@ -4,12 +4,10 @@ import (
 	"bufio"
 	"io"
 	"math/bits"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 const (
@@ -31,9 +29,13 @@ func gridPosition(x, y int) int {
 }
 
 func countBugsInPositions(grid uint32, positions []int) int {
-	return xiter.CountBy(func(pos int) bool {
-		return isBug(grid, pos)
-	}, slices.Values(positions))
+	var count int
+	for _, pos := range positions {
+		if isBug(grid, pos) {
+			count++
+		}
+	}
+	return count
 }
 
 func shouldHaveBug(hasBug bool, adjacent int) bool {
@@ -43,7 +45,7 @@ func shouldHaveBug(hasBug bool, adjacent int) bool {
 	return adjacent == 1 || adjacent == 2
 }
 
-func parseGrid(r io.Reader, mode gridMode) uint32 {
+func parseGrid(r io.Reader, mode gridMode) (uint32, error) {
 	var state uint32
 	scanner := bufio.NewScanner(r)
 	y := 0
@@ -52,10 +54,10 @@ func parseGrid(r io.Reader, mode gridMode) uint32 {
 		for x, ch := range line {
 			pos := gridPosition(x, y)
 			if ch == '?' {
-				continue // examples use ? to denote empty spaces
+				continue // The recursive example marks the center opening with ?.
 			}
 			if mode == gridModeRecursive && pos == centerPos {
-				continue // center is always empty in recursive mode
+				continue // The center represents the inner grid, not a cell.
 			}
 			if ch == '#' {
 				state |= 1 << pos
@@ -63,20 +65,24 @@ func parseGrid(r io.Reader, mode gridMode) uint32 {
 		}
 		y++
 	}
-	return state
+	return state, scanner.Err()
 }
 
 func isBug(state uint32, pos int) bool { return state&(1<<pos) != 0 }
 
 func countAdjacent(state uint32, x, y int) int {
 	pos := grid.NewPosition2D(x, y)
-	return xiter.CountBy(func(neighbor grid.Position2D[int]) bool {
+	var count int
+	for neighbor := range grid.Neighbours4(pos) {
 		if neighbor.X < 0 || neighbor.X >= gridSize || neighbor.Y < 0 || neighbor.Y >= gridSize {
-			return false
+			continue
 		}
 		neighborPos := gridPosition(neighbor.X, neighbor.Y)
-		return isBug(state, neighborPos)
-	}, grid.Neighbours4(pos))
+		if isBug(state, neighborPos) {
+			count++
+		}
+	}
+	return count
 }
 
 func step(state uint32) uint32 {
@@ -95,7 +101,10 @@ func step(state uint32) uint32 {
 }
 
 func day24p01(r io.Reader) (string, error) {
-	state := parseGrid(r, gridModeFlat)
+	state, err := parseGrid(r, gridModeFlat)
+	if err != nil {
+		return "", err
+	}
 	seen := collections.NewSet[uint32]()
 
 	for {
@@ -107,7 +116,8 @@ func day24p01(r io.Reader) (string, error) {
 	}
 }
 
-// check out-of-bounds cases that connect to outer level
+// countOuterLevel returns 0 or 1 for the enclosing-level cell reached by stepping outside
+// the grid.
 func countOuterLevel(grids map[int]uint32, level, x, y int) int {
 	var pos int
 	switch {
@@ -128,27 +138,23 @@ func countOuterLevel(grids map[int]uint32, level, x, y int) int {
 	return 0
 }
 
-// check center adjacency cases that connect to inner level
+// countInnerLevel counts bugs on the inner grid edge reached from the cell at (x, y).
 func countInnerLevel(grids map[int]uint32, level, x, y int) int {
 	var positions []int
 	switch {
 	case x == centerX-1 && y == centerY:
-		// left of center - count left column of inner level
 		for iy := range gridSize {
 			positions = append(positions, gridPosition(0, iy))
 		}
 	case x == centerX+1 && y == centerY:
-		// right of center - count right column of inner level
 		for iy := range gridSize {
 			positions = append(positions, gridPosition(gridSize-1, iy))
 		}
 	case x == centerX && y == centerY-1:
-		// above center - count top row of inner level
 		for ix := range gridSize {
 			positions = append(positions, gridPosition(ix, 0))
 		}
 	case x == centerX && y == centerY+1:
-		// below center - count bottom row of inner level
 		for ix := range gridSize {
 			positions = append(positions, gridPosition(ix, gridSize-1))
 		}
@@ -165,17 +171,14 @@ func countAdjacentRecursive(grids map[int]uint32, level, x, y int) int {
 	for _, neighbor := range neighbors {
 		nx, ny := neighbor[0], neighbor[1]
 
-		// 1: same level neighbor (in bounds, not center)
 		if nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && !(nx == centerX && ny == centerY) {
 			neighborPos := gridPosition(nx, ny)
 			if isBug(grids[level], neighborPos) {
 				count++
 			}
 		} else if nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize {
-			// 2-5: out of bounds - connect to outer level
 			count += countOuterLevel(grids, level, nx, ny)
 		} else if nx == centerX && ny == centerY {
-			// 6: adjacent to center - count edge of inner level
 			count += countInnerLevel(grids, level, x, y)
 		}
 	}
@@ -186,14 +189,13 @@ func stepRecursive(grids map[int]uint32, minutes int) map[int]uint32 {
 	for range minutes {
 		next := make(map[int]uint32)
 
-		// determine depth range to consider
 		minLevel, maxLevel := 0, 0
 		for level := range grids {
 			minLevel = min(minLevel, level)
 			maxLevel = max(maxLevel, level)
 		}
 
-		// expand range by 1 in each direction for new bugs
+		// Bugs can spread by only one level per minute.
 		for level := minLevel - 1; level <= maxLevel+1; level++ {
 			var nextState uint32
 			for y := range gridSize {
@@ -210,7 +212,6 @@ func stepRecursive(grids map[int]uint32, minutes int) map[int]uint32 {
 					}
 				}
 			}
-			// center is never set
 			nextState &= ^uint32(1 << centerPos)
 			if nextState != 0 {
 				next[level] = nextState
@@ -222,7 +223,10 @@ func stepRecursive(grids map[int]uint32, minutes int) map[int]uint32 {
 }
 
 func simulateRecursive(r io.Reader, minutes int) (string, error) {
-	state := parseGrid(r, gridModeRecursive)
+	state, err := parseGrid(r, gridModeRecursive)
+	if err != nil {
+		return "", err
+	}
 	grids := map[int]uint32{0: state}
 	grids = stepRecursive(grids, minutes)
 

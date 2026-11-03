@@ -3,12 +3,11 @@ package aoc2020
 import (
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type direction uint8
@@ -62,33 +61,24 @@ func parseDirections(s string) ([]direction, error) {
 	return dirs, nil
 }
 
-func parseTilePaths(r io.Reader) ([][]direction, error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]direction, error) {
-		return parseDirections(string(b))
-	})
-	return slices.Collect(s.Values()), s.Err()
-}
-
 func findTile(directions []direction) grid.Position2D[int] {
-	return xslices.Reduce(func(pos grid.Position2D[int], dir direction) grid.Position2D[int] {
+	return xiter.FromSlice(directions).Reduce(grid.Position2D[int]{}, func(pos grid.Position2D[int], dir direction) grid.Position2D[int] {
 		return pos.Add(directionsOffsets[dir])
-	}, grid.Position2D[int]{X: 0, Y: 0}, directions)
+	})
 }
 
 func initialBlackTiles(r io.Reader) (map[grid.Position2D[int]]bool, error) {
-	tiles, err := parseTilePaths(r)
-	if err != nil {
+	s := scanner.NewScanner(r, func(b []byte) ([]direction, error) {
+		return parseDirections(string(b))
+	})
+	flipCount := make(map[grid.Position2D[int]]int)
+	for pos := range xiter.From(s.Values()).Map(findTile).All() {
+		flipCount[pos]++
+	}
+	if err := s.Err(); err != nil {
 		return nil, err
 	}
 
-	flipCount := make(map[grid.Position2D[int]]int)
-
-	for _, path := range tiles {
-		pos := findTile(path)
-		flipCount[pos]++
-	}
-
-	// black tiles are flipped an odd number of times
 	blackTiles := make(map[grid.Position2D[int]]bool)
 	for pos, count := range flipCount {
 		if count%2 == 1 {
@@ -132,12 +122,10 @@ func nextDay(blackTiles map[grid.Position2D[int]]bool) map[grid.Position2D[int]]
 		isBlack := blackTiles[tile]
 
 		if isBlack {
-			// black stays black if it has 1 or 2 black neighbors
 			if count == 1 || count == 2 {
 				nextBlack[tile] = true
 			}
 		} else {
-			// white flips to black if it has exactly 2 black neighbors
 			if count == 2 {
 				nextBlack[tile] = true
 			}

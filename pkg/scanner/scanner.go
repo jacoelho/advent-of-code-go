@@ -29,8 +29,15 @@ func NewScannerWithSplit[T any](r io.Reader, splitFunc bufio.SplitFunc, convert 
 	return s
 }
 
+// Values returns a single-use traversal. Stopping early permits a later traversal
+// to resume; conversion failures are terminal. The converter's input bytes are
+// borrowed until the next scan and must be copied if retained in its result.
+// Err reports only failures encountered while consuming input, not unread input.
 func (s *Scanner[T]) Values() iter.Seq[T] {
 	return func(yield func(v T) bool) {
+		if s.err != nil {
+			return
+		}
 		for s.scanner.Scan() {
 			var v T
 			v, s.err = s.convert(s.scanner.Bytes())

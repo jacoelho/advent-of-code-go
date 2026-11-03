@@ -5,501 +5,326 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 )
 
-const (
-	workflowAccept = "A"
-	workflowReject = "R"
-	workflowStart  = "in"
-)
+const maxWorkflowSteps = 1_000_000
 
-// Category represents a rating category
-type Category byte
+type ratingPart [4]int64
 
-const (
-	CategoryNone Category = 0
-	CategoryX    Category = 'x'
-	CategoryM    Category = 'm'
-	CategoryA    Category = 'a'
-	CategoryS    Category = 's'
-)
+type workflowRule struct {
+	category    int
+	operator    byte
+	value       int64
+	destination string
+}
 
-// ParseCategory parses a category from a string
-func ParseCategory(s string) (Category, error) {
-	if len(s) == 1 {
-		switch Category(s[0]) {
-		case CategoryX, CategoryM, CategoryA, CategoryS:
-			return Category(s[0]), nil
+type workflowSet map[string][]workflowRule
+
+type ratingInterval struct {
+	min, max int64
+}
+
+type ratingRanges [4]ratingInterval
+
+func (r ratingInterval) split(operator byte, value int64) (ratingInterval, ratingInterval) {
+	empty := ratingInterval{min: 1, max: 0}
+	if r.min > r.max {
+		return empty, empty
+	}
+	// Classify all/none before adjusting the threshold, including int64 extremes.
+	if operator == '<' {
+		if value <= r.min {
+			return empty, r
+		}
+		if value > r.max {
+			return r, empty
+		}
+		return ratingInterval{min: r.min, max: value - 1}, ratingInterval{min: value, max: r.max}
+	}
+	if value < r.min {
+		return r, empty
+	}
+	if value >= r.max {
+		return empty, r
+	}
+	return ratingInterval{min: value + 1, max: r.max}, ratingInterval{min: r.min, max: value}
+}
+
+func (r ratingRanges) size() int64 {
+	size := int64(1)
+	for _, interval := range r {
+		if interval.min > interval.max {
+			return 0
+		}
+		size *= interval.max - interval.min + 1
+	}
+	return size
+}
+
+func ratingCategory(name string) (int, error) {
+	if len(name) == 1 {
+		if category := strings.IndexByte("xmas", name[0]); category >= 0 {
+			return category, nil
 		}
 	}
-	return CategoryNone, fmt.Errorf("invalid category: %s", s)
+	return 0, fmt.Errorf("invalid rating category %q", name)
 }
 
-// Operator represents a comparison operator
-type Operator byte
-
-const (
-	OperatorNone        Operator = 0
-	OperatorGreaterThan Operator = '>'
-	OperatorLessThan    Operator = '<'
-)
-
-// Evaluate performs the comparison operation
-func (o Operator) Evaluate(a, b int) bool {
-	switch o {
-	case OperatorGreaterThan:
-		return a > b
-	case OperatorLessThan:
-		return a < b
-	default:
-		panic(fmt.Sprintf("unknown operator: %c", o))
+func workflowName(name string) bool {
+	if len(name) == 0 || len(name) > 128 {
+		return false
 	}
-}
-
-// Part represents a part with four ratings
-type Part struct {
-	X, M, A, S int
-}
-
-// Get returns the rating for the specified category
-func (p Part) Get(c Category) int {
-	switch c {
-	case CategoryX:
-		return p.X
-	case CategoryM:
-		return p.M
-	case CategoryA:
-		return p.A
-	case CategoryS:
-		return p.S
-	default:
-		panic(fmt.Sprintf("unknown category: %c", c))
-	}
-}
-
-// Sum returns the sum of all ratings
-func (p Part) Sum() int {
-	return p.X + p.M + p.A + p.S
-}
-
-// Set sets the rating for the specified category
-func (p *Part) Set(c Category, value int) {
-	switch c {
-	case CategoryX:
-		p.X = value
-	case CategoryM:
-		p.M = value
-	case CategoryA:
-		p.A = value
-	case CategoryS:
-		p.S = value
-	}
-}
-
-// Rule represents a workflow rule
-type Rule struct {
-	Category            Category
-	Operator            Operator
-	Value               int
-	DestinationWorkflow string
-}
-
-// Matches returns true if the rule matches the given part
-func (r Rule) Matches(p Part) bool {
-	if r.Category == CategoryNone {
-		return true
-	}
-	return r.Operator.Evaluate(p.Get(r.Category), r.Value)
-}
-
-// Workflow represents a workflow with a list of rules
-type Workflow struct {
-	Rules []Rule
-}
-
-// Workflows is a map of workflow name to workflow
-type Workflows map[string]Workflow
-
-// InclusiveRange represents an inclusive integer range [Min, Max]
-type InclusiveRange struct {
-	Min, Max int
-}
-
-// Size returns the number of integers in the range
-func (r InclusiveRange) Size() int {
-	if !r.IsValid() {
-		return 0
-	}
-	return r.Max - r.Min + 1
-}
-
-// IsValid returns true if the range is non-empty
-func (r InclusiveRange) IsValid() bool {
-	return r.Min <= r.Max
-}
-
-// Split splits range into (matching, non-matching) for the given operator
-func (r InclusiveRange) Split(op Operator, value int) (matching, nonMatching InclusiveRange) {
-	switch op {
-	case OperatorGreaterThan:
-		return InclusiveRange{Min: value + 1, Max: r.Max}, InclusiveRange{Min: r.Min, Max: value}
-	case OperatorLessThan:
-		return InclusiveRange{Min: r.Min, Max: value - 1}, InclusiveRange{Min: value, Max: r.Max}
-	default:
-		return r, InclusiveRange{}
-	}
-}
-
-// RatingRange represents ranges for all four rating categories
-type RatingRange struct {
-	X, M, A, S InclusiveRange
-}
-
-// NewRatingRange creates a new RatingRange with all categories set to the same range
-func NewRatingRange(min, max int) RatingRange {
-	r := InclusiveRange{Min: min, Max: max}
-	return RatingRange{X: r, M: r, A: r, S: r}
-}
-
-// Size returns the number of distinct combinations in this range
-func (r RatingRange) Size() int {
-	return r.X.Size() * r.M.Size() * r.A.Size() * r.S.Size()
-}
-
-// IsValid returns true if all rating ranges are valid
-func (r RatingRange) IsValid() bool {
-	return r.X.IsValid() && r.M.IsValid() && r.A.IsValid() && r.S.IsValid()
-}
-
-// Get returns the range for the specified category
-func (r RatingRange) Get(c Category) InclusiveRange {
-	switch c {
-	case CategoryX:
-		return r.X
-	case CategoryM:
-		return r.M
-	case CategoryA:
-		return r.A
-	case CategoryS:
-		return r.S
-	default:
-		panic("invalid category")
-	}
-}
-
-// Set returns a new RatingRange with the specified category set to rng
-func (r RatingRange) Set(c Category, rng InclusiveRange) RatingRange {
-	result := r
-	switch c {
-	case CategoryX:
-		result.X = rng
-	case CategoryM:
-		result.M = rng
-	case CategoryA:
-		result.A = rng
-	case CategoryS:
-		result.S = rng
-	}
-	return result
-}
-
-// Split returns (matching, non-matching) ranges for a rule
-func (r RatingRange) Split(category Category, operator Operator, value int) (matching, nonMatching RatingRange) {
-	categoryRange := r.Get(category)
-	matchingRange, nonMatchingRange := categoryRange.Split(operator, value)
-
-	matching = r.Set(category, matchingRange)
-	nonMatching = r.Set(category, nonMatchingRange)
-	return
-}
-
-// cutAny tries to cut the string using any of the provided delimiters.
-// Returns the parts, the delimiter that was found, and whether a cut was made.
-func cutAny(s string, delimiters ...string) (before, after, delimiter string, found bool) {
-	for _, delim := range delimiters {
-		if b, a, ok := strings.Cut(s, delim); ok {
-			return b, a, delim, true
+	for _, c := range name {
+		if c < 'a' || c > 'z' {
+			return false
 		}
 	}
-	return "", "", "", false
+	return true
 }
 
-func day19p01(r io.Reader) (string, error) {
-	workflows, parts, err := parseInput(r)
-	if err != nil {
-		return "", err
+func parseWorkflows(input string) (workflowSet, error) {
+	workflows := make(workflowSet)
+	ruleCount := 0
+	for line := range strings.SplitSeq(strings.TrimSpace(input), "\n") {
+		name, body, ok := strings.Cut(strings.TrimSpace(line), "{")
+		if !ok || !workflowName(name) {
+			return nil, fmt.Errorf("invalid workflow declaration %q", line)
+		}
+		body, ok = strings.CutSuffix(body, "}")
+		if !ok {
+			return nil, fmt.Errorf("unclosed workflow %q", name)
+		}
+		if _, exists := workflows[name]; exists {
+			return nil, fmt.Errorf("duplicate workflow %q", name)
+		}
+		if len(workflows) == 1024 {
+			return nil, fmt.Errorf("too many workflows")
+		}
+		texts := strings.Split(body, ",")
+		var rules []workflowRule
+		for i, text := range texts {
+			ruleCount++
+			if ruleCount > 16_384 {
+				return nil, fmt.Errorf("too many workflow rules")
+			}
+			condition, destination, conditional := strings.Cut(strings.TrimSpace(text), ":")
+			rule := workflowRule{category: -1, destination: condition}
+			if conditional {
+				if i == len(texts)-1 || len(condition) < 3 || condition[1] != '<' && condition[1] != '>' {
+					return nil, fmt.Errorf("invalid workflow condition %q", condition)
+				}
+				category, err := ratingCategory(condition[:1])
+				if err != nil {
+					return nil, err
+				}
+				value, err := convert.ScanNumber[int64]([]byte(condition[2:]))
+				if err != nil {
+					return nil, err
+				}
+				rule = workflowRule{category: category, operator: condition[1], value: value, destination: destination}
+			} else if i != len(texts)-1 {
+				return nil, fmt.Errorf("workflow default must be its final rule")
+			}
+			if rule.destination != "A" && rule.destination != "R" && !workflowName(rule.destination) {
+				return nil, fmt.Errorf("invalid workflow destination %q", rule.destination)
+			}
+			rules = append(rules, rule)
+		}
+		workflows[name] = rules
 	}
-
-	total := 0
-	for _, part := range parts {
-		if processPart(part, workflows) {
-			total += part.Sum()
+	if _, exists := workflows["in"]; !exists {
+		return nil, fmt.Errorf("missing entry workflow")
+	}
+	for _, rules := range workflows {
+		for _, rule := range rules {
+			if rule.destination == "A" || rule.destination == "R" {
+				continue
+			}
+			if _, exists := workflows[rule.destination]; !exists {
+				return nil, fmt.Errorf("missing workflow %q", rule.destination)
+			}
 		}
 	}
-
-	return strconv.Itoa(total), nil
-}
-
-func day19p02(r io.Reader) (string, error) {
-	workflows, _, err := parseInput(r)
-	if err != nil {
-		return "", err
-	}
-
-	count := countAccepted(workflows)
-	return strconv.Itoa(count), nil
-}
-
-// countAccepted calculates the total number of accepted rating combinations
-func countAccepted(workflows Workflows) int {
-	initial := NewRatingRange(1, 4000)
-	return processRange(initial, workflowStart, workflows)
-}
-
-// processRange recursively processes a rating range through workflows
-func processRange(rng RatingRange, workflowName string, workflows Workflows) int {
-	if workflowName == workflowAccept {
-		return rng.Size()
-	}
-	if workflowName == workflowReject {
-		return 0
-	}
-
-	workflow := workflows[workflowName]
-	total := 0
-	current := rng
-
-	for _, rule := range workflow.Rules {
-		if rule.Category == CategoryNone {
-			// default rule: send all remaining to destination
-			total += processRange(current, rule.DestinationWorkflow, workflows)
-			break
-		}
-
-		// split range
-		matching, nonMatching := current.Split(rule.Category, rule.Operator, rule.Value)
-
-		// process matching range
-		if matching.IsValid() {
-			total += processRange(matching, rule.DestinationWorkflow, workflows)
-		}
-
-		// continue with non-matching range
-		current = nonMatching
-		if !current.IsValid() {
-			break
-		}
-	}
-
-	return total
-}
-
-// parseInput parses the entire input into workflows and parts
-func parseInput(r io.Reader) (Workflows, []Part, error) {
-	content, err := io.ReadAll(r)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	sections := strings.Split(strings.TrimSpace(string(content)), "\n\n")
-	if len(sections) != 2 {
-		return nil, nil, fmt.Errorf("expected 2 sections separated by blank line, got %d", len(sections))
-	}
-
-	workflows, err := parseWorkflows(sections[0])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	parts, err := parseParts(sections[1])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return workflows, parts, nil
-}
-
-// parseWorkflows parses workflow definitions
-func parseWorkflows(input string) (Workflows, error) {
-	workflows := make(Workflows)
-	lines := strings.SplitSeq(strings.TrimSpace(input), "\n")
-
-	for line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		// find the opening brace
-		name, rest, found := strings.Cut(line, "{")
-		if !found {
-			return nil, fmt.Errorf("invalid workflow format: %s", line)
-		}
-
-		rulesStr := strings.TrimSuffix(rest, "}")
-
-		rules, err := parseRules(rulesStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse rules for workflow %s: %w", name, err)
-		}
-
-		workflows[name] = Workflow{
-			Rules: rules,
-		}
-	}
-
 	return workflows, nil
 }
 
-// parseRules parses a comma-separated list of rules
-func parseRules(rulesStr string) ([]Rule, error) {
-	ruleStrs := strings.Split(rulesStr, ",")
-	rules := make([]Rule, 0, len(ruleStrs))
-
-	for _, ruleStr := range ruleStrs {
-		ruleStr = strings.TrimSpace(ruleStr)
-		rule, err := parseRule(ruleStr)
+func parseRatingPart(line string) (ratingPart, error) {
+	body, ok := strings.CutPrefix(strings.TrimSpace(line), "{")
+	if !ok {
+		return ratingPart{}, fmt.Errorf("invalid rating part")
+	}
+	body, ok = strings.CutSuffix(body, "}")
+	if !ok {
+		return ratingPart{}, fmt.Errorf("unclosed rating part")
+	}
+	var part ratingPart
+	var seen [4]bool
+	for field := range strings.SplitSeq(body, ",") {
+		name, text, ok := strings.Cut(strings.TrimSpace(field), "=")
+		if !ok {
+			return ratingPart{}, fmt.Errorf("invalid rating field")
+		}
+		category, err := ratingCategory(name)
 		if err != nil {
-			return nil, err
+			return ratingPart{}, err
 		}
-		rules = append(rules, rule)
-	}
-
-	return rules, nil
-}
-
-// parseRule parses a single rule
-func parseRule(ruleStr string) (Rule, error) {
-	// check if this is a conditional rule (contains :)
-	condition, destination, hasCondition := strings.Cut(ruleStr, ":")
-	if !hasCondition {
-		// default rule (no condition)
-		return Rule{
-			Category:            CategoryNone,
-			Operator:            OperatorNone,
-			Value:               0,
-			DestinationWorkflow: ruleStr,
-		}, nil
-	}
-
-	// parse conditional rule: category>value or category<value
-	catStr, valStr, delim, found := cutAny(condition, ">", "<")
-	if !found {
-		return Rule{}, fmt.Errorf("invalid condition format: %s", condition)
-	}
-
-	// determine operator from delimiter
-	var operator Operator
-	switch delim {
-	case ">":
-		operator = OperatorGreaterThan
-	case "<":
-		operator = OperatorLessThan
-	}
-
-	// common parsing logic
-	category, err := ParseCategory(catStr)
-	if err != nil {
-		return Rule{}, fmt.Errorf("invalid category in condition: %s", condition)
-	}
-
-	value, err := strconv.Atoi(valStr)
-	if err != nil {
-		return Rule{}, fmt.Errorf("invalid value in condition: %s", condition)
-	}
-
-	return Rule{
-		Category:            category,
-		Operator:            operator,
-		Value:               value,
-		DestinationWorkflow: destination,
-	}, nil
-}
-
-// parseParts parses part definitions
-func parseParts(input string) ([]Part, error) {
-	lines := strings.Split(strings.TrimSpace(input), "\n")
-	parts := make([]Part, 0, len(lines))
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if seen[category] {
+			return ratingPart{}, fmt.Errorf("duplicate rating category %q", name)
 		}
-
-		part, err := parsePart(line)
+		value, err := convert.ScanNumber[int64]([]byte(text))
 		if err != nil {
-			return nil, err
+			return ratingPart{}, err
 		}
-		parts = append(parts, part)
-	}
-
-	return parts, nil
-}
-
-// parsePart parses a single part from format {x=val,m=val,a=val,s=val}
-func parsePart(line string) (Part, error) {
-	content, found := strings.CutPrefix(line, "{")
-	if !found {
-		return Part{}, fmt.Errorf("invalid part format: %s", line)
-	}
-	content, found = strings.CutSuffix(content, "}")
-	if !found {
-		return Part{}, fmt.Errorf("invalid part format: %s", line)
-	}
-	ratings := strings.Split(content, ",")
-
-	if len(ratings) != 4 {
-		return Part{}, fmt.Errorf("expected 4 ratings, got %d: %s", len(ratings), line)
-	}
-
-	var part Part
-	for _, rating := range ratings {
-		rating = strings.TrimSpace(rating)
-		category, valueStr, found := strings.Cut(rating, "=")
-		if !found {
-			return Part{}, fmt.Errorf("invalid rating format: %s", rating)
+		if value < 1 || value > 4000 {
+			return ratingPart{}, fmt.Errorf("rating must be between 1 and 4000")
 		}
-
-		value, err := strconv.Atoi(valueStr)
-		if err != nil {
-			return Part{}, fmt.Errorf("invalid rating value: %s", rating)
-		}
-
-		cat, err := ParseCategory(category)
-		if err != nil {
-			return Part{}, err
-		}
-		part.Set(cat, value)
+		part[category], seen[category] = value, true
 	}
-
+	for _, present := range seen {
+		if !present {
+			return ratingPart{}, fmt.Errorf("missing rating category")
+		}
+	}
 	return part, nil
 }
 
-// processPart processes a part through the workflow system
-func processPart(part Part, workflows Workflows) bool {
-	currentWorkflow := workflowStart
-
-workflowLoop:
-	for {
-		workflow, exists := workflows[currentWorkflow]
-		if !exists {
-			panic(fmt.Sprintf("workflow %s not found", currentWorkflow))
+func parseWorkflowInput(r io.Reader) (workflowSet, []ratingPart, error) {
+	const inputLimit = 4 << 20
+	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(data) > inputLimit {
+		return nil, nil, fmt.Errorf("workflow input exceeds 4 MiB")
+	}
+	input := strings.ReplaceAll(string(data), "\r\n", "\n")
+	definitions, ratings, ok := strings.Cut(strings.TrimSpace(input), "\n\n")
+	if !ok {
+		return nil, nil, fmt.Errorf("expected workflow and part sections")
+	}
+	workflows, err := parseWorkflows(definitions)
+	if err != nil {
+		return nil, nil, err
+	}
+	var parts []ratingPart
+	for line := range strings.SplitSeq(ratings, "\n") {
+		part, err := parseRatingPart(line)
+		if err != nil {
+			return nil, nil, err
 		}
+		if len(parts) == 100_000 {
+			return nil, nil, fmt.Errorf("too many rating parts")
+		}
+		parts = append(parts, part)
+	}
+	return workflows, parts, nil
+}
 
-		for _, rule := range workflow.Rules {
-			if rule.Matches(part) {
-				switch rule.DestinationWorkflow {
-				case workflowAccept:
-					return true
-				case workflowReject:
-					return false
-				default:
-					currentWorkflow = rule.DestinationWorkflow
-					continue workflowLoop
-				}
+func processPart(part ratingPart, workflows workflowSet, remaining *int) (bool, error) {
+	name := "in"
+	for range len(workflows) + 1 {
+		if name == "A" || name == "R" {
+			return name == "A", nil
+		}
+		for _, rule := range workflows[name] {
+			if *remaining == 0 {
+				return false, fmt.Errorf("workflow rule limit exceeded")
+			}
+			*remaining -= 1
+			if rule.category == -1 || rule.operator == '<' && part[rule.category] < rule.value || rule.operator == '>' && part[rule.category] > rule.value {
+				name = rule.destination
+				break
 			}
 		}
-		panic(fmt.Sprintf("no rule matched in workflow %s", currentWorkflow))
 	}
+	return false, fmt.Errorf("part enters a workflow cycle")
+}
+
+func countAccepted(workflows workflowSet, limit int64) (int64, error) {
+	if limit < 1 || limit > 4000 {
+		return 0, fmt.Errorf("rating limit must be between 1 and 4000")
+	}
+	var initial ratingRanges
+	for i := range initial {
+		initial[i] = ratingInterval{min: 1, max: limit}
+	}
+	remaining := maxWorkflowSteps
+	active := make(map[string]bool)
+	var visit func(ratingRanges, string) (int64, error)
+	visit = func(current ratingRanges, name string) (int64, error) {
+		if name == "A" {
+			return current.size(), nil
+		}
+		if name == "R" {
+			return 0, nil
+		}
+		// Ratings never change, so returning to a workflow traps this subset.
+		if active[name] {
+			return 0, fmt.Errorf("ratings enter a workflow cycle at %s", name)
+		}
+		active[name] = true
+		defer delete(active, name)
+		var total int64
+		for _, rule := range workflows[name] {
+			if remaining == 0 {
+				return 0, fmt.Errorf("workflow rule limit exceeded")
+			}
+			remaining--
+			if rule.category == -1 {
+				count, err := visit(current, rule.destination)
+				return total + count, err
+			}
+			matching, rest := current[rule.category].split(rule.operator, rule.value)
+			if matching.min <= matching.max {
+				branch := current
+				branch[rule.category] = matching
+				count, err := visit(branch, rule.destination)
+				if err != nil {
+					return 0, err
+				}
+				total += count
+			}
+			if rest.min > rest.max {
+				return total, nil
+			}
+			current[rule.category] = rest
+		}
+		return 0, fmt.Errorf("workflow has no default rule")
+	}
+	return visit(initial, "in")
+}
+
+func day19p01(r io.Reader) (string, error) {
+	workflows, parts, err := parseWorkflowInput(r)
+	if err != nil {
+		return "", err
+	}
+	remaining := maxWorkflowSteps
+	var total int64
+	for _, part := range parts {
+		accepted, err := processPart(part, workflows, &remaining)
+		if err != nil {
+			return "", err
+		}
+		if accepted {
+			for _, value := range part {
+				total += value
+			}
+		}
+	}
+	return strconv.FormatInt(total, 10), nil
+}
+
+func day19p02(r io.Reader) (string, error) {
+	workflows, _, err := parseWorkflowInput(r)
+	if err != nil {
+		return "", err
+	}
+	count, err := countAccepted(workflows, 4000)
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatInt(count, 10), nil
 }

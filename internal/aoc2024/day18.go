@@ -1,94 +1,130 @@
 package aoc2024
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-func parsePushDownAutomatonMemory(r io.Reader) ([]grid.Position2D[int], error) {
-	s := scanner.NewScanner(r, func(bytes []byte) (grid.Position2D[int], error) {
-		digits := convert.ExtractDigits[int](string(bytes))
-		return grid.Position2D[int]{
-			X: digits[0],
-			Y: digits[1],
-		}, nil
-	})
-	return slices.Collect(s.Values()), s.Err()
-}
-
-func day18Neighbours(memory map[grid.Position2D[int]]bool, dimensions int) func(grid.Position2D[int]) []grid.Position2D[int] {
-	return func(p grid.Position2D[int]) []grid.Position2D[int] {
-		return slices.Collect(xiter.Filter(func(v grid.Position2D[int]) bool {
-			return v.X >= 0 && v.X <= dimensions && v.Y >= 0 && v.Y <= dimensions && !memory[v]
-		}, grid.Neighbours4(p)))
+func parseFallingBytes(r io.Reader, dimensions, steps int) ([]grid.Position2D[int], error) {
+	if dimensions < 0 || dimensions > 1024 {
+		return nil, fmt.Errorf("memory dimensions must be between 0 and 1024")
 	}
-}
-
-func day18Heuristic(dimensions int) func(p grid.Position2D[int]) int {
-	return func(p grid.Position2D[int]) int {
-		if p.X == dimensions && p.Y == dimensions {
-			return 0
+	count := 0
+	s := scanner.NewScanner(r, func(line []byte) (grid.Position2D[int], error) {
+		count++
+		if count > 100_000 {
+			return grid.Position2D[int]{}, fmt.Errorf("memory input exceeds 100000 falling bytes")
 		}
-		return 1
+		xText, yText, ok := bytes.Cut(line, []byte(","))
+		if !ok {
+			return grid.Position2D[int]{}, fmt.Errorf("falling byte needs x,y coordinates")
+		}
+		x, err := convert.ScanNumber[int](xText)
+		if err != nil {
+			return grid.Position2D[int]{}, fmt.Errorf("falling byte x: %w", err)
+		}
+		y, err := convert.ScanNumber[int](yText)
+		if err != nil {
+			return grid.Position2D[int]{}, fmt.Errorf("falling byte y: %w", err)
+		}
+		if x < 0 || x > dimensions || y < 0 || y > dimensions {
+			return grid.Position2D[int]{}, fmt.Errorf("falling byte %d,%d is outside memory", x, y)
+		}
+		return grid.NewPosition2D(x, y), nil
+	})
+	corrupted := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if steps < 0 || steps > len(corrupted) {
+		return nil, fmt.Errorf("memory prefix %d is outside 0..%d", steps, len(corrupted))
+	}
+	return corrupted, nil
+}
+
+func memoryEdges(memory map[grid.Position2D[int]]bool, dimensions int) search.Edges[grid.Position2D[int]] {
+	return func(p grid.Position2D[int], yield func(grid.Position2D[int], int) bool) error {
+		for next := range grid.Neighbours4(p) {
+			if next.X <= dimensions && next.Y <= dimensions && !memory[next] && !yield(next, 1) {
+				return nil
+			}
+		}
+		return nil
 	}
 }
 
-func day18search(
-	corrupted []grid.Position2D[int],
-	dimensions int,
-	start grid.Position2D[int],
-	steps int,
-) (int, bool) {
+func memoryHeuristic(dimensions int) func(grid.Position2D[int]) int {
+	return func(p grid.Position2D[int]) int {
+		return 2*dimensions - p.X - p.Y
+	}
+}
+
+func memoryRoute(corrupted []grid.Position2D[int], dimensions, steps int) (int, bool, error) {
 	memory := make(map[grid.Position2D[int]]bool, steps)
-	for _, v := range corrupted[:steps] {
-		memory[v] = true
+	for _, position := range corrupted[:steps] {
+		memory[position] = true
 	}
-	cost, _, found := search.AStar(
+	start := grid.NewPosition2D(0, 0)
+	end := grid.NewPosition2D(dimensions, dimensions)
+	if memory[start] || memory[end] {
+		return 0, false, nil
+	}
+	return search.AStarDistance(
 		start,
-		day18Neighbours(memory, dimensions),
-		day18Heuristic(dimensions),
-		search.ConstantStepCost,
+		func(position grid.Position2D[int]) bool { return position == end },
+		memoryEdges(memory, dimensions),
+		memoryHeuristic(dimensions),
+		search.Limits{},
 	)
-	return cost, found
 }
 
-func day18p01(dimensions, steps int) func(r io.Reader) (string, error) {
+func day18p01(dimensions, steps int) func(io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		corrupted := aoc.Must(parsePushDownAutomatonMemory(r))
-
-		start := grid.Position2D[int]{X: 0, Y: 0}
-
-		cost, _ := day18search(corrupted, dimensions, start, steps)
-
+		corrupted, err := parseFallingBytes(r, dimensions, steps)
+		if err != nil {
+			return "", err
+		}
+		cost, found, err := memoryRoute(corrupted, dimensions, steps)
+		if err != nil {
+			return "", fmt.Errorf("memory route: %w", err)
+		}
+		if !found {
+			return "", fmt.Errorf("no route through memory after %d falling bytes", steps)
+		}
 		return strconv.Itoa(cost), nil
 	}
 }
 
-func day18p02(dimensions int, steps int) func(r io.Reader) (string, error) {
+func day18p02(dimensions, steps int) func(io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		corrupted := aoc.Must(parsePushDownAutomatonMemory(r))
-		start := grid.Position2D[int]{X: 0, Y: 0}
-
-		low, high := steps, len(corrupted)-1
-		for low < high {
-			mid := (low + high) / 2
-			if _, found := day18search(corrupted, dimensions, start, mid+1); found {
-				low = mid + 1
-			} else {
-				high = mid
-			}
+		corrupted, err := parseFallingBytes(r, dimensions, steps)
+		if err != nil {
+			return "", err
 		}
-
-		p := corrupted[low]
-		return fmt.Sprintf("%d,%d", p.X, p.Y), nil
+		if _, found, err := memoryRoute(corrupted, dimensions, steps); err != nil {
+			return "", fmt.Errorf("memory prefix route: %w", err)
+		} else if !found {
+			return "", fmt.Errorf("memory prefix of %d bytes already blocks the route", steps)
+		}
+		if steps == len(corrupted) {
+			return "", fmt.Errorf("no falling byte blocks the route")
+		}
+		prefix, err := search.BinarySearch(steps+1, len(corrupted), func(prefix int) (bool, error) {
+			_, found, err := memoryRoute(corrupted, dimensions, prefix)
+			return !found, err
+		})
+		if err != nil {
+			return "", fmt.Errorf("find first blocking byte: %w", err)
+		}
+		position := corrupted[prefix-1]
+		return fmt.Sprintf("%d,%d", position.X, position.Y), nil
 	}
 }

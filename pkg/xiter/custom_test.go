@@ -22,7 +22,6 @@ func TestPermutations(t *testing.T) {
 		t.Fatalf("expected %d permutations, got %d", len(expected), len(result))
 	}
 
-	// Check that all expected permutations are present
 	for _, exp := range expected {
 		found := false
 		for _, res := range result {

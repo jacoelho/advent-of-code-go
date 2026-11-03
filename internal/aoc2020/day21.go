@@ -11,8 +11,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var foodRegex = regexp.MustCompile(`^(.+) \(contains (.+)\)$`)
@@ -70,11 +69,11 @@ func day21p01(r io.Reader) (string, error) {
 		possibleAllergenIngredients = possibleAllergenIngredients.Union(candidates)
 	}
 
-	count := xslices.Sum(xslices.Map(func(f food) int {
-		return xslices.CountFunc(func(ingredient string) bool {
+	count := xiter.FromSlice(foods).SumBy(func(f food) int {
+		return xiter.FromSlice(f.ingredients).Filter(func(ingredient string) bool {
 			return !possibleAllergenIngredients.Contains(ingredient)
-		}, f.ingredients)
-	}, foods))
+		}).Count()
+	})
 
 	return strconv.Itoa(count), nil
 }
@@ -87,29 +86,35 @@ func day21p02(r io.Reader) (string, error) {
 
 	allergenCandidates := allergenCandidates(foods)
 
-	// resolve using constraint propagation
 	allergenToIngredient := make(map[string]string)
 
 	for len(allergenCandidates) > 0 {
-		pair, found := xmaps.Find(allergenCandidates, func(_ string, candidates collections.Set[string]) bool {
-			return candidates.Len() == 1
-		})
+		for allergen, candidates := range allergenCandidates {
+			if candidates.Len() == 0 {
+				return "", fmt.Errorf("allergen %s has no possible ingredient", allergen)
+			}
+		}
+		allergen, found := xiter.From(maps.Keys(allergenCandidates)).Filter(func(name string) bool {
+			return allergenCandidates[name].Len() == 1
+		}).First()
 		if !found {
-			break
+			return "", fmt.Errorf("cannot resolve allergen assignment from non-singleton candidates")
 		}
 
-		ingredient, _ := pair.V.Next()
-		allergenToIngredient[pair.K] = ingredient
-		delete(allergenCandidates, pair.K)
+		ingredient, _ := allergenCandidates[allergen].Next()
+		allergenToIngredient[allergen] = ingredient
+		delete(allergenCandidates, allergen)
 
 		for a := range allergenCandidates {
 			allergenCandidates[a].Remove(ingredient)
 		}
 	}
 
-	allergens := slices.Collect(maps.Keys(allergenToIngredient))
-	slices.Sort(allergens)
-	ingredients := xslices.Map(func(allergen string) string { return allergenToIngredient[allergen] }, allergens)
+	allergens := slices.Sorted(maps.Keys(allergenToIngredient))
+	ingredients := make([]string, len(allergens))
+	for i, allergen := range allergens {
+		ingredients[i] = allergenToIngredient[allergen]
+	}
 
 	return strings.Join(ingredients, ","), nil
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xconstraints"
 )
 
+// Unique keeps the first occurrence of each value, retaining O(distinct values)
+// state for each traversal.
 func Unique[T comparable](seq iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		found := make(map[T]struct{})
@@ -23,6 +25,7 @@ func Unique[T comparable](seq iter.Seq[T]) iter.Seq[T] {
 	}
 }
 
+// Sum adds values in source order, returning zero when empty.
 func Sum[V xconstraints.Number](seq iter.Seq[V]) V {
 	var total V
 	for v := range seq {
@@ -31,37 +34,31 @@ func Sum[V xconstraints.Number](seq iter.Seq[V]) V {
 	return total
 }
 
-func CountBy[V any](predicate func(V) bool, seq iter.Seq[V]) int {
-	var total int
+// Product multiplies the values in source order, returning one when empty.
+func Product[V xconstraints.Number](seq iter.Seq[V]) V {
+	var total V = 1
 	for v := range seq {
-		if predicate(v) {
-			total++
-		}
+		total *= v
 	}
 	return total
 }
 
-func MaxBy[V any](comparator func(V, V) bool, seq iter.Seq[V]) V {
-	currentMax, ok := Next(seq)
-	if !ok {
-		panic("invalid sequence")
-	}
+// MaxBy returns the first greatest value according to less, or (zero, false)
+// when empty. It consumes the source once.
+func MaxBy[V any](less func(V, V) bool, seq iter.Seq[V]) (V, bool) {
+	var currentMax V
+	found := false
 	for v := range seq {
-		if comparator(currentMax, v) {
+		if !found || less(currentMax, v) {
 			currentMax = v
+			found = true
 		}
 	}
-	return currentMax
+	return currentMax, found
 }
 
-func Len[V any](seq iter.Seq[V]) int {
-	var total int
-	for range seq {
-		total++
-	}
-	return total
-}
-
+// Frequencies consumes seq and returns occurrence counts using O(distinct values)
+// storage. The result is non-nil, including for an empty sequence.
 func Frequencies[T comparable](seq iter.Seq[T]) map[T]int {
 	count := make(map[T]int)
 	for item := range seq {
@@ -70,29 +67,26 @@ func Frequencies[T comparable](seq iter.Seq[T]) map[T]int {
 	return count
 }
 
-func Max[E cmp.Ordered](seq iter.Seq[E]) E {
-	next, stop := iter.Pull(seq)
-	defer stop()
-	m, ok := next()
-	if !ok {
-		panic("empty seq")
-	}
+// Max returns the greatest value, or (zero, false) when empty. It consumes the
+// source once and propagates NaN like the built-in max.
+func Max[E cmp.Ordered](seq iter.Seq[E]) (E, bool) {
+	var m E
+	found := false
 	for v := range seq {
-		m = max(m, v)
+		if !found {
+			m, found = v, true
+		} else {
+			m = max(m, v)
+		}
 	}
-	return m
+	return m, found
 }
 
+// Apply yields start, f(start), f(f(start)), and so on until iteration stops.
+// Each traversal starts again at start and invokes f again.
 func Apply[E any](start E, f func(E) E) iter.Seq[E] {
 	return func(yield func(E) bool) {
-		if !yield(start) {
-			return
-		}
-		for {
-			start = f(start)
-			if !yield(start) {
-				break
-			}
+		for value := start; yield(value); value = f(value) {
 		}
 	}
 }
@@ -107,63 +101,13 @@ func Enumerate[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
 	}
 }
 
-func Skip[T any](seq iter.Seq[T], n int) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		seq(func(v T) bool {
-			if n > 0 {
-				n--
-				return true
-			}
-			return yield(v)
-		})
-	}
-}
-
-func Take[T any](n int, seq iter.Seq[T]) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		seq(func(v T) bool {
-			if !yield(v) {
-				return false
-			}
-			n--
-			return n > 0
-		})
-	}
-}
-
-func Window[T any](n int, seq iter.Seq[T]) iter.Seq[[]T] {
-	return func(yield func([]T) bool) {
-		window := make([]T, 0, n)
-
-		seq(func(v T) bool {
-			if len(window) < n-1 {
-				window = append(window, v)
-				return true
-			}
-			if len(window) < n {
-				window = append(window, v)
-				return yield(window)
-			}
-
-			copy(window, window[1:])
-			window[len(window)-1] = v
-			return yield(window)
-		})
-		if len(window) < n {
-			yield(window)
-		}
-	}
-}
-
-func Next[T any](seq iter.Seq[T]) (T, bool) {
-	next, stop := iter.Pull(seq)
-	defer stop()
-	return next()
-}
-
-// Nth returns the nth element from the sequence (0-indexed).
+// Nth returns the zero-based nth value, or (zero, false) if the source ends
+// first. A negative index returns (zero, false) without invoking the source.
 func Nth[T any](seq iter.Seq[T], n int) (T, bool) {
 	var result T
+	if n < 0 {
+		return result, false
+	}
 	found := false
 	seq(func(v T) bool {
 		if n > 0 {
@@ -177,7 +121,9 @@ func Nth[T any](seq iter.Seq[T], n int) (T, bool) {
 	return result, found
 }
 
-// Permutations generates all permutations of the input slice using Heap's algorithm.
+// Permutations yields a fresh slice for each permutation using Heap's
+// algorithm, without modifying slice. Empty input yields no values; equal input
+// values can produce duplicate permutations.
 func Permutations[T any](slice []T) iter.Seq[[]T] {
 	return func(yield func([]T) bool) {
 		if len(slice) == 0 {
@@ -212,12 +158,17 @@ func Permutations[T any](slice []T) iter.Seq[[]T] {
 
 // DotProduct computes the dot product of two sequences (element-wise multiply and sum).
 // If the sequences have different lengths, computation stops at the shorter sequence.
+// It may consume one unmatched value from x when y ends first.
 func DotProduct[V xconstraints.Number](x, y iter.Seq[V]) V {
+	next, stop := iter.Pull(y)
+	defer stop()
 	var sum V
-	for z := range Zip(x, y) {
-		if z.Ok1 && z.Ok2 {
-			sum += z.V1 * z.V2
+	for a := range x {
+		b, ok := next()
+		if !ok {
+			break
 		}
+		sum += a * b
 	}
 	return sum
 }

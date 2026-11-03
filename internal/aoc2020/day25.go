@@ -26,7 +26,8 @@ func parsePublicKeys(r io.Reader) (int, int, error) {
 	return keys[0], keys[1], nil
 }
 
-// transform returns an infinite sequence of transformed values according to the cryptographic protocol
+// transform yields successive powers of subject modulo modulus,
+// starting with the first power. The sequence continues until the consumer stops it.
 func transform(subject int) iter.Seq[int] {
 	return func(yield func(int) bool) {
 		val := 1
@@ -39,7 +40,7 @@ func transform(subject int) iter.Seq[int] {
 	}
 }
 
-// recoverLoopSize brute-forces the loop size that produces the target public key from subject 7
+// recoverLoopSize returns the zero-based index of publicKey in transform(7).
 func recoverLoopSize(publicKey int) int {
 	for i, val := range xiter.Enumerate(transform(7)) {
 		if val == publicKey {

@@ -1,132 +1,131 @@
 package aoc2024
 
 import (
-	"bufio"
+	"bytes"
+	"fmt"
 	"io"
-	"maps"
-	"slices"
 	"strconv"
-
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-func parseDiskAsSparse(r io.Reader) []int {
-	var (
-		id     int
-		result []int
-	)
-	s := bufio.NewScanner(r)
-	for s.Scan() {
-		for i, v := range s.Bytes() {
-			value := -1
-			if i%2 == 0 {
-				value = id
-				id++
-			}
-			result = append(result, slices.Repeat([]int{value}, int(v-'0'))...)
+func parseDiskMap(r io.Reader) ([]byte, error) {
+	const digitLimit = 100_000
+	data, err := io.ReadAll(io.LimitReader(r, digitLimit+3))
+	if err != nil {
+		return nil, err
+	}
+	data = bytes.TrimSuffix(data, []byte("\n"))
+	data = bytes.TrimSuffix(data, []byte("\r"))
+	if len(data) == 0 || len(data) > digitLimit {
+		return nil, fmt.Errorf("disk map must contain 1 to 100000 digits")
+	}
+	for _, digit := range data {
+		if digit < '0' || digit > '9' {
+			return nil, fmt.Errorf("invalid disk map digit %q", digit)
 		}
 	}
-	if err := s.Err(); err != nil {
-		panic(err)
-	}
-	return result
+	return data, nil
 }
 
 func day09p01(r io.Reader) (string, error) {
-	disk := parseDiskAsSparse(r)
-
-	frontPtr := 0
-	backPtr := len(disk) - 1
-	for frontPtr < backPtr {
-		if disk[frontPtr] == -1 && disk[backPtr] != -1 {
-			disk[frontPtr], disk[backPtr] = disk[backPtr], disk[frontPtr]
+	digits, err := parseDiskMap(r)
+	if err != nil {
+		return "", err
+	}
+	var disk []int
+	for i, digit := range digits {
+		value := -1
+		if i%2 == 0 {
+			value = i / 2
 		}
-		if disk[frontPtr] != -1 {
-			frontPtr++
-		}
-		if disk[backPtr] == -1 {
-			backPtr--
+		for range int(digit - '0') {
+			disk = append(disk, value)
 		}
 	}
 
-	var total int
-	for i, v := range disk {
-		if v != -1 {
-			total += i * v
+	front, back := 0, len(disk)-1
+	for front < back {
+		if disk[front] == -1 && disk[back] != -1 {
+			disk[front], disk[back] = disk[back], disk[front]
+		}
+		if disk[front] != -1 {
+			front++
+		}
+		if disk[back] == -1 {
+			back--
 		}
 	}
-	return strconv.Itoa(total), nil
+
+	var total int64
+	for position, fileID := range disk {
+		if fileID != -1 {
+			total += int64(position) * int64(fileID)
+		}
+	}
+	return strconv.FormatInt(total, 10), nil
 }
 
-type block struct {
+type diskSpan struct {
 	index int
 	size  int
 }
 
-func parseDiskAsBlocks(r io.Reader) (map[int]block, []block) {
-	var (
-		id     int
-		index  int
-		blanks []block
-	)
-	result := make(map[int]block)
-	s := bufio.NewScanner(r)
-	for s.Scan() {
-		for i, v := range s.Bytes() {
-			size := int(v - '0')
-			if i%2 == 0 {
-				result[id] = block{index, size}
-				id++
+func diskSpans(digits []byte) ([]diskSpan, []diskSpan) {
+	var files, free []diskSpan
+	position := 0
+	for i, digit := range digits {
+		size := int(digit - '0')
+		if i%2 == 0 {
+			files = append(files, diskSpan{index: position, size: size})
+		} else if size != 0 {
+			last := len(free) - 1
+			if last >= 0 && free[last].index+free[last].size == position {
+				free[last].size += size
 			} else {
-				blanks = append(blanks, block{index, size})
+				free = append(free, diskSpan{index: position, size: size})
 			}
-			index += size
 		}
+		position += size
 	}
-	if err := s.Err(); err != nil {
-		panic(err)
-	}
-	return result, blanks
+	return files, free
 }
 
 func day09p02(r io.Reader) (string, error) {
-	blocks, blanks := parseDiskAsBlocks(r)
-
-	for fileID := xiter.Max(maps.Keys(blocks)); fileID > 0; fileID-- {
-		fileBlock := blocks[fileID]
-
-		for i, blank := range blanks {
-			if blank.index >= fileBlock.index {
-				blanks = blanks[:i]
+	digits, err := parseDiskMap(r)
+	if err != nil {
+		return "", err
+	}
+	files, free := diskSpans(digits)
+	remaining := 100_000_000
+	for fileID := len(files) - 1; fileID > 0; fileID-- {
+		file := files[fileID]
+		if file.size == 0 {
+			continue
+		}
+		for i, span := range free {
+			if remaining == 0 {
+				return "", fmt.Errorf("disk compaction exceeds one hundred million free span checks")
+			}
+			remaining--
+			if span.index >= file.index {
+				free = free[:i]
 				break
 			}
-			if blank.size < fileBlock.size {
+			if span.size < file.size {
 				continue
 			}
-
-			blocks[fileID] = block{index: blank.index, size: fileBlock.size}
-
-			if blank.size == fileBlock.size {
-				blanks[i] = block{index: blank.index, size: 0}
-
-				// we could also delete, but is it slower
-				// slices.Delete(blanks, i, i+1)
-			} else {
-				blanks[i] = block{
-					index: blank.index + fileBlock.size,
-					size:  blank.size - fileBlock.size,
-				}
-			}
+			files[fileID].index = span.index
+			free[i].index += file.size
+			free[i].size -= file.size
+			// Vacated space is to the right of every file still to be considered.
 			break
 		}
 	}
 
-	var total int
-	for fileID, fileBlock := range blocks {
-		start := fileBlock.index
-		end := fileBlock.index + fileBlock.size - 1
-		total += fileID * (end*(end+1) - start*(start-1)) / 2
+	var total int64
+	for fileID, file := range files {
+		for offset := range file.size {
+			total += int64(fileID) * int64(file.index+offset)
+		}
 	}
-
-	return strconv.Itoa(total), nil
+	return strconv.FormatInt(total, 10), nil
 }

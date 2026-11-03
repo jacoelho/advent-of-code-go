@@ -12,7 +12,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
-// 1 space padding + 1 letter
+// outerPortalThreshold is the maximum distance from the passage bounds treated as the
+// outer rim.
 const outerPortalThreshold = 2
 
 type donutMaze struct {
@@ -81,11 +82,14 @@ func findPortalLabel(lines []string, x, y int) (string, grid.Position2D[int], bo
 	return "", grid.Position2D[int]{}, false
 }
 
-func parseMaze(r io.Reader) *donutMaze {
+func parseMaze(r io.Reader) (*donutMaze, error) {
 	s := scanner.NewScanner(r, func(line []byte) (string, error) {
 		return string(line), nil
 	})
 	lines := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
 
 	maze := &donutMaze{
 		passages:     make(grid.Grid2D[int, bool]),
@@ -93,7 +97,6 @@ func parseMaze(r io.Reader) *donutMaze {
 		outerPortals: make(map[grid.Position2D[int]]bool),
 	}
 
-	// first pass: identify passages
 	for y, line := range lines {
 		for x, ch := range line {
 			if ch == '.' {
@@ -103,7 +106,6 @@ func parseMaze(r io.Reader) *donutMaze {
 		}
 	}
 
-	// second pass: find portal labels and map them
 	portalLabels := make(map[string][]grid.Position2D[int])
 
 	for y, line := range lines {
@@ -124,7 +126,6 @@ func parseMaze(r io.Reader) *donutMaze {
 		}
 	}
 
-	// connect portal pairs
 	for _, positions := range portalLabels {
 		if len(positions) == 2 {
 			maze.portals[positions[0]] = positions[1]
@@ -139,7 +140,6 @@ func parseMaze(r io.Reader) *donutMaze {
 			pos.Y <= minY+outerPortalThreshold || pos.Y >= maxY-outerPortalThreshold
 	}
 
-	// classify all portals (including AA/ZZ) as outer or inner
 	for pos := range maze.portals {
 		if isOuterPosition(pos) {
 			maze.outerPortals[pos] = true
@@ -150,7 +150,7 @@ func parseMaze(r io.Reader) *donutMaze {
 	maze.outerPortals[maze.start] = true
 	maze.outerPortals[maze.end] = true
 
-	return maze
+	return maze, nil
 }
 
 func (m *donutMaze) yieldAdjacentPassages(pos grid.Position2D[int], yield func(grid.Position2D[int]) bool) bool {
@@ -170,7 +170,6 @@ func (m *donutMaze) neighbours(pos grid.Position2D[int]) iter.Seq[grid.Position2
 			return
 		}
 
-		// portal teleportation
 		if dest, hasPortal := m.portals[pos]; hasPortal {
 			if !yield(dest) {
 				return
@@ -180,7 +179,10 @@ func (m *donutMaze) neighbours(pos grid.Position2D[int]) iter.Seq[grid.Position2
 }
 
 func day20p01(r io.Reader) (string, error) {
-	maze := parseMaze(r)
+	maze, err := parseMaze(r)
+	if err != nil {
+		return "", err
+	}
 	steps := search.BFSDistanceTo(maze.start, maze.end, maze.neighbours)
 	return strconv.Itoa(steps), nil
 }
@@ -194,7 +196,6 @@ func (m *donutMaze) recursiveNeighbours(state recursiveState) iter.Seq[recursive
 			return
 		}
 
-		// portal teleportation with level changes
 		dest, hasPortal := m.portals[state.pos]
 		if !hasPortal {
 			return
@@ -202,7 +203,7 @@ func (m *donutMaze) recursiveNeighbours(state recursiveState) iter.Seq[recursive
 
 		isOuter := m.outerPortals[state.pos]
 
-		// at level 0, outer portals act as walls (can't go up from outermost level)
+		// At level zero, an outer portal cannot lead to a shallower level.
 		if state.level == 0 && isOuter {
 			return
 		}
@@ -220,7 +221,10 @@ func (m *donutMaze) recursiveNeighbours(state recursiveState) iter.Seq[recursive
 }
 
 func day20p02(r io.Reader) (string, error) {
-	maze := parseMaze(r)
+	maze, err := parseMaze(r)
+	if err != nil {
+		return "", err
+	}
 	start := recursiveState{pos: maze.start, level: 0}
 	end := recursiveState{pos: maze.end, level: 0}
 	steps := search.BFSDistanceTo(start, end, maze.recursiveNeighbours)

@@ -89,12 +89,12 @@ func unfold(rec springRecord, times int) springRecord {
 func solve(unfoldFactor int) func(io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
 		s := scanner.NewScanner(r, parseSpringRecord)
-		total := xiter.Sum(xiter.Map(func(rec springRecord) int {
+		total := xiter.From(s.Values()).SumBy(func(rec springRecord) int {
 			if unfoldFactor > 1 {
 				rec = unfold(rec, unfoldFactor)
 			}
 			return countArrangements(rec.pattern, rec.groups)
-		}, s.Values()))
+		})
 		if err := s.Err(); err != nil {
 			return "", err
 		}

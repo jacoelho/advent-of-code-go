@@ -9,7 +9,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type cubeSet struct {
@@ -78,19 +77,19 @@ func parseCubeGame(line []byte) (cubeGame, error) {
 }
 
 func (g cubeGame) isValid(maxRed, maxGreen, maxBlue int) bool {
-	return xslices.Every(func(set cubeSet) bool {
+	return xiter.FromSlice(g.sets).Every(func(set cubeSet) bool {
 		return set.red <= maxRed && set.green <= maxGreen && set.blue <= maxBlue
-	}, g.sets)
+	})
 }
 
 func (g cubeGame) minCubes() cubeSet {
-	return xslices.Reduce(func(set cubeSet, acc cubeSet) cubeSet {
+	return xiter.FromSlice(g.sets[1:]).Reduce(g.sets[0], func(set cubeSet, acc cubeSet) cubeSet {
 		return cubeSet{
 			red:   max(set.red, acc.red),
 			green: max(set.green, acc.green),
 			blue:  max(set.blue, acc.blue),
 		}
-	}, g.sets[0], g.sets[1:])
+	})
 }
 
 func (c cubeSet) power() int {
@@ -100,12 +99,9 @@ func (c cubeSet) power() int {
 func day02p01(r io.Reader) (string, error) {
 	s := scanner.NewScanner(r, parseCubeGame)
 
-	sum := xiter.Sum(xiter.Map(func(g cubeGame) int {
-		if g.isValid(12, 13, 14) {
-			return g.id
-		}
-		return 0
-	}, s.Values()))
+	sum := xiter.From(s.Values()).Filter(func(g cubeGame) bool {
+		return g.isValid(12, 13, 14)
+	}).SumBy(func(g cubeGame) int { return g.id })
 
 	return strconv.Itoa(sum), s.Err()
 }
@@ -113,9 +109,9 @@ func day02p01(r io.Reader) (string, error) {
 func day02p02(r io.Reader) (string, error) {
 	s := scanner.NewScanner(r, parseCubeGame)
 
-	sum := xiter.Sum(xiter.Map(func(g cubeGame) int {
+	sum := xiter.From(s.Values()).SumBy(func(g cubeGame) int {
 		return g.minCubes().power()
-	}, s.Values()))
+	})
 
 	return strconv.Itoa(sum), s.Err()
 }

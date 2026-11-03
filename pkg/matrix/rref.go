@@ -1,12 +1,10 @@
 package matrix
 
-// RREFResult contains the result of RREF operation.
 type RREFResult struct {
-	PivotCols    []int // columns that have pivots
-	Inconsistent bool  // true if system is inconsistent (0 = b with b != 0)
+	PivotCols    []int
+	Inconsistent bool
 }
 
-// findPivotRow finds the first non-zero entry in a column starting from startRow
 func findPivotRow(m *Matrix, startRow, col int) int {
 	for i := startRow; i < m.Rows(); i++ {
 		if !m.data[i][col].IsZero() {
@@ -16,7 +14,6 @@ func findPivotRow(m *Matrix, startRow, col int) int {
 	return -1
 }
 
-// normalizePivotRow divides the pivot row by its pivot value to make the pivot 1
 func normalizePivotRow(row []Rat, pivotCol int) {
 	pivotVal := row[pivotCol]
 	if pivotVal.IsZero() {
@@ -27,7 +24,6 @@ func normalizePivotRow(row []Rat, pivotCol int) {
 	}
 }
 
-// eliminateColumn eliminates the pivot column from all other rows
 func eliminateColumn(m *Matrix, pivotRow, col int) {
 	pivotRowData := m.data[pivotRow]
 	cols := m.Cols()
@@ -46,18 +42,14 @@ func eliminateColumn(m *Matrix, pivotRow, col int) {
 	}
 }
 
-// RREF performs Reduced Row Echelon Form on augmented matrix [A|b].
-// The last column is treated as RHS (right-hand side).
-// The matrix is modified in place.
-//
-// Returns a result containing pivot column indices and whether the system
-// is inconsistent (has a row of the form [0 ... 0 | b] with b != 0).
+// RREF reduces augmented matrix [A|b] in place; the last column is the right-hand side.
+// PivotCols lists variable columns in pivot-row order. Inconsistent reports a row 0=b with b nonzero.
 func RREF(m *Matrix) RREFResult {
 	rows := m.Rows()
 	if rows == 0 {
 		return RREFResult{}
 	}
-	cols := m.Cols() - 1 // last column is RHS
+	cols := m.Cols() - 1
 
 	pivotCols := make([]int, 0, min(rows, cols))
 	r := 0
@@ -76,8 +68,7 @@ func RREF(m *Matrix) RREFResult {
 		r++
 	}
 
-	// detect inconsistency (0 ... 0 | b) with b != 0
-	rhsCol := cols // RHS column index
+	rhsCol := cols
 	for i := range rows {
 		row := m.data[i]
 		allZero := true

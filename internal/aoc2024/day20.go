@@ -1,16 +1,15 @@
 package aoc2024
 
 import (
+	"fmt"
 	"io"
 	"iter"
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xmaps"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
@@ -25,12 +24,13 @@ func parseRaceTrack(r io.Reader) (grid.Grid2D[int, rune], error) {
 	return grid.NewGrid2D[int](slices.Collect(s.Values())), s.Err()
 }
 
-func raceStartPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {
-	element, ok := xmaps.Find(g, func(p grid.Position2D[int], v rune) bool { return v == 'S' })
-	if !ok {
-		panic("start not found")
+func raceStartPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
+	for position, value := range g {
+		if value == 'S' {
+			return position, nil
+		}
 	}
-	return element.K
+	return grid.Position2D[int]{}, fmt.Errorf("race track has no start")
 }
 
 func day20Heuristic(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) int {
@@ -42,15 +42,16 @@ func day20Heuristic(raceTrack grid.Grid2D[int, rune]) func(position grid.Positio
 	}
 }
 
-func day20Neighbours(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) []grid.Position2D[int] {
-	return func(position grid.Position2D[int]) []grid.Position2D[int] {
-		var result []grid.Position2D[int]
+func day20Edges(raceTrack grid.Grid2D[int, rune]) search.Edges[grid.Position2D[int]] {
+	return func(position grid.Position2D[int], yield func(grid.Position2D[int], int) bool) error {
 		for p := range grid.Neighbours4(position) {
 			if raceTrack[p] == '.' || raceTrack[p] == 'E' {
-				result = append(result, p)
+				if !yield(p, 1) {
+					return nil
+				}
 			}
 		}
-		return result
+		return nil
 	}
 }
 
@@ -68,12 +69,23 @@ func cheatDistanceOffsets(cheatDistance int) iter.Seq[grid.Position2D[int]] {
 
 func day20(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		raceTrack := aoc.Must(parseRaceTrack(r))
-		startPosition := raceStartPosition(raceTrack)
-		neighbours := day20Neighbours(raceTrack)
-		heuristic := day20Heuristic(raceTrack)
-
-		_, path, _ := search.AStar(startPosition, neighbours, heuristic, search.ConstantStepCost)
+		raceTrack, err := parseRaceTrack(r)
+		if err != nil {
+			return "", err
+		}
+		startPosition, err := raceStartPosition(raceTrack)
+		if err != nil {
+			return "", err
+		}
+		_, path, found, err := search.AStar(startPosition, func(position grid.Position2D[int]) bool {
+			return raceTrack[position] == 'E'
+		}, day20Edges(raceTrack), day20Heuristic(raceTrack), search.Limits{})
+		if err != nil {
+			return "", fmt.Errorf("race track: %w", err)
+		}
+		if !found {
+			return "", fmt.Errorf("race track has no route to the end")
+		}
 
 		distances := make(grid.Grid2D[int, int], len(path))
 		for distance, p := range path {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
@@ -75,11 +76,11 @@ func simulate(moons []*Moon, steps int) {
 }
 
 func totalEnergy(moons []*Moon) int {
-	return xslices.Reduce(func(total int, m *Moon) int {
+	return xiter.FromSlice(moons).SumBy(func(m *Moon) int {
 		potentialEnergy := xmath.Abs(m.x) + xmath.Abs(m.y) + xmath.Abs(m.z)
 		kineticEnergy := xmath.Abs(m.vx) + xmath.Abs(m.vy) + xmath.Abs(m.vz)
-		return total + potentialEnergy*kineticEnergy
-	}, 0, moons)
+		return potentialEnergy * kineticEnergy
+	})
 }
 
 func day12p01(r io.Reader) (string, error) {
@@ -112,13 +113,13 @@ func getAxisState(moons []*Moon, axis int) axisState {
 
 	for i, m := range moons {
 		switch axis {
-		case 0: // x
+		case 0:
 			state.positions[i] = m.x
 			state.velocities[i] = m.vx
-		case 1: // y
+		case 1:
 			state.positions[i] = m.y
 			state.velocities[i] = m.vy
-		case 2: // z
+		case 2:
 			state.positions[i] = m.z
 			state.velocities[i] = m.vz
 		}

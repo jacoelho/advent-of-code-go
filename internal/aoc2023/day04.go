@@ -10,7 +10,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type card struct {
@@ -22,16 +21,16 @@ func parseCard(line []byte) (card, error) {
 	parts := strings.Split(string(line), ": ")
 	numberParts := strings.Split(parts[1], " | ")
 
-	winning := collections.NewSetFromIter(xiter.Map(aoc.MustAtoi, strings.FieldsSeq(numberParts[0])))
-	numbers := slices.Collect(xiter.Map(aoc.MustAtoi, strings.FieldsSeq(numberParts[1])))
+	winning := collections.NewSetFromIter(xiter.From(strings.FieldsSeq(numberParts[0])).Map(aoc.MustAtoi).All())
+	numbers := xiter.From(strings.FieldsSeq(numberParts[1])).Map(aoc.MustAtoi).Collect()
 
 	return card{winning: winning, numbers: numbers}, nil
 }
 
 func (c card) matches() int {
-	return xslices.CountFunc(func(n int) bool {
+	return xiter.FromSlice(c.numbers).Filter(func(n int) bool {
 		return c.winning.Contains(n)
-	}, c.numbers)
+	}).Count()
 }
 
 func (c card) score() int {
@@ -45,9 +44,9 @@ func (c card) score() int {
 func day04p01(r io.Reader) (string, error) {
 	s := scanner.NewScanner(r, parseCard)
 
-	total := xiter.Sum(xiter.Map(func(c card) int {
+	total := xiter.From(s.Values()).SumBy(func(c card) int {
 		return c.score()
-	}, s.Values()))
+	})
 
 	if err := s.Err(); err != nil {
 		return "", err
@@ -76,5 +75,5 @@ func day04p02(r io.Reader) (string, error) {
 		}
 	}
 
-	return strconv.Itoa(xslices.Sum(copies)), nil
+	return strconv.Itoa(xiter.Sum(slices.Values(copies))), nil
 }

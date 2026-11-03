@@ -9,7 +9,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-// MaximalCliques runs the Bron-Kerbosch algorithm on a graph.
+// MaximalCliques yields the inclusion-maximal cliques of an undirected graph
+// using the Bron-Kerbosch algorithm. Each yielded set is independent.
 func MaximalCliques[T comparable](graph map[T]collections.Set[T]) iter.Seq[collections.Set[T]] {
 	return func(yield func(collections.Set[T]) bool) {
 		type state struct {
@@ -36,7 +37,7 @@ func MaximalCliques[T comparable](graph map[T]collections.Set[T]) iter.Seq[colle
 			}
 
 			// choose a pivot to reduce the number of iterations
-			pivot, _ := xiter.Next(current.potential.Iter())
+			pivot, _ := xiter.From(current.potential.Iter()).First()
 			nonNeighbors := current.potential.Difference(graph[pivot])
 
 			for vertex := range nonNeighbors.Iter() {
@@ -48,7 +49,8 @@ func MaximalCliques[T comparable](graph map[T]collections.Set[T]) iter.Seq[colle
 					excluded:      current.excluded.Intersect(neighbors),
 				})
 
-				// update potential and excluded sets for backtracking
+				// Exclude this vertex from later branches to avoid yielding the
+				// same clique twice.
 				current.potential.Remove(vertex)
 				current.excluded.Add(vertex)
 			}
