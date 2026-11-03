@@ -155,15 +155,7 @@ func (g storageGrid) moveCompactStorage(movable []bool, empty int) (int, error) 
 		goal := g.nodes[s.goal].position
 		return goal.Distance(g.nodes[g.origin].position) + goal.Distance(g.nodes[s.empty].position) - 1
 	}
-	expanded := 0
-	exhausted := false
-	neighbours := func(current state) []state {
-		expanded++
-		if expanded > 1_000_000 {
-			exhausted = true
-			return nil
-		}
-		var next []state
+	edges := func(current state, yield func(state, int) bool) error {
 		for _, from := range g.adjacent[current.empty] {
 			if !movable[from] {
 				continue
@@ -172,13 +164,17 @@ func (g storageGrid) moveCompactStorage(movable []bool, empty int) (int, error) 
 			if from == candidate.goal {
 				candidate.goal = current.empty
 			}
-			next = append(next, candidate)
+			if !yield(candidate, 1) {
+				return nil
+			}
 		}
-		return next
+		return nil
 	}
-	cost, _, found := search.AStar(state{g.goal, empty}, neighbours, heuristic, search.ConstantStepCost[state])
-	if exhausted {
-		return 0, fmt.Errorf("compact storage search exceeded one million expansions")
+	cost, found, err := search.AStarDistance(state{g.goal, empty}, func(s state) bool {
+		return s.goal == g.origin
+	}, edges, heuristic, search.Limits{MaxExpanded: 1_000_000})
+	if err != nil {
+		return 0, fmt.Errorf("compact storage search: %w", err)
 	}
 	if !found {
 		return 0, fmt.Errorf("goal data cannot reach the access node")

@@ -153,6 +153,7 @@ func TestReactionErrors(t *testing.T) {
 		"1 ORE => 1 FUEL\n2 ORE => 1 FUEL",
 		"1 A => 1 FUEL",
 		"1 A => 1 FUEL\n1 FUEL => 1 A",
+		"1 ORE => 1 FUEL\n1 B => 1 A\n1 A => 1 B",
 	} {
 		for _, solve := range []func(io.Reader) (string, error){day14p01, day14p02} {
 			if _, err := solve(strings.NewReader(input)); err == nil {

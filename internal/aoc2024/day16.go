@@ -37,8 +37,8 @@ type reindeerState struct {
 	direction grid.Position2D[int]
 }
 
-func reindeerNeighbours(maze grid.Grid2D[int, rune]) func(p reindeerState) []reindeerState {
-	return func(p reindeerState) []reindeerState {
+func reindeerEdges(maze grid.Grid2D[int, rune]) search.Edges[reindeerState] {
+	return func(p reindeerState, yield func(reindeerState, int) bool) error {
 		forward := reindeerState{
 			position:  p.position.Add(p.direction),
 			direction: p.direction,
@@ -51,30 +51,25 @@ func reindeerNeighbours(maze grid.Grid2D[int, rune]) func(p reindeerState) []rei
 			position:  p.position,
 			direction: p.direction.TurnLeft(),
 		}
-		var result []reindeerState
-		for _, candidate := range []reindeerState{forward, clockwise, counter} {
+		for i, candidate := range [...]reindeerState{forward, clockwise, counter} {
 			if maze[candidate.position] == '.' || maze[candidate.position] == 'E' || maze[candidate.position] == 'S' {
-				result = append(result, candidate)
+				cost := 1000
+				if i == 0 {
+					cost = 1
+				}
+				if !yield(candidate, cost) {
+					return nil
+				}
 			}
 		}
-		return result
+		return nil
 	}
 }
 
-func reindeerHeuristic(maze grid.Grid2D[int, rune]) func(pair reindeerState) int {
-	return func(pair reindeerState) int {
-		if maze[pair.position] == 'E' {
-			return 0
-		}
-		return 1
+func reindeerGoal(maze grid.Grid2D[int, rune]) func(reindeerState) bool {
+	return func(state reindeerState) bool {
+		return maze[state.position] == 'E'
 	}
-}
-
-func reindeerStepCost(p1, p2 reindeerState) int {
-	if p1.position.Add(p1.direction) == p2.position {
-		return 1
-	}
-	return 1000
 }
 
 func day16p01(r io.Reader) (string, error) {
@@ -91,7 +86,10 @@ func day16p01(r io.Reader) (string, error) {
 		direction: grid.Position2D[int]{X: 1, Y: 0},
 	}
 
-	score, _, found := search.AStar(start, reindeerNeighbours(maze), reindeerHeuristic(maze), reindeerStepCost)
+	score, found, err := search.AStarDistance(start, reindeerGoal(maze), reindeerEdges(maze), nil, search.Limits{})
+	if err != nil {
+		return "", fmt.Errorf("reindeer maze: %w", err)
+	}
 	if !found {
 		return "", fmt.Errorf("reindeer maze has no route to the end")
 	}
@@ -113,16 +111,17 @@ func day16p02(r io.Reader) (string, error) {
 		direction: grid.Position2D[int]{X: 1, Y: 0},
 	}
 
-	_, paths, found := search.AStarBag(start, reindeerNeighbours(maze), reindeerHeuristic(maze), reindeerStepCost)
+	_, states, found, err := search.DijkstraOptimalStates(start, reindeerGoal(maze), reindeerEdges(maze), search.Limits{})
+	if err != nil {
+		return "", fmt.Errorf("reindeer maze: %w", err)
+	}
 	if !found {
 		return "", fmt.Errorf("reindeer maze has no route to the end")
 	}
 
 	visited := collections.NewSet[grid.Position2D[int]]()
-	for _, path := range paths {
-		for _, element := range path {
-			visited.Add(element.position)
-		}
+	for _, state := range states {
+		visited.Add(state.position)
 	}
 
 	return strconv.Itoa(visited.Len()), nil

@@ -142,39 +142,30 @@ func day22p02(r io.Reader) (string, error) {
 		pos  grid.Position2D[int]
 		tool int
 	}
-	var searchErr error
-	expanded := 0
-	neighbours := func(current state) []state {
-		if searchErr != nil {
-			return nil
-		}
-		expanded++
-		if expanded > 1_000_000 {
-			searchErr = fmt.Errorf("cave search exceeded 1000000 expansions")
-			return nil
-		}
+	edges := func(current state, yield func(state, int) bool) error {
 		region, err := cave.region(current.pos)
 		if err != nil {
-			searchErr = err
-			return nil
+			return err
 		}
-		var next []state
 		for tool := range 3 {
 			if tool != current.tool && tool != region {
-				next = append(next, state{pos: current.pos, tool: tool})
+				if !yield(state{pos: current.pos, tool: tool}, 7) {
+					return nil
+				}
 			}
 		}
 		for pos := range grid.Neighbours4(current.pos) {
 			region, err := cave.region(pos)
 			if err != nil {
-				searchErr = err
-				return nil
+				return err
 			}
 			if current.tool != region {
-				next = append(next, state{pos: pos, tool: current.tool})
+				if !yield(state{pos: pos, tool: current.tool}, 1) {
+					return nil
+				}
 			}
 		}
-		return next
+		return nil
 	}
 	heuristic := func(current state) int {
 		distance := current.pos.Distance(cave.target)
@@ -183,15 +174,11 @@ func day22p02(r io.Reader) (string, error) {
 		}
 		return distance
 	}
-	stepCost := func(from, to state) int {
-		if from.pos == to.pos {
-			return 7
-		}
-		return 1
-	}
-	minutes, _, found := search.AStar(state{tool: torch}, neighbours, heuristic, stepCost)
-	if searchErr != nil {
-		return "", searchErr
+	minutes, found, err := search.AStarDistance(state{tool: torch}, func(current state) bool {
+		return current.pos == cave.target && current.tool == torch
+	}, edges, heuristic, search.Limits{MaxExpanded: 1_000_000})
+	if err != nil {
+		return "", fmt.Errorf("cave search: %w", err)
 	}
 	if !found {
 		return "", fmt.Errorf("cave target is unreachable with the torch")

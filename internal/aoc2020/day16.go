@@ -1,12 +1,15 @@
 package aoc2020
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 )
 
 type ticketRule struct {
@@ -130,39 +133,6 @@ func day16p01(r io.Reader) (string, error) {
 	return sum.String(), nil
 }
 
-// Match every rule to one column, optionally excluding one edge. Rechecking
-// each selected edge establishes uniqueness without enumerating permutations.
-func matchTicketFields(candidates [][]bool, excludedRule, excludedColumn int) ([]int, bool) {
-	owners := make([]int, len(candidates))
-	for i := range owners {
-		owners[i] = -1
-	}
-	var assign func(int, []bool) bool
-	assign = func(rule int, visited []bool) bool {
-		for column, possible := range candidates[rule] {
-			if !possible || visited[column] || rule == excludedRule && column == excludedColumn {
-				continue
-			}
-			visited[column] = true
-			if owners[column] < 0 || assign(owners[column], visited) {
-				owners[column] = rule
-				return true
-			}
-		}
-		return false
-	}
-	for rule := range candidates {
-		if !assign(rule, make([]bool, len(candidates))) {
-			return nil, false
-		}
-	}
-	columns := make([]int, len(candidates))
-	for column, rule := range owners {
-		columns[rule] = column
-	}
-	return columns, true
-}
-
 func day16p02(r io.Reader) (string, error) {
 	notes, err := parseTicketNotes(r)
 	if err != nil {
@@ -187,28 +157,31 @@ func day16p02(r io.Reader) (string, error) {
 		}
 	}
 
-	candidates := make([][]bool, len(notes.rules))
+	candidates := make([][]int, len(notes.rules))
 	for i, rule := range notes.rules {
-		candidates[i] = make([]bool, len(notes.rules))
 		for column := range notes.rules {
-			candidates[i][column] = true
+			possible := true
 			for _, ticket := range tickets {
 				if !rule.accepts(ticket[column]) {
-					candidates[i][column] = false
+					possible = false
 					break
 				}
+			}
+			if possible {
+				candidates[i] = append(candidates[i], column)
 			}
 		}
 	}
 
-	columns, ok := matchTicketFields(candidates, -1, -1)
-	if !ok {
+	columns, err := graph.UniquePerfectMatching(candidates)
+	if errors.Is(err, graph.ErrNoPerfectMatching) {
 		return "", fmt.Errorf("ticket fields have no complete assignment")
 	}
-	for rule, column := range columns {
-		if _, alternative := matchTicketFields(candidates, rule, column); alternative {
-			return "", fmt.Errorf("ticket field assignment is ambiguous")
-		}
+	if errors.Is(err, graph.ErrAmbiguousMatching) {
+		return "", fmt.Errorf("ticket field assignment is ambiguous")
+	}
+	if err != nil {
+		return "", fmt.Errorf("ticket field assignment: %w", err)
 	}
 
 	product := big.NewInt(1)

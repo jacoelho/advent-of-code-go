@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"io"
+	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
@@ -223,18 +225,15 @@ func allSupportersHaveFallen(brickID int, supportedBy map[int]collections.Set[in
 
 func countFallingBricks(brickID int, supports, supportedBy map[int]collections.Set[int]) int {
 	fallen := collections.NewSet(brickID)
-	queue := collections.NewDeque[int](16)
-	queue.PushBack(brickID)
-
-	for current, ok := queue.PopFront(); ok; current, ok = queue.PopFront() {
-		for supportedID := range supports[current].Iter() {
-			if allSupportersHaveFallen(supportedID, supportedBy, fallen) {
-				if !fallen.Contains(supportedID) {
-					fallen.Add(supportedID)
-					queue.PushBack(supportedID)
+	for range search.BFSWithVisited(brickID, fallen, func(current int) iter.Seq[int] {
+		return func(yield func(int) bool) {
+			for supportedID := range supports[current].Iter() {
+				if allSupportersHaveFallen(supportedID, supportedBy, fallen) && !yield(supportedID) {
+					return
 				}
 			}
 		}
+	}) {
 	}
 
 	return fallen.Len() - 1 // exclude the original brick

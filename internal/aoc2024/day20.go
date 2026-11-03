@@ -42,15 +42,16 @@ func day20Heuristic(raceTrack grid.Grid2D[int, rune]) func(position grid.Positio
 	}
 }
 
-func day20Neighbours(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) []grid.Position2D[int] {
-	return func(position grid.Position2D[int]) []grid.Position2D[int] {
-		var result []grid.Position2D[int]
+func day20Edges(raceTrack grid.Grid2D[int, rune]) search.Edges[grid.Position2D[int]] {
+	return func(position grid.Position2D[int], yield func(grid.Position2D[int], int) bool) error {
 		for p := range grid.Neighbours4(position) {
 			if raceTrack[p] == '.' || raceTrack[p] == 'E' {
-				result = append(result, p)
+				if !yield(p, 1) {
+					return nil
+				}
 			}
 		}
-		return result
+		return nil
 	}
 }
 
@@ -76,10 +77,12 @@ func day20(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		neighbours := day20Neighbours(raceTrack)
-		heuristic := day20Heuristic(raceTrack)
-
-		_, path, found := search.AStar(startPosition, neighbours, heuristic, search.ConstantStepCost)
+		_, path, found, err := search.AStar(startPosition, func(position grid.Position2D[int]) bool {
+			return raceTrack[position] == 'E'
+		}, day20Edges(raceTrack), day20Heuristic(raceTrack), search.Limits{})
+		if err != nil {
+			return "", fmt.Errorf("race track: %w", err)
+		}
 		if !found {
 			return "", fmt.Errorf("race track has no route to the end")
 		}

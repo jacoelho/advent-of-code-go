@@ -6,11 +6,21 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
+// BFSWithVisited marks nodes when queued, using the caller's visited set. The
+// start is always yielded, even if already visited. Stopping skips expansion of
+// the last yielded node but leaves queued nodes marked in visited.
 func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		visited.Add(start)
 		frontier := collections.NewDeque[T](10)
 		frontier.PushBack(start)
+		enqueue := func(node T) bool {
+			if !visited.Contains(node) {
+				visited.Add(node)
+				frontier.PushBack(node)
+			}
+			return true
+		}
 
 		for frontier.Size() > 0 {
 			node, ok := frontier.PopFront()
@@ -18,19 +28,15 @@ func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbour
 				return
 			}
 
-			for el := range neighbours(node) {
-				if visited.Contains(el) {
-					continue
-				}
-				visited.Add(el)
-				frontier.PushBack(el)
-			}
+			neighbours(node)(enqueue)
 		}
 	}
 }
 
 func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
-	return BFSWithVisited(start, collections.NewSet[T](), neighbours)
+	return func(yield func(T) bool) {
+		BFSWithVisited(start, collections.NewSet[T](), neighbours)(yield)
+	}
 }
 
 // BFSTree visits every occurrence without deduplication, preserving child order
@@ -67,59 +73,49 @@ func BFSDistanceTo[T comparable](start, target T, neighbours func(T) iter.Seq[T]
 	if start == target {
 		return 0
 	}
-
-	distances := make(map[T]int)
-	distances[start] = 0
-
-	for node := range BFS(start, neighbours) {
-		currentDist := distances[node]
-
-		if node == target {
-			return currentDist
+	distance := -1
+	bfsDistances(start, neighbours, func(node T, depth int) bool {
+		if node != target {
+			return true
 		}
-
-		for neighbour := range neighbours(node) {
-			if _, seen := distances[neighbour]; !seen {
-				distances[neighbour] = currentDist + 1
-			}
-		}
-	}
-
-	return -1
+		distance = depth
+		return false
+	})
+	return distance
 }
 
 func BFSMaxDistance[T comparable](start T, neighbours func(T) iter.Seq[T]) int {
-	distances := make(map[T]int)
-	distances[start] = 0
-
 	maxDist := 0
-	for node := range BFS(start, neighbours) {
-		currentDist := distances[node]
-		maxDist = max(maxDist, currentDist)
-
-		for neighbour := range neighbours(node) {
-			if _, seen := distances[neighbour]; !seen {
-				distances[neighbour] = currentDist + 1
-			}
-		}
-	}
-
+	bfsDistances(start, neighbours, func(_ T, depth int) bool {
+		maxDist = depth
+		return true
+	})
 	return maxDist
 }
 
 func BFSDistances[T comparable](start T, neighbours func(T) iter.Seq[T]) map[T]int {
-	distances := make(map[T]int)
-	distances[start] = 0
+	return bfsDistances(start, neighbours, nil)
+}
 
-	for node := range BFS(start, neighbours) {
-		currentDist := distances[node]
-
-		for neighbour := range neighbours(node) {
-			if _, seen := distances[neighbour]; !seen {
-				distances[neighbour] = currentDist + 1
-			}
+func bfsDistances[T comparable](start T, neighbours func(T) iter.Seq[T], visit func(T, int) bool) map[T]int {
+	distances := map[T]int{start: 0}
+	frontier := collections.NewDeque[T](10)
+	frontier.PushBack(start)
+	var depth int
+	enqueue := func(neighbour T) bool {
+		if _, seen := distances[neighbour]; !seen {
+			distances[neighbour] = depth + 1
+			frontier.PushBack(neighbour)
 		}
+		return true
 	}
-
+	for frontier.Size() > 0 {
+		node, _ := frontier.PopFront()
+		depth = distances[node]
+		if visit != nil && !visit(node, depth) {
+			break
+		}
+		neighbours(node)(enqueue)
+	}
 	return distances
 }

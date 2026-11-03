@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
@@ -23,17 +23,13 @@ func parseTopographicMap(r io.Reader) (grid.Grid2D[int, int], error) {
 	return grid.NewGrid2D[int, int](slices.Collect(s.Values())), s.Err()
 }
 
-func day10neighbours(m grid.Grid2D[int, int]) func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-	return func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-		return func(yield func(grid.Position2D[int]) bool) {
-			slope := m[p]
-
-			for v := range grid.Neighbours4(p) {
-				if m[v] == slope+1 {
-					if !yield(v) {
-						return
-					}
-				}
+func day10neighbours(m grid.Grid2D[int, int]) func(grid.Position2D[int], func(grid.Position2D[int]) bool) {
+	return func(p grid.Position2D[int], yield func(grid.Position2D[int]) bool) {
+		slope := m[p]
+		for _, offset := range grid.OffsetsNeighbours4[int]() {
+			v := p.Add(offset)
+			if height, exists := m[v]; exists && height == slope+1 && !yield(v) {
+				return
 			}
 		}
 	}
@@ -55,9 +51,13 @@ func day10p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
+	visit := day10neighbours(m)
+	neighbours := func(p grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
+		return func(yield func(grid.Position2D[int]) bool) { visit(p, yield) }
+	}
 	var summits int
 	for _, trail := range trailheads(m) {
-		for position := range search.BFS(trail, day10neighbours(m)) {
+		for position := range search.BFS(trail, neighbours) {
 			if m[position] == 9 {
 				summits++
 			}
@@ -67,38 +67,17 @@ func day10p01(r io.Reader) (string, error) {
 	return strconv.Itoa(summits), nil
 }
 
-func multiVisitBFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		frontier := collections.NewDeque[T](10)
-		frontier.PushBack(start)
-
-		for frontier.Size() > 0 {
-			node, ok := frontier.PopFront()
-			if !ok || !yield(node) {
-				return
-			}
-
-			for el := range neighbours(node) {
-				frontier.PushBack(el)
-			}
-		}
-	}
-}
-
 func day10p02(r io.Reader) (string, error) {
 	m, err := parseTopographicMap(r)
 	if err != nil {
 		return "", err
 	}
 
-	var summits int
-	for _, trail := range trailheads(m) {
-		for position := range multiVisitBFS(trail, day10neighbours(m)) {
-			if m[position] == 9 {
-				summits++
-			}
-		}
+	summits, err := graph.CountDAGPaths(trailheads(m), day10neighbours(m), func(position grid.Position2D[int]) (int, bool) {
+		return 1, m[position] == 9
+	})
+	if err != nil {
+		return "", err
 	}
-
 	return strconv.Itoa(summits), nil
 }

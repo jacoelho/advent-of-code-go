@@ -225,6 +225,14 @@ func TestCircuitWideOutput(t *testing.T) {
 	}
 }
 
+func TestCircuitRepeatedGateInput(t *testing.T) {
+	input := "a: 1\nb: 0\n\nmid XOR mid -> z00\nmid OR mid -> z01\na OR b -> mid"
+	got, err := day24p01(strings.NewReader(input))
+	if err != nil || got != "2" {
+		t.Fatalf("got %q, %v; want 2", got, err)
+	}
+}
+
 func TestCircuitUnsupportedRepair(t *testing.T) {
 	for _, input := range []string{smallCircuitExample, largeCircuitExample} {
 		if got, err := day24p02(strings.NewReader(input)); err == nil {

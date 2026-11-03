@@ -2,6 +2,7 @@ package aoc2018
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"math/bits"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
@@ -123,38 +125,6 @@ func matchingOperations(sample opcodeSample) uint16 {
 	return matches
 }
 
-func matchOpcodes(candidates [16]uint16) ([16]int, bool) {
-	var owners, assignment [16]int
-	for operation := range owners {
-		owners[operation] = -1
-	}
-	var visit func(int, *uint16) bool
-	visit = func(opcode int, seen *uint16) bool {
-		for operation := range 16 {
-			bit := uint16(1) << operation
-			if candidates[opcode]&bit == 0 || *seen&bit != 0 {
-				continue
-			}
-			*seen |= bit
-			if owners[operation] == -1 || visit(owners[operation], seen) {
-				owners[operation] = opcode
-				return true
-			}
-		}
-		return false
-	}
-	for opcode := range 16 {
-		var seen uint16
-		if !visit(opcode, &seen) {
-			return assignment, false
-		}
-	}
-	for operation, opcode := range owners {
-		assignment[opcode] = operation
-	}
-	return assignment, true
-}
-
 func deduceOpcodes(samples []opcodeSample) ([16]int, error) {
 	var candidates [16]uint16
 	for opcode := range candidates {
@@ -163,18 +133,26 @@ func deduceOpcodes(samples []opcodeSample) ([16]int, error) {
 	for _, sample := range samples {
 		candidates[sample.instruction[0]] &= matchingOperations(sample)
 	}
-	assignment, ok := matchOpcodes(candidates)
-	if !ok {
-		return assignment, fmt.Errorf("inconsistent opcode samples")
-	}
-	// Any second assignment must omit at least one edge of the first assignment.
-	for opcode, operation := range assignment {
-		alternative := candidates
-		alternative[opcode] &^= 1 << operation
-		if _, ok := matchOpcodes(alternative); ok {
-			return assignment, fmt.Errorf("ambiguous opcode samples")
+	options := make([][]int, len(candidates))
+	for opcode, mask := range candidates {
+		for operation := range 16 {
+			if mask&(1<<operation) != 0 {
+				options[opcode] = append(options[opcode], operation)
+			}
 		}
 	}
+	var assignment [16]int
+	matched, err := graph.UniquePerfectMatching(options)
+	if errors.Is(err, graph.ErrNoPerfectMatching) {
+		return assignment, fmt.Errorf("inconsistent opcode samples")
+	}
+	if errors.Is(err, graph.ErrAmbiguousMatching) {
+		return assignment, fmt.Errorf("ambiguous opcode samples")
+	}
+	if err != nil {
+		return assignment, fmt.Errorf("opcode mapping: %w", err)
+	}
+	copy(assignment[:], matched)
 	return assignment, nil
 }
 

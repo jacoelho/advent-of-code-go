@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"maps"
 	"math/big"
 	"slices"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 )
 
 type logicGate struct {
@@ -101,31 +103,36 @@ func parseMonitoringDevice(r io.Reader) (monitoringDevice, error) {
 }
 
 func evaluateDevice(device monitoringDevice) (map[string]bool, error) {
+	outputs := make([]string, len(device.gates))
+	byOutput := make(map[string]logicGate, len(device.gates))
+	for i, gate := range device.gates {
+		outputs[i], byOutput[gate.output] = gate.output, gate
+	}
+	order, err := graph.TopologicalOrder(outputs, func(output string) iter.Seq[string] {
+		return func(yield func(string) bool) {
+			gate := byOutput[output]
+			for _, input := range [...]string{gate.left, gate.right} {
+				if _, initial := device.initial[input]; !initial && !yield(input) {
+					return
+				}
+			}
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("circuit dependencies: %w", err)
+	}
 	values := maps.Clone(device.initial)
-	pending := slices.Clone(device.gates)
-	for len(pending) > 0 {
-		before := len(pending)
-		next := pending[:0]
-		for _, gate := range pending {
-			left, haveLeft := values[gate.left]
-			right, haveRight := values[gate.right]
-			if !haveLeft || !haveRight {
-				next = append(next, gate)
-				continue
-			}
-			switch gate.operation {
-			case "AND":
-				values[gate.output] = left && right
-			case "OR":
-				values[gate.output] = left || right
-			case "XOR":
-				values[gate.output] = left != right
-			}
+	for i := len(order) - 1; i >= 0; i-- {
+		gate := byOutput[order[i]]
+		left, right := values[gate.left], values[gate.right]
+		switch gate.operation {
+		case "AND":
+			values[gate.output] = left && right
+		case "OR":
+			values[gate.output] = left || right
+		case "XOR":
+			values[gate.output] = left != right
 		}
-		if len(next) == before {
-			return nil, fmt.Errorf("circuit has an unresolved dependency cycle")
-		}
-		pending = next
 	}
 	return values, nil
 }

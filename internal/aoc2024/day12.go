@@ -82,19 +82,15 @@ func calculateFencePrice(
 ) int {
 	visited := collections.NewSet[grid.Position2D[int]]()
 
-	var regions []collections.Set[grid.Position2D[int]]
-	for position, plant := range plots {
-		neighbours := day12neighbours(plots, plant)
-
-		if !visited.Contains(position) {
-			region := slices.Collect(search.BFS(position, neighbours))
-			regions = append(regions, collections.NewSet(region...))
-			visited.Add(region...)
-		}
-	}
-
 	var total int
-	for _, region := range regions {
+	for position, plant := range plots {
+		if visited.Contains(position) {
+			continue
+		}
+		region := collections.NewSet[grid.Position2D[int]]()
+		for point := range search.BFSWithVisited(position, visited, day12neighbours(plots, plant)) {
+			region.Add(point)
+		}
 		total += cost(region) * region.Len()
 	}
 

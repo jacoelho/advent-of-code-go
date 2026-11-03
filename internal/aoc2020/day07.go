@@ -3,10 +3,13 @@ package aoc2020
 import (
 	"fmt"
 	"io"
+	"iter"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 type bagContents struct {
@@ -67,17 +70,13 @@ func day07p01(r io.Reader) (string, error) {
 			parents[child.color] = append(parents[child.color], color)
 		}
 	}
-	seen := map[string]bool{"shiny gold": true}
-	queue := []string{"shiny gold"}
-	for i := 0; i < len(queue); i++ {
-		for _, parent := range parents[queue[i]] {
-			if !seen[parent] {
-				seen[parent] = true
-				queue = append(queue, parent)
-			}
-		}
+	count := -1 // The root is not one of its containing bags.
+	for range search.BFS("shiny gold", func(color string) iter.Seq[string] {
+		return slices.Values(parents[color])
+	}) {
+		count++
 	}
-	return strconv.Itoa(len(seen) - 1), nil
+	return strconv.Itoa(count), nil
 }
 
 func day07p02(r io.Reader) (string, error) {

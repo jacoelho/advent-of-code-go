@@ -3,12 +3,13 @@ package aoc2019
 import (
 	"fmt"
 	"io"
+	"iter"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
@@ -99,35 +100,27 @@ func parseReactions(r io.Reader) (reactionSystem, error) {
 		return reactionSystem{}, fmt.Errorf("missing FUEL recipe")
 	}
 
-	state := make(map[string]uint8)
-	var visit func(string) error
-	visit = func(name string) error {
-		if name == "ORE" || state[name] == 2 {
-			return nil
-		}
-		if state[name] == 1 {
-			return fmt.Errorf("reaction cycle at %s", name)
-		}
-		recipe, exists := system.recipes[name]
-		if !exists {
-			return fmt.Errorf("missing recipe for %s", name)
-		}
-		state[name] = 1
-		for _, ingredient := range recipe.inputs {
-			if err := visit(ingredient.name); err != nil {
-				return err
+	for _, name := range names {
+		for _, ingredient := range system.recipes[name].inputs {
+			if _, exists := system.recipes[ingredient.name]; !exists && ingredient.name != "ORE" {
+				return reactionSystem{}, fmt.Errorf("missing recipe for %s", ingredient.name)
 			}
 		}
-		state[name] = 2
-		system.order = append(system.order, name)
-		return nil
 	}
-	for _, name := range names {
-		if err := visit(name); err != nil {
-			return reactionSystem{}, err
+	// Demand flows from consumers to their ingredients, opposite evaluation order.
+	order, err := graph.TopologicalOrder(names, func(name string) iter.Seq[string] {
+		return func(yield func(string) bool) {
+			for _, ingredient := range system.recipes[name].inputs {
+				if ingredient.name != "ORE" && !yield(ingredient.name) {
+					return
+				}
+			}
 		}
+	})
+	if err != nil {
+		return reactionSystem{}, fmt.Errorf("reaction dependencies: %w", err)
 	}
-	slices.Reverse(system.order)
+	system.order = order
 	return system, nil
 }
 

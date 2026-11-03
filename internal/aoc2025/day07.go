@@ -3,13 +3,14 @@ package aoc2025
 import (
 	"fmt"
 	"io"
+	"iter"
 	"math/big"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 func parseTachyonManifoldDiagram(r io.Reader) (
@@ -84,30 +85,28 @@ func day07p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	seen := collections.NewSet[grid.Position2D[int]]()
-
-	var countBeamSplits func(pos grid.Position2D[int]) int
-	countBeamSplits = func(pos grid.Position2D[int]) int {
-		splitter, found := traceTachyonBeam(diagram, pos)
-		if !found {
-			return 0
-		}
-		if seen.Contains(splitter) {
-			return 0
-		}
-		seen.Add(splitter)
-
-		count := 1
-		if leftPos := grid.NewPosition2D(splitter.X-1, splitter.Y); diagram.Contains(leftPos) {
-			count += countBeamSplits(leftPos)
-		}
-		if rightPos := grid.NewPosition2D(splitter.X+1, splitter.Y); diagram.Contains(rightPos) {
-			count += countBeamSplits(rightPos)
-		}
-		return count
+	first, found := traceTachyonBeam(diagram, start)
+	if !found {
+		return "0", nil
 	}
-
-	return strconv.Itoa(countBeamSplits(start)), nil
+	children := func(splitter grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
+		return func(yield func(grid.Position2D[int]) bool) {
+			for _, dx := range [...]int{-1, 1} {
+				position := grid.NewPosition2D(splitter.X+dx, splitter.Y)
+				if !diagram.Contains(position) {
+					continue
+				}
+				if next, found := traceTachyonBeam(diagram, position); found && !yield(next) {
+					return
+				}
+			}
+		}
+	}
+	count := 0
+	for range search.DFS(first, children) {
+		count++
+	}
+	return strconv.Itoa(count), nil
 }
 
 func day07p02(r io.Reader) (string, error) {

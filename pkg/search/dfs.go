@@ -6,10 +6,20 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
+// DFSWithVisited marks nodes when pushed, using the caller's visited set. The
+// start is always yielded, even if already visited. Stopping skips expansion of
+// the last yielded node but leaves stacked nodes marked in visited.
 func DFSWithVisited[T comparable](start T, visited collections.Set[T], neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		visited.Add(start)
 		frontier := collections.NewStack[T](start)
+		push := func(node T) bool {
+			if !visited.Contains(node) {
+				visited.Add(node)
+				frontier.Push(node)
+			}
+			return true
+		}
 
 		for frontier.Len() > 0 {
 			node, ok := frontier.Pop()
@@ -17,19 +27,15 @@ func DFSWithVisited[T comparable](start T, visited collections.Set[T], neighbour
 				return
 			}
 
-			for el := range neighbours(node) {
-				if visited.Contains(el) {
-					continue
-				}
-				visited.Add(el)
-				frontier.Push(el)
-			}
+			neighbours(node)(push)
 		}
 	}
 }
 
 func DFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
-	return DFSWithVisited(start, collections.NewSet[T](), neighbours)
+	return func(yield func(T) bool) {
+		DFSWithVisited(start, collections.NewSet[T](), neighbours)(yield)
+	}
 }
 
 // DFSTree visits every occurrence without deduplication, exploring the last child

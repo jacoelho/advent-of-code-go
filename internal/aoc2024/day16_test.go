@@ -121,6 +121,17 @@ func TestReindeerRoutes(t *testing.T) {
 	}
 }
 
+func TestReindeerEqualGoalOrientations(t *testing.T) {
+	const maze = "#######\n#.....#\n#S###E#\n#.....#\n#######"
+	for part, solve := range []func(io.Reader) (string, error){day16p01, day16p02} {
+		want := []string{"3006", "12"}[part]
+		got, err := solve(strings.NewReader(maze))
+		if err != nil || got != want {
+			t.Fatalf("part %d symmetric routes = %q, %v; want %s", part+1, got, err, want)
+		}
+	}
+}
+
 func TestDay16ReaderErrors(t *testing.T) {
 	want := errors.New("input read failure")
 	for _, tt := range []struct {

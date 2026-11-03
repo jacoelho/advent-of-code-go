@@ -11,7 +11,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseFallingBytes(r io.Reader, dimensions, steps int) ([]grid.Position2D[int], error) {
@@ -51,11 +50,14 @@ func parseFallingBytes(r io.Reader, dimensions, steps int) ([]grid.Position2D[in
 	return corrupted, nil
 }
 
-func memoryNeighbours(memory map[grid.Position2D[int]]bool, dimensions int) func(grid.Position2D[int]) []grid.Position2D[int] {
-	return func(p grid.Position2D[int]) []grid.Position2D[int] {
-		return xiter.From(grid.Neighbours4(p)).Filter(func(v grid.Position2D[int]) bool {
-			return v.X >= 0 && v.X <= dimensions && v.Y >= 0 && v.Y <= dimensions && !memory[v]
-		}).Collect()
+func memoryEdges(memory map[grid.Position2D[int]]bool, dimensions int) search.Edges[grid.Position2D[int]] {
+	return func(p grid.Position2D[int], yield func(grid.Position2D[int], int) bool) error {
+		for next := range grid.Neighbours4(p) {
+			if next.X <= dimensions && next.Y <= dimensions && !memory[next] && !yield(next, 1) {
+				return nil
+			}
+		}
+		return nil
 	}
 }
 
@@ -65,7 +67,7 @@ func memoryHeuristic(dimensions int) func(grid.Position2D[int]) int {
 	}
 }
 
-func memoryRoute(corrupted []grid.Position2D[int], dimensions, steps int) (int, bool) {
+func memoryRoute(corrupted []grid.Position2D[int], dimensions, steps int) (int, bool, error) {
 	memory := make(map[grid.Position2D[int]]bool, steps)
 	for _, position := range corrupted[:steps] {
 		memory[position] = true
@@ -73,15 +75,15 @@ func memoryRoute(corrupted []grid.Position2D[int], dimensions, steps int) (int, 
 	start := grid.NewPosition2D(0, 0)
 	end := grid.NewPosition2D(dimensions, dimensions)
 	if memory[start] || memory[end] {
-		return 0, false
+		return 0, false, nil
 	}
-	cost, _, found := search.AStar(
+	return search.AStarDistance(
 		start,
-		memoryNeighbours(memory, dimensions),
+		func(position grid.Position2D[int]) bool { return position == end },
+		memoryEdges(memory, dimensions),
 		memoryHeuristic(dimensions),
-		search.ConstantStepCost,
+		search.Limits{},
 	)
-	return cost, found
 }
 
 func day18p01(dimensions, steps int) func(io.Reader) (string, error) {
@@ -90,7 +92,10 @@ func day18p01(dimensions, steps int) func(io.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		cost, found := memoryRoute(corrupted, dimensions, steps)
+		cost, found, err := memoryRoute(corrupted, dimensions, steps)
+		if err != nil {
+			return "", fmt.Errorf("memory route: %w", err)
+		}
 		if !found {
 			return "", fmt.Errorf("no route through memory after %d falling bytes", steps)
 		}
@@ -104,15 +109,17 @@ func day18p02(dimensions, steps int) func(io.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, found := memoryRoute(corrupted, dimensions, steps); !found {
+		if _, found, err := memoryRoute(corrupted, dimensions, steps); err != nil {
+			return "", fmt.Errorf("memory prefix route: %w", err)
+		} else if !found {
 			return "", fmt.Errorf("memory prefix of %d bytes already blocks the route", steps)
 		}
 		if steps == len(corrupted) {
 			return "", fmt.Errorf("no falling byte blocks the route")
 		}
 		prefix, err := search.BinarySearch(steps+1, len(corrupted), func(prefix int) (bool, error) {
-			_, found := memoryRoute(corrupted, dimensions, prefix)
-			return !found, nil
+			_, found, err := memoryRoute(corrupted, dimensions, prefix)
+			return !found, err
 		})
 		if err != nil {
 			return "", fmt.Errorf("find first blocking byte: %w", err)
