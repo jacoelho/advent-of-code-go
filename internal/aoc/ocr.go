@@ -1,6 +1,9 @@
 package aoc
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Decode6RowDisplay reads fixed four- or five-column cells in the AoC six-row
 // font. '#' is lit; '.' and space are dark. Blank cells decode as spaces.
@@ -20,10 +23,10 @@ func Decode6RowDisplay(rows []string, cellWidth int) (string, error) {
 	}
 	text := make([]byte, 0, width/cellWidth)
 	for start := 0; start < width; start += cellWidth {
-		mask := uint32(displayMask(rows, start, start+cellWidth, 5))
-		letter, ok := sixRowLetter(mask)
+		glyph := displayGlyph(rows, start, start+cellWidth, 5, 0)
+		letter, ok := sixRowLetter(glyph)
 		if !ok {
-			return "", fmt.Errorf("unknown display glyph in cell %d (mask %#x)", start/cellWidth, mask)
+			return "", fmt.Errorf("unknown display glyph in cell %d:%s", start/cellWidth, displayGlyph(rows, start, start+cellWidth, cellWidth, 0))
 		}
 		text = append(text, letter)
 	}
@@ -50,18 +53,25 @@ func validateDisplay(rows []string) (int, error) {
 	return width, nil
 }
 
-func displayMask(rows []string, start, end, maskWidth int) uint64 {
-	var mask uint64
+// displayGlyph normalizes dark pixels and pads each row to the font's width.
+// Surrounding newlines align the rows in the lookup tables' raw string literals.
+func displayGlyph(rows []string, start, end, width, leftPadding int) string {
+	var glyph strings.Builder
+	glyph.Grow(len(rows)*(width+1) + 1)
+	glyph.WriteByte('\n')
 	for _, row := range rows {
-		for x := range maskWidth {
-			mask <<= 1
-			if start+x < end && row[start+x] == '#' {
-				mask |= 1
+		for x := range width {
+			pixel := byte('.')
+			column := start + x - leftPadding
+			if column >= start && column < end && row[column] == '#' {
+				pixel = '#'
 			}
+			glyph.WriteByte(pixel)
 		}
+		glyph.WriteByte('\n')
 	}
 
-	return mask
+	return glyph.String()
 }
 
 // DecodeSeparatedDisplay reads the six-, eight- or ten-row AoC font.
@@ -76,9 +86,9 @@ func DecodeSeparatedDisplay(rows []string) (string, error) {
 		return "", err
 	}
 
-	maskWidth := 6
+	glyphWidth := 6
 	if len(rows) != 10 {
-		maskWidth = 5
+		glyphWidth = 5
 	}
 	columnLit := func(x int) bool {
 		for _, row := range rows {
@@ -99,25 +109,23 @@ func DecodeSeparatedDisplay(rows []string) (string, error) {
 		for x < width && columnLit(x) {
 			x++
 		}
-		if x-start > maskWidth {
+		if x-start > glyphWidth {
 			return "", fmt.Errorf("display glyph at column %d is too wide", start)
 		}
-		mask := displayMask(rows, start, x, maskWidth)
+		glyph := displayGlyph(rows, start, x, glyphWidth, 0)
 		var letter byte
 		var ok bool
 		if len(rows) == 6 {
 			// Cropping can remove leading blank columns, as in I and T.
-			for padding := 0; padding <= maskWidth-(x-start); padding++ {
-				letter, ok = sixRowLetter(uint32(mask >> padding))
-				if ok {
-					break
-				}
+			letter, ok = sixRowLetter(glyph)
+			for padding := 1; !ok && padding <= glyphWidth-(x-start); padding++ {
+				letter, ok = sixRowLetter(displayGlyph(rows, start, x, glyphWidth, padding))
 			}
 		} else {
-			letter, ok = tallDisplayLetter(len(rows), mask)
+			letter, ok = tallDisplayLetter(len(rows), glyph)
 		}
 		if !ok {
-			return "", fmt.Errorf("unknown display glyph at column %d (mask %#x)", start, mask)
+			return "", fmt.Errorf("unknown display glyph at column %d:%s", start, displayGlyph(rows, start, x, x-start, 0))
 		}
 		text = append(text, letter)
 	}
@@ -125,110 +133,481 @@ func DecodeSeparatedDisplay(rows []string) (string, error) {
 	return string(text), nil
 }
 
-// Five bits per row retain full-width glyphs such as Y; most letters leave the fifth column dark.
-func sixRowLetter(mask uint32) (byte, bool) {
-	switch mask {
-	case 0x19297A52:
+// Five columns preserve full-width letters such as Y; most letters leave the last column dark.
+func sixRowLetter(glyph string) (byte, bool) {
+	switch glyph {
+	case `
+.##..
+#..#.
+#..#.
+####.
+#..#.
+#..#.
+`:
 		return 'A', true
-	case 0x392E4A5C:
+	case `
+###..
+#..#.
+###..
+#..#.
+#..#.
+###..
+`:
 		return 'B', true
-	case 0x1928424C:
+	case `
+.##..
+#..#.
+#....
+#....
+#..#.
+.##..
+`:
 		return 'C', true
-	case 0x39294A5C:
+	case `
+###..
+#..#.
+#..#.
+#..#.
+#..#.
+###..
+`:
 		return 'D', true
-	case 0x3D0E421E:
+	case `
+####.
+#....
+###..
+#....
+#....
+####.
+`:
 		return 'E', true
-	case 0x3D0E4210:
+	case `
+####.
+#....
+###..
+#....
+#....
+#....
+`:
 		return 'F', true
-	case 0x19285A4E:
+	case `
+.##..
+#..#.
+#....
+#.##.
+#..#.
+.###.
+`:
 		return 'G', true
-	case 0x252F4A52:
+	case `
+#..#.
+#..#.
+####.
+#..#.
+#..#.
+#..#.
+`:
 		return 'H', true
-	case 0x1C42108E:
+	case `
+.###.
+..#..
+..#..
+..#..
+..#..
+.###.
+`:
 		return 'I', true
-	case 0x0C210A4C:
+	case `
+..##.
+...#.
+...#.
+...#.
+#..#.
+.##..
+`:
 		return 'J', true
-	case 0x254C5292:
+	case `
+#..#.
+#.#..
+##...
+#.#..
+#.#..
+#..#.
+`:
 		return 'K', true
-	case 0x2108421E:
+	case `
+#....
+#....
+#....
+#....
+#....
+####.
+`:
 		return 'L', true
-	case 0x23BAC631:
+	case `
+#...#
+##.##
+#.#.#
+#...#
+#...#
+#...#
+`:
 		return 'M', true
-	case 0x252D5A52:
+	case `
+#..#.
+#..#.
+##.#.
+#.##.
+#..#.
+#..#.
+`:
 		return 'N', true
-	case 0x19294A4C:
+	case `
+.##..
+#..#.
+#..#.
+#..#.
+#..#.
+.##..
+`:
 		return 'O', true
-	case 0x39297210:
+	case `
+###..
+#..#.
+#..#.
+###..
+#....
+#....
+`:
 		return 'P', true
-	case 0x19295A4D:
+	case `
+.##..
+#..#.
+#..#.
+#.##.
+#..#.
+.##.#
+`:
 		return 'Q', true
-	case 0x39297292:
+	case `
+###..
+#..#.
+#..#.
+###..
+#.#..
+#..#.
+`:
 		return 'R', true
-	case 0x1D08305C:
+	case `
+.###.
+#....
+#....
+.##..
+...#.
+###..
+`:
 		return 'S', true
-	case 0x1C421084:
+	case `
+.###.
+..#..
+..#..
+..#..
+..#..
+..#..
+`:
 		return 'T', true
-	case 0x25294A4C:
+	case `
+#..#.
+#..#.
+#..#.
+#..#.
+#..#.
+.##..
+`:
 		return 'U', true
-	case 0x2318A944:
+	case `
+#...#
+#...#
+#...#
+.#.#.
+.#.#.
+..#..
+`:
 		return 'V', true
-	case 0x231AD6AA:
+	case `
+#...#
+#...#
+#.#.#
+#.#.#
+#.#.#
+.#.#.
+`:
 		return 'W', true
-	case 0x22A22951:
+	case `
+#...#
+.#.#.
+..#..
+.#.#.
+.#.#.
+#...#
+`:
 		return 'X', true
-	case 0x23151084:
+	case `
+#...#
+#...#
+.#.#.
+..#..
+..#..
+..#..
+`:
 		return 'Y', true
-	case 0x3C22221E:
+	case `
+####.
+...#.
+..#..
+.#...
+#....
+####.
+`:
 		return 'Z', true
-	case 0:
+	case `
+.....
+.....
+.....
+.....
+.....
+.....
+`:
 		return ' ', true
 	default:
 		return 0, false
 	}
 }
 
-// Ten-row glyphs: mstksg/advent-of-code-ocr, LetterMap.hs, rawLetterforms2.
-func tallDisplayLetter(height int, mask uint64) (byte, bool) {
+func tallDisplayLetter(height int, glyph string) (byte, bool) {
 	if height == 8 {
-		switch mask {
-		case 0x8c63f8c631:
+		switch glyph {
+		case `
+#...#
+#...#
+#...#
+#####
+#...#
+#...#
+#...#
+#...#
+`:
 			return 'H', true
-		case 0xe21084211c:
+		case `
+###..
+.#...
+.#...
+.#...
+.#...
+.#...
+.#...
+###..
+`:
 			return 'I', true
 		}
 		return 0, false
 	}
 
-	switch mask {
-	case 0x31286187f861861:
+	switch glyph {
+	case `
+..##..
+.#..#.
+#....#
+#....#
+#....#
+######
+#....#
+#....#
+#....#
+#....#
+`:
 		return 'A', true
-	case 0xfa1861fa186187e:
+	case `
+#####.
+#....#
+#....#
+#....#
+#####.
+#....#
+#....#
+#....#
+#....#
+#####.
+`:
 		return 'B', true
-	case 0x7a182082082085e:
+	case `
+.####.
+#....#
+#.....
+#.....
+#.....
+#.....
+#.....
+#.....
+#....#
+.####.
+`:
 		return 'C', true
-	case 0xfe0820fa082083f:
+	case `
+######
+#.....
+#.....
+#.....
+#####.
+#.....
+#.....
+#.....
+#.....
+######
+`:
 		return 'E', true
-	case 0xfe0820fa0820820:
+	case `
+######
+#.....
+#.....
+#.....
+#####.
+#.....
+#.....
+#.....
+#.....
+#.....
+`:
 		return 'F', true
-	case 0x7a18208278618dd:
+	case `
+.####.
+#....#
+#.....
+#.....
+#.....
+#..###
+#....#
+#....#
+#...##
+.###.#
+`:
 		return 'G', true
-	case 0x861861fe1861861:
+	case `
+#....#
+#....#
+#....#
+#....#
+######
+#....#
+#....#
+#....#
+#....#
+#....#
+`:
 		return 'H', true
-	case 0x1c20820820a289c:
+	case `
+...###
+....#.
+....#.
+....#.
+....#.
+....#.
+....#.
+#...#.
+#...#.
+.###..
+`:
 		return 'J', true
-	case 0x862928c30a248a1:
+	case `
+#....#
+#...#.
+#..#..
+#.#...
+##....
+##....
+#.#...
+#..#..
+#...#.
+#....#
+`:
 		return 'K', true
-	case 0x82082082082083f:
+	case `
+#.....
+#.....
+#.....
+#.....
+#.....
+#.....
+#.....
+#.....
+#.....
+######
+`:
 		return 'L', true
-	case 0x871c69a659638e1:
+	case `
+#....#
+##...#
+##...#
+#.#..#
+#.#..#
+#..#.#
+#..#.#
+#...##
+#...##
+#....#
+`:
 		return 'N', true
-	case 0xfa1861fa0820820:
+	case `
+#####.
+#....#
+#....#
+#....#
+#####.
+#.....
+#.....
+#.....
+#.....
+#.....
+`:
 		return 'P', true
-	case 0xfa1861fa48a2861:
+	case `
+#####.
+#....#
+#....#
+#....#
+#####.
+#..#..
+#...#.
+#...#.
+#....#
+#....#
+`:
 		return 'R', true
-	case 0x86149230c492861:
+	case `
+#....#
+#....#
+.#..#.
+.#..#.
+..##..
+..##..
+.#..#.
+.#..#.
+#....#
+#....#
+`:
 		return 'X', true
-	case 0xfc104210842083f:
+	case `
+######
+.....#
+.....#
+....#.
+...#..
+..#...
+.#....
+#.....
+#.....
+######
+`:
 		return 'Z', true
 	default:
 		return 0, false

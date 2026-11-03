@@ -5,6 +5,36 @@ import (
 	"testing"
 )
 
+func TestDecodeSixRowAlphabet(t *testing.T) {
+	const display = `.##..###...##..###..####.####..##..#..#..###...##.#..#.#....#...##..#..##..###...##..###...###..###.#..#.#...##...##...##...#####.
+#..#.#..#.#..#.#..#.#....#....#..#.#..#...#.....#.#.#..#....##.###..#.#..#.#..#.#..#.#..#.#......#..#..#.#...##...#.#.#.#...#...#.
+#..#.###..#....#..#.###..###..#....####...#.....#.##...#....#.#.###.#.#..#.#..#.#..#.#..#.#......#..#..#.#...##.#.#..#...#.#...#..
+####.#..#.#....#..#.#....#....#.##.#..#...#.....#.#.#..#....#...##.##.#..#.###..#.##.###...##....#..#..#..#.#.#.#.#.#.#...#...#...
+#..#.#..#.#..#.#..#.#....#....#..#.#..#...#..#..#.#.#..#....#...##..#.#..#.#....#..#.#.#.....#...#..#..#..#.#.#.#.#.#.#...#..#....
+#..#.###...##..###..####.#.....###.#..#..###..##..#..#.####.#...##..#..##..#.....##.##..#.###....#...##....#...#.#.#...#..#..####.`
+	const want = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	rows := strings.Split(display, "\n")
+	got, err := Decode6RowDisplay(rows, 5)
+	if err != nil || got != want {
+		t.Fatalf("fixed alphabet = %q, %v; want %q", got, err, want)
+	}
+
+	separated := make([]string, len(rows))
+	for y, row := range rows {
+		var spaced strings.Builder
+		spaced.WriteString("..")
+		for start := 0; start < len(row); start += 5 {
+			spaced.WriteString(row[start : start+5])
+			spaced.WriteString("..")
+		}
+		separated[y] = spaced.String()
+	}
+	got, err = DecodeSeparatedDisplay(separated)
+	if err != nil || got != want {
+		t.Fatalf("separated alphabet = %q, %v; want %q", got, err, want)
+	}
+}
+
 func TestDecodeSeparatedDisplay(t *testing.T) {
 	tests := []struct {
 		name, display, want string
@@ -119,6 +149,54 @@ func TestDecode6RowDisplayErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := Decode6RowDisplay(tt.rows, tt.cellWidth); err == nil {
 				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestUnknownDisplayGlyphDiagnostics(t *testing.T) {
+	const glyph = "#...\n.#..\n..#.\n...#\n#...\n.#.."
+	for _, tt := range []struct {
+		name, location string
+		rows           []string
+		decode         func([]string) (string, error)
+	}{
+		{
+			name:     "fixed cell",
+			location: "cell 1",
+			rows: []string{
+				".##.#   ",
+				"#..# #  ",
+				"#..#  # ",
+				"####   #",
+				"#..##   ",
+				"#..# #  ",
+			},
+			decode: func(rows []string) (string, error) {
+				return Decode6RowDisplay(rows, 4)
+			},
+		},
+		{
+			name:     "separated glyph",
+			location: "column 5",
+			rows: []string{
+				".##..#   ",
+				"#..#. #  ",
+				"#..#.  # ",
+				"####.   #",
+				"#..#.#   ",
+				"#..#. #  ",
+			},
+			decode: DecodeSeparatedDisplay,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.decode(tt.rows)
+			if err == nil || got != "" {
+				t.Fatalf("got %q, %v; want an unknown-glyph error without partial text", got, err)
+			}
+			if message := err.Error(); !strings.Contains(message, tt.location) || !strings.Contains(message, glyph) {
+				t.Fatalf("error %q must identify %s and show the normalized glyph:\n%s", message, tt.location, glyph)
 			}
 		})
 	}
