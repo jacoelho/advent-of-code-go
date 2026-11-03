@@ -51,20 +51,30 @@ type yearResults struct {
 }
 
 func main() {
-	var year int
-	flag.IntVar(&year, "year", 0, "specific year to test (0 for all years)")
-	flag.Parse()
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
-	if err := run(ctx, year, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	exitCode := run(ctx, os.Args[1:])
+	stop()
+	os.Exit(exitCode)
 }
 
-func run(ctx context.Context, year int, output io.Writer) error {
+func run(ctx context.Context, args []string) int {
+	flags := flag.NewFlagSet("test-timings", flag.ContinueOnError)
+	year := flags.Int("year", 0, "specific year to test (0 for all years)")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+
+	if err := runTimings(ctx, *year, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+func runTimings(ctx context.Context, year int, output io.Writer) error {
 	years, err := discoverAvailableYears()
 	if err != nil {
 		return err
