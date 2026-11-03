@@ -1,9 +1,11 @@
 package aoc2023
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -153,5 +155,29 @@ func TestPulseEqualDepthOrdering(t *testing.T) {
 		if err != nil || got.String() != tt.want {
 			t.Fatalf("next low = %v, %v; want %s", got, err, tt.want)
 		}
+	}
+}
+
+func TestDay20ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day20p01, "broadcaster -> rx\n"},
+		{"part2", day20p02, "broadcaster -> rx\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, mode := range []struct{ name, prefix string }{{"immediate", ""}, {"after prefix", tt.prefix}} {
+				t.Run(mode.name, func(t *testing.T) {
+					input := io.MultiReader(strings.NewReader(mode.prefix), iotest.ErrReader(failure))
+					_, err := tt.solve(input)
+					if !errors.Is(err, failure) {
+						t.Fatalf("got %v, want reader failure", err)
+					}
+				})
+			}
+		})
 	}
 }

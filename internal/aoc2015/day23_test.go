@@ -1,8 +1,11 @@
 package aoc2015
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -27,6 +30,18 @@ func TestTinyComputerHalvesAndBranches(t *testing.T) {
 	for _, input := range []string{"jmp +0", "inc c", "wat a", "jie a, x"} {
 		if _, err := day23p01(strings.NewReader(input)); err == nil {
 			t.Errorf("accepted %q", input)
+		}
+	}
+}
+
+func TestDay23ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day23p01,
+		day23p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error = %v; want wrapped input failure", err)
 		}
 	}
 }

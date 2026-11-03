@@ -1,8 +1,11 @@
 package aoc2016
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -37,5 +40,17 @@ func TestStorageCannotSplitGoalData(t *testing.T) {
 	input := "/dev/grid/node-x0-y0 3T 2T 1T 66%\n/dev/grid/node-x1-y0 10T 5T 5T 50%\n/dev/grid/node-x1-y1 10T 0T 10T 0%"
 	if _, err := day22p02(strings.NewReader(input)); err == nil {
 		t.Fatal("goal payload cannot fit access node")
+	}
+}
+
+func TestDay22ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day22p01,
+		day22p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error%v lost input cause", err)
+		}
 	}
 }

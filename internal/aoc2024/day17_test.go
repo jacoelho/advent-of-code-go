@@ -1,11 +1,13 @@
 package aoc2024
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -112,5 +114,26 @@ func TestComputerInputErrors(t *testing.T) {
 				t.Fatalf("input %q: expected parse error", input)
 			}
 		}
+	}
+}
+
+func TestDay17ReaderErrors(t *testing.T) {
+	want := errors.New("input read failure")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day17p01, "Register A: 0\nRegister B: 0\nRegister C: 0\n\nProgram: 0,3,5,4,3,0\n"},
+		{"part2", day17p02, "Register A: 0\nRegister B: 0\nRegister C: 0\n\nProgram: 0,3,5,4,3,0\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				r := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(want))
+				if _, err := tt.solve(r); !errors.Is(err, want) {
+					t.Errorf("prefix %q: got %v, want reader error", prefix, err)
+				}
+			}
+		})
 	}
 }

@@ -1,7 +1,10 @@
 package aoc2015
 
 import (
+	"errors"
+	"io"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -23,5 +26,17 @@ func TestEquipmentCombat(t *testing.T) {
 	}
 	if playerWins(combatStats{1, 1, 100}, combatStats{2, 1, 100}) {
 		t.Fatal("boss survives the first hit")
+	}
+}
+
+func TestDay21ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day21p01,
+		day21p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error = %v; want wrapped input failure", err)
+		}
 	}
 }

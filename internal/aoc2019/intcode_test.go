@@ -1,10 +1,13 @@
 package aoc2019
 
 import (
+	"errors"
+	"io"
 	"math"
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func TestParseIntcodeInput(t *testing.T) {
@@ -132,5 +135,13 @@ func TestIntcodeCloneContinuation(t *testing.T) {
 		if memory[31] != tt.input || memory[32] != tt.want {
 			t.Fatalf("input %d: continuation memory = %v", tt.input, memory[31:33])
 		}
+	}
+}
+
+func TestIntcodeReaderError(t *testing.T) {
+	failure := errors.New("input read failed")
+	reader := io.MultiReader(strings.NewReader("99"), iotest.ErrReader(failure))
+	if _, err := ParseIntcodeInput(reader); !errors.Is(err, failure) {
+		t.Fatalf("got %v, want input failure", err)
 	}
 }

@@ -1,10 +1,12 @@
 package aoc2023
 
 import (
+	"errors"
 	"io"
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -205,5 +207,29 @@ func TestGardenInputErrors(t *testing.T) {
 	}
 	if _, err := repeatedGardenPlots(garden, start, -1); err == nil {
 		t.Fatal("negative repeated steps: expected error")
+	}
+}
+
+func TestDay21ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day21p01, "S\n"},
+		{"part2", day21p02, "S\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, mode := range []struct{ name, prefix string }{{"immediate", ""}, {"after prefix", tt.prefix}} {
+				t.Run(mode.name, func(t *testing.T) {
+					input := io.MultiReader(strings.NewReader(mode.prefix), iotest.ErrReader(failure))
+					_, err := tt.solve(input)
+					if !errors.Is(err, failure) {
+						t.Fatalf("got %v, want reader failure", err)
+					}
+				})
+			}
+		})
 	}
 }

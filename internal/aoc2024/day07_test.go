@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -155,5 +156,26 @@ func Benchmark_day07(b *testing.B) {
 		if err != nil || got != want {
 			b.Fatalf("day07p02() = %q, %v; want %q", got, err, want)
 		}
+	}
+}
+
+func TestDay07ReaderErrors(t *testing.T) {
+	want := errors.New("input read failure")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day07p01, "10: 5 5\n"},
+		{"part2", day07p02, "10: 5 5\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				r := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(want))
+				if _, err := tt.solve(r); !errors.Is(err, want) {
+					t.Errorf("prefix %q: got %v, want reader error", prefix, err)
+				}
+			}
+		})
 	}
 }

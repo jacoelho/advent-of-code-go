@@ -1,9 +1,11 @@
 package aoc2025
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -92,5 +94,26 @@ func TestManifoldInputErrors(t *testing.T) {
 				t.Fatalf("input %q: expected error", input)
 			}
 		}
+	}
+}
+
+func TestDay07ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day07p01, "S\n"},
+		{"part2", day07p02, "S\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				input := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure))
+				if _, err := tt.solve(input); !errors.Is(err, failure) {
+					t.Fatalf("got %v; want reader failure", err)
+				}
+			}
+		})
 	}
 }

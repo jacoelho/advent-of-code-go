@@ -1,8 +1,11 @@
 package aoc2015
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -47,4 +50,38 @@ func Test_day07p02(t *testing.T) {
 		{Input: strings.NewReader("1 -> b\nb LSHIFT 1 -> a"), Want: "4"},
 		{Input: aoc.FileInput(t, 2015, 7), Want: "14710"},
 	})
+}
+
+func TestDay07ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"day07p01", day07p01},
+		{"day07p02", day07p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+				t.Fatalf("got error %v, want input failure", err)
+			}
+		})
+	}
+}
+
+func TestDay07MalformedInput(t *testing.T) {
+	tests := []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"circuit operation", "1 XOR 2 -> a", day07p01},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
+	}
 }

@@ -1,9 +1,12 @@
 package aoc2016
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -13,6 +16,7 @@ const scrambleExample = "swap position 4 with position 0\nswap letter d with let
 func Test_day21p01(t *testing.T) {
 	aoc.AOCTest(t, day21p01, []aoc.TestInput{{Input: aoc.FileInput(t, 2016, 21), Want: "gbhafcde"}})
 }
+
 func Test_day21p02(t *testing.T) {
 	aoc.AOCTest(t, day21p02, []aoc.TestInput{{Input: aoc.FileInput(t, 2016, 21), Want: "bcfaegdh"}})
 }
@@ -60,6 +64,18 @@ func TestPasswordScrambling(t *testing.T) {
 		previous, err := unscramblePassword(program, want)
 		if err != nil || previous != "abcdefgh" {
 			t.Errorf("inverse rotate%c=%q,%v", 'a'+i, previous, err)
+		}
+	}
+}
+
+func TestDay21ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day21p01,
+		day21p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error%v lost input cause", err)
 		}
 	}
 }

@@ -1,8 +1,11 @@
 package aoc2016
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -52,5 +55,16 @@ func TestClockTotalBudget(t *testing.T) {
 	}
 	if _, err := clockSeed(program, 20); err == nil || !strings.HasSuffix(err.Error(), "candidate 1") {
 		t.Fatalf("skipped undecided first candidate: %v", err)
+	}
+}
+
+func TestDay25ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day25p01,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error%v lost input cause", err)
+		}
 	}
 }

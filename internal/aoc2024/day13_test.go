@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -118,5 +119,26 @@ func TestClawInvalidInput(t *testing.T) {
 		if _, err := solve(strings.NewReader(input)); !errors.Is(err, strconv.ErrRange) {
 			t.Errorf("got %v, want numeric range error", err)
 		}
+	}
+}
+
+func TestDay13ReaderErrors(t *testing.T) {
+	want := errors.New("input read failure")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day13p01, "Button A: X+1, Y+0\nButton B: X+0, Y+1\nPrize: X=3, Y=3\n\n"},
+		{"part2", day13p02, "Button A: X+1, Y+0\nButton B: X+0, Y+1\nPrize: X=3, Y=3\n\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				r := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(want))
+				if _, err := tt.solve(r); !errors.Is(err, want) {
+					t.Errorf("prefix %q: got %v, want reader error", prefix, err)
+				}
+			}
+		})
 	}
 }

@@ -1,8 +1,11 @@
 package aoc2022
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -50,3 +53,21 @@ func TestBlueprintErrors(t *testing.T) {
 
 const blueprintExample = `Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.
 Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.`
+
+func TestDay19ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day19p01},
+		{"part2", day19p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
+	}
+}

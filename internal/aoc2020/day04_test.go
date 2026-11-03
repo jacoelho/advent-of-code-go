@@ -1,8 +1,11 @@
 package aoc2020
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -46,6 +49,7 @@ iyr:2011 ecl:brn hgt:59in`), Want: "2"},
 	}
 	aoc.AOCTest(t, day04p02, tests)
 }
+
 func TestPassportFieldRules(t *testing.T) {
 	const valid = "byr:2002 iyr:2010 eyr:2030 hgt:150cm hcl:#123abc ecl:brn pid:000000001"
 	for _, tt := range []struct{ old, replacement, want string }{
@@ -72,4 +76,37 @@ func TestPassportFieldRules(t *testing.T) {
 		})
 	}
 	aoc.AOCTest(t, day04p02, []aoc.TestInput{{Input: strings.NewReader(valid), Want: "1"}})
+}
+
+func TestDay04ReadErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"04/1", day04p01},
+		{"04/2", day04p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v, want input failure", err)
+			}
+		})
+	}
+}
+
+func TestDay04MalformedInput(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"passport", "byr", day04p01},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected invalid-input error")
+			}
+		})
+	}
 }

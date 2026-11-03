@@ -1,8 +1,11 @@
 package aoc2022
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -32,5 +35,23 @@ func Test_day08p02(t *testing.T) {
 func TestForestShape(t *testing.T) {
 	if _, err := day08p01(strings.NewReader("12\n3")); err == nil {
 		t.Fatal("expected ragged forest error")
+	}
+}
+
+func TestDay08ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day08p01},
+		{"part2", day08p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
 	}
 }

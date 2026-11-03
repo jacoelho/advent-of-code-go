@@ -1,9 +1,11 @@
 package aoc2025
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -65,6 +67,27 @@ func TestBatteryBankValidation(t *testing.T) {
 						t.Fatalf("got %q without error for malformed bank", result)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestDay03ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day03p01, "123456789012\n"},
+		{"part2", day03p02, "123456789012\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				input := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure))
+				if _, err := tt.solve(input); !errors.Is(err, failure) {
+					t.Fatalf("got %v; want reader failure", err)
+				}
 			}
 		})
 	}

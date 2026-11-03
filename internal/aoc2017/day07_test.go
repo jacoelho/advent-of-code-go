@@ -1,8 +1,11 @@
 package aoc2017
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -116,6 +119,43 @@ y (1)`,
 		t.Run(name, func(t *testing.T) {
 			if _, err := day07p02(strings.NewReader(input)); err == nil {
 				t.Fatal("expected an invalid correction error")
+			}
+		})
+	}
+}
+
+func TestDay07ReadErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"07/1", day07p01},
+		{"07/2", day07p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
+	}
+}
+
+func TestDay07MalformedInput(t *testing.T) {
+	tests := []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"tower cycle", "a (1) -> b\nb (1) -> a", day07p01},
+		{"tower ambiguity", "root (0) -> a, b\na (1)\nb (2)", day07p02},
+		{"single-child ambiguity", "root (0) -> left, right, bad\nleft (10)\nright (10)\nbad (2) -> leaf\nleaf (7)", day07p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected error")
 			}
 		})
 	}

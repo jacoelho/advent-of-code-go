@@ -55,21 +55,21 @@ dark violet bags contain no other bags.`), Want: "126"},
 	}
 	aoc.AOCTest(t, day07p02, tests)
 }
+
 func TestBagRulesCycle(t *testing.T) {
 	if _, err := day07p02(strings.NewReader("shiny gold bags contain 1 dark red bag.\ndark red bags contain 1 shiny gold bag.")); err == nil {
 		t.Fatal("expected cycle error")
 	}
 }
 
-func TestDays07To12ReadErrors(t *testing.T) {
+func TestDay07ReadErrors(t *testing.T) {
 	failure := errors.New("read failure")
 	for _, tt := range []struct {
 		name  string
 		solve func(io.Reader) (string, error)
 	}{
-		{"07/1", day07p01}, {"07/2", day07p02}, {"08/1", day08p01}, {"08/2", day08p02},
-		{"09/1", day09p01}, {"09/2", day09p02}, {"10/1", day10p01}, {"10/2", day10p02},
-		{"11/1", day11p01}, {"11/2", day11p02}, {"12/1", day12p01}, {"12/2", day12p02},
+		{"07/1", day07p01},
+		{"07/2", day07p02},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
@@ -79,17 +79,12 @@ func TestDays07To12ReadErrors(t *testing.T) {
 	}
 }
 
-func TestDays07To12MalformedInputs(t *testing.T) {
+func TestDay07MalformedInput(t *testing.T) {
 	for _, tt := range []struct {
 		name, input string
 		solve       func(io.Reader) (string, error)
 	}{
 		{"bags", "shiny gold bags contain many dark red bags.", day07p01},
-		{"boot", "mul +1", day08p01},
-		{"XMAS", "not a number", day09p01},
-		{"adapters", "-1", day10p01},
-		{"seats", "LL\nL", day11p01},
-		{"navigation", "R45", day12p01},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {

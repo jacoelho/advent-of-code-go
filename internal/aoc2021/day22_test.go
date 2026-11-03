@@ -1,8 +1,11 @@
 package aoc2021
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -119,3 +122,21 @@ off x=-27365..46395,y=31009..98017,z=15428..76570
 off x=-70369..-16548,y=22648..78696,z=-1892..86821
 on x=-53470..21291,y=-120233..-33476,z=-44150..38147
 off x=-93533..-4276,y=-16170..68771,z=-104985..-24507`
+
+func TestDay22ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day22p01},
+		{"part2", day22p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
+	}
+}

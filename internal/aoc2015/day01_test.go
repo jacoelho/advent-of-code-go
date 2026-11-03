@@ -10,62 +10,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
-func Test2015Days01To12ReadErrors(t *testing.T) {
-	failure := errors.New("input failed")
-	tests := []struct {
-		name  string
-		solve func(io.Reader) (string, error)
-	}{
-		{"day01p01", day01p01}, {"day01p02", day01p02},
-		{"day02p01", day02p01}, {"day02p02", day02p02},
-		{"day03p01", day03p01}, {"day03p02", day03p02},
-		{"day04p01", day04p01}, {"day04p02", day04p02},
-		{"day05p01", day05p01}, {"day05p02", day05p02},
-		{"day06p01", day06p01}, {"day06p02", day06p02},
-		{"day07p01", day07p01}, {"day07p02", day07p02},
-		{"day08p01", day08p01}, {"day08p02", day08p02},
-		{"day09p01", day09p01}, {"day09p02", day09p02},
-		{"day10p01", day10p01}, {"day10p02", day10p02},
-		{"day11p01", day11p01}, {"day11p02", day11p02},
-		{"day12p01", day12p01}, {"day12p02", day12p02},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := tt.solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
-				t.Fatalf("got error %v, want input failure", err)
-			}
-		})
-	}
-}
-
-func Test2015Days01To12MalformedInput(t *testing.T) {
-	tests := []struct {
-		name, input string
-		solve       func(io.Reader) (string, error)
-	}{
-		{"floor direction", "(x)", day01p01},
-		{"no basement", "()", day01p02},
-		{"box dimensions", "2x3", day02p01},
-		{"delivery direction", "north", day03p01},
-		{"empty secret", "", day04p01},
-		{"light bounds", "turn on 0,0 through 1000,0", day06p01},
-		{"circuit operation", "1 XOR 2 -> a", day07p01},
-		{"string escape", `"\xgg"`, day08p01},
-		{"route distance", "A to B = nope", day09p01},
-		{"look-and-say digit", "12a", day10p01},
-		{"password length", "abc", day11p01},
-		{"JSON syntax", "[1,", day12p01},
-		{"trailing JSON", "[1] [2]", day12p02},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
-				t.Fatal("expected an error")
-			}
-		})
-	}
-}
-
 func Test_day01p01(t *testing.T) {
 	aoc.AOCTest(t, day01p01, []aoc.TestInput{
 		{Input: strings.NewReader("()()"), Want: "0"},
@@ -80,4 +24,39 @@ func Test_day01p02(t *testing.T) {
 		{Input: strings.NewReader(")"), Want: "1"},
 		{Input: aoc.FileInput(t, 2015, 1), Want: "1797"},
 	})
+}
+
+func TestDay01ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"day01p01", day01p01},
+		{"day01p02", day01p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+				t.Fatalf("got error %v, want input failure", err)
+			}
+		})
+	}
+}
+
+func TestDay01MalformedInput(t *testing.T) {
+	tests := []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"floor direction", "(x)", day01p01},
+		{"no basement", "()", day01p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
+	}
 }

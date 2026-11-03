@@ -42,3 +42,38 @@ func Test_day12p02(t *testing.T) {
 		{Input: aoc.FileInput(t, 2015, 12), Want: "87842"},
 	})
 }
+
+func TestDay12ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"day12p01", day12p01},
+		{"day12p02", day12p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+				t.Fatalf("got error %v, want input failure", err)
+			}
+		})
+	}
+}
+
+func TestDay12MalformedInput(t *testing.T) {
+	tests := []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"JSON syntax", "[1,", day12p01},
+		{"trailing JSON", "[1] [2]", day12p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
+	}
+}

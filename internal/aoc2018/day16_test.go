@@ -1,8 +1,11 @@
 package aoc2018
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -46,6 +49,25 @@ After: [0, 1, 0, 0]`,
 		t.Run(name, func(t *testing.T) {
 			if _, err := day16p02(strings.NewReader(input)); err == nil {
 				t.Fatal("expected opcode mapping error")
+			}
+		})
+	}
+}
+
+func TestDay16ReadErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"16/1", day16p01},
+		{"16/2", day16p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
 			}
 		})
 	}

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
@@ -177,5 +178,26 @@ func TestRedTileInvalidInput(t *testing.T) {
 		if got, err := day09p02(strings.NewReader(input)); err == nil {
 			t.Errorf("input %q: got %q, want polygon error", input, got)
 		}
+	}
+}
+
+func TestDay09ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day09p01, "0,0\n2,0\n2,1\n0,1\n"},
+		{"part2", day09p02, "0,0\n2,0\n2,1\n0,1\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				input := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure))
+				if _, err := tt.solve(input); !errors.Is(err, failure) {
+					t.Fatalf("got %v; want reader failure", err)
+				}
+			}
+		})
 	}
 }

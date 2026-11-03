@@ -1,8 +1,11 @@
 package aoc2016
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -37,6 +40,18 @@ func TestVaultSearchBudget(t *testing.T) {
 		}
 		if got, err := longestVault("ihgpwlah", budget); err == nil || got != 0 {
 			t.Errorf("longest returned%d,%v after exhaustion", got, err)
+		}
+	}
+}
+
+func TestDay17ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day17p01,
+		day17p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error%v lost input cause", err)
 		}
 	}
 }

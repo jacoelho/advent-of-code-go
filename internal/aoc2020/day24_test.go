@@ -1,8 +1,11 @@
 package aoc2020
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -71,4 +74,19 @@ wseweeenwnesenwwwswnew`),
 		},
 	}
 	aoc.AOCTest(t, day24p02, tests)
+}
+
+func TestTilePathReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day24p01,
+		day24p02,
+	} {
+		for _, prefix := range []string{"", "e\n"} {
+			reader := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure))
+			if _, err := solve(reader); !errors.Is(err, failure) {
+				t.Fatalf("prefix %q: got %v, want input failure", prefix, err)
+			}
+		}
+	}
 }

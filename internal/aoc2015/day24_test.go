@@ -1,8 +1,11 @@
 package aoc2015
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -29,6 +32,18 @@ func TestPackageWeightsRemainDistinctEntries(t *testing.T) {
 	for _, input := range []string{"1\n2\n4", "1\n1\n4", "0\n3\n3\n3", "3\n3\n3\n3\n3"} {
 		if _, err := day24p01(strings.NewReader(input)); err == nil {
 			t.Errorf("accepted impossible or invalid packages %q", input)
+		}
+	}
+}
+
+func TestDay24ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day24p01,
+		day24p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error = %v; want wrapped input failure", err)
 		}
 	}
 }

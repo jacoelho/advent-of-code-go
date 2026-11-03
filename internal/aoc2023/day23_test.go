@@ -1,11 +1,13 @@
 package aoc2023
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -232,6 +234,30 @@ func TestHikingJunctionLimit(t *testing.T) {
 			got, err := solve(strings.NewReader(input))
 			if err == nil || !strings.Contains(err.Error(), "exceeds") || !strings.Contains(err.Error(), "junctions") {
 				t.Fatalf("got %q, %v; want junction-limit error", got, err)
+			}
+		})
+	}
+}
+
+func TestDay23ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day23p01, "#.\n#.\n"},
+		{"part2", day23p02, "#.\n#.\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, mode := range []struct{ name, prefix string }{{"immediate", ""}, {"after prefix", tt.prefix}} {
+				t.Run(mode.name, func(t *testing.T) {
+					input := io.MultiReader(strings.NewReader(mode.prefix), iotest.ErrReader(failure))
+					_, err := tt.solve(input)
+					if !errors.Is(err, failure) {
+						t.Fatalf("got %v, want reader failure", err)
+					}
+				})
 			}
 		})
 	}

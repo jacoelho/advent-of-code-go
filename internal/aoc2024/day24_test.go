@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -265,5 +266,26 @@ func TestCircuitInvalidInput(t *testing.T) {
 		if got, err := day24p01(strings.NewReader(input)); err == nil {
 			t.Errorf("input %q: got %q, want evaluation/output error", input, got)
 		}
+	}
+}
+
+func TestDay24ReaderErrors(t *testing.T) {
+	want := errors.New("input read failure")
+	for _, tt := range []struct {
+		name   string
+		solve  func(io.Reader) (string, error)
+		prefix string
+	}{
+		{"part1", day24p01, "x00: 0\ny00: 0\n\nx00 XOR y00 -> z00\nx00 AND y00 -> z01\n"},
+		{"part2", day24p02, "x00: 0\ny00: 0\n\nx00 XOR y00 -> z00\nx00 AND y00 -> z01\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				r := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(want))
+				if _, err := tt.solve(r); !errors.Is(err, want) {
+					t.Errorf("prefix %q: got %v, want reader error", prefix, err)
+				}
+			}
+		})
 	}
 }

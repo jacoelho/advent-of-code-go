@@ -1,9 +1,11 @@
 package aoc2019
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -41,5 +43,25 @@ func TestBeamProtocolErrors(t *testing.T) {
 	}
 	if _, err := day19p02(strings.NewReader("104,0,99")); err == nil {
 		t.Fatal("expected error when no square fits")
+	}
+}
+
+func TestDay19ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name, prefix string
+		solve        func(io.Reader) (string, error)
+	}{
+		{"day19p01", "99", day19p01},
+		{"day19p02", "99", day19p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, prefix := range []string{"", tt.prefix} {
+				reader := io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure))
+				if _, err := tt.solve(reader); !errors.Is(err, failure) {
+					t.Fatalf("prefix %q: got %v, want input failure", prefix, err)
+				}
+			}
+		})
 	}
 }

@@ -1,8 +1,11 @@
 package aoc2021
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -49,5 +52,23 @@ func TestBurrowInvalidInput(t *testing.T) {
 	input := "#############\n#A..........#\n###.#B#C#D###\n  #A#B#C#D#\n  #########"
 	if _, err := day23p02(strings.NewReader(input)); err == nil {
 		t.Fatal("unfolding an occupied hallway must fail")
+	}
+}
+
+func TestDay23ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day23p01},
+		{"part2", day23p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
 	}
 }

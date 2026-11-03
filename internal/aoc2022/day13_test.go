@@ -1,8 +1,11 @@
 package aoc2022
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -52,5 +55,23 @@ func TestPacketEqualityAndDividers(t *testing.T) {
 	aoc.AOCTest(t, day13p02, []aoc.TestInput{{Input: strings.NewReader("[]\n[]"), Want: "12"}, {Input: strings.NewReader("[[2]]\n[[6]]"), Want: "8"}})
 	if _, err := day13p01(strings.NewReader("[1,]\n[]")); err == nil {
 		t.Fatal("expected malformed packet error")
+	}
+}
+
+func TestDay13ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day13p01},
+		{"part2", day13p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
 	}
 }

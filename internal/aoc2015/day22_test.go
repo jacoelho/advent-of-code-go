@@ -1,7 +1,10 @@
 package aoc2015
 
 import (
+	"errors"
+	"io"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -37,5 +40,17 @@ func TestWizardEffectExpiresBeforeCasting(t *testing.T) {
 	got, err := leastMana(wizardState{hp: 1, mana: 72, boss: 4, recharge: 1, shield: 1}, 8, wizardNormal)
 	if err != nil || got != 53 {
 		t.Fatalf("recharge then missile = %d, %v; want53", got, err)
+	}
+}
+
+func TestDay22ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day22p01,
+		day22p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error = %v; want wrapped input failure", err)
+		}
 	}
 }

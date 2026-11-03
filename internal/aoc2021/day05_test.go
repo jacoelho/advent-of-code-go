@@ -1,8 +1,11 @@
 package aoc2021
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -55,5 +58,23 @@ func TestDay05MalformedEndpoint(t *testing.T) {
 func TestDay05RasterLimit(t *testing.T) {
 	if _, err := day05p02(strings.NewReader("-9223372036854775808,0 -> 9223372036854775807,0")); err == nil {
 		t.Fatal("expected raster limit error")
+	}
+}
+
+func TestDay05ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day05p01},
+		{"part2", day05p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
 	}
 }

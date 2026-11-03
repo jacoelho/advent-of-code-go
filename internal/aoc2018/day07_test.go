@@ -1,8 +1,11 @@
 package aoc2018
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -55,6 +58,44 @@ Step B must be finished before step F can begin.`, want: 18},
 			}
 			if got != tt.want {
 				t.Errorf("got %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDay07ReadErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"07/1", day07p01},
+		{"07/2", day07p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
+	}
+}
+
+func TestDay07InvalidInput(t *testing.T) {
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+		input string
+	}{
+		{name: "step cycle part one", solve: day07p01, input: "Step A must be finished before step A can begin."},
+		{name: "step cycle part two", solve: day07p02, input: "Step A must be finished before step A can begin."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected an input error")
 			}
 		})
 	}

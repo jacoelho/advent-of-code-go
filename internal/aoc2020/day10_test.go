@@ -1,8 +1,11 @@
 package aoc2020
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -110,10 +113,43 @@ func Test_day10p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day10p02, tests)
 }
+
 func TestAdaptersRejectBrokenChains(t *testing.T) {
 	for _, input := range []string{"1\n5", "1\n1"} {
 		if _, err := day10p02(strings.NewReader(input)); err == nil {
 			t.Fatalf("expected chain error for %q", input)
 		}
+	}
+}
+
+func TestDay10ReadErrors(t *testing.T) {
+	failure := errors.New("read failure")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"10/1", day10p01},
+		{"10/2", day10p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+				t.Fatalf("got %v, want input failure", err)
+			}
+		})
+	}
+}
+
+func TestDay10MalformedInput(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"adapters", "-1", day10p01},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected malformed-input error")
+			}
+		})
 	}
 }

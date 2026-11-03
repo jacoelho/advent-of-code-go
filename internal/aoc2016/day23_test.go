@@ -1,8 +1,11 @@
 package aoc2016
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -12,6 +15,7 @@ const bunnyToggleExample = "cpy 2 a\ntgl a\ntgl a\ntgl a\ncpy 1 a\ndec a\ndec a\
 func Test_day23p01(t *testing.T) {
 	aoc.AOCTest(t, day23p01, []aoc.TestInput{{Input: strings.NewReader(bunnyToggleExample), Want: "3"}, {Input: aoc.FileInput(t, 2016, 23), Want: "10880"}})
 }
+
 func Test_day23p02(t *testing.T) {
 	aoc.AOCTest(t, day23p02, []aoc.TestInput{{Input: strings.NewReader(bunnyToggleExample), Want: "3"}, {Input: aoc.FileInput(t, 2016, 23), Want: "479007440"}})
 }
@@ -61,6 +65,18 @@ func TestAssembunnyNonpositiveCounters(t *testing.T) {
 		}
 		if _, err := executeAssembunny(program, [4]int64{}, 20); err == nil {
 			t.Errorf("nonterminating loop incorrectly completed: %q", input)
+		}
+	}
+}
+
+func TestDay23ReadErrors(t *testing.T) {
+	failure := errors.New("input failed")
+	for _, solve := range []func(io.Reader) (string, error){
+		day23p01,
+		day23p02,
+	} {
+		if _, err := solve(iotest.ErrReader(failure)); !errors.Is(err, failure) {
+			t.Errorf("read error%v lost input cause", err)
 		}
 	}
 }

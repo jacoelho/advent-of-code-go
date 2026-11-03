@@ -1,8 +1,11 @@
 package aoc2018
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -29,4 +32,44 @@ func Test_day01p02(t *testing.T) {
 	}
 
 	aoc.AOCTest(t, day01p02, tests)
+}
+
+func TestDay01ReadErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"01/1", day01p01},
+		{"01/2", day01p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
+	}
+}
+
+func TestDay01InvalidInput(t *testing.T) {
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+		input string
+	}{
+		{name: "frequency never repeats", solve: day01p02, input: "+1"},
+		{name: "invalid frequency", solve: day01p01, input: "+"},
+		{name: "frequency overflow part one", solve: day01p01, input: "9223372036854775807\n1"},
+		{name: "frequency overflow part two", solve: day01p02, input: "9223372036854775807\n1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected an input error")
+			}
+		})
+	}
 }

@@ -1,8 +1,11 @@
 package aoc2021
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -72,5 +75,23 @@ func TestDay04IncompleteBoard(t *testing.T) {
 
 1 2 3 4 5`)); err == nil {
 		t.Fatal("expected incomplete board error")
+	}
+}
+
+func TestDay04ReaderErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	for _, tt := range []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"part1", day04p01},
+		{"part2", day04p02},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
+			}
+		})
 	}
 }

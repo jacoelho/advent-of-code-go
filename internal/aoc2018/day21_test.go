@@ -1,8 +1,11 @@
 package aoc2018
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
@@ -74,6 +77,25 @@ func TestHaltingProgramErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if _, err := day21p02(strings.NewReader(input)); err == nil {
 				t.Fatal("expected unsupported or overflowing halting program error")
+			}
+		})
+	}
+}
+
+func TestDay21ReadErrors(t *testing.T) {
+	failure := errors.New("input read failed")
+	tests := []struct {
+		name  string
+		solve func(io.Reader) (string, error)
+	}{
+		{"21/1", day21p01},
+		{"21/2", day21p02},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.solve(iotest.ErrReader(failure))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v; want input read failure", err)
 			}
 		})
 	}
