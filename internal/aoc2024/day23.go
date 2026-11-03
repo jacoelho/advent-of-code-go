@@ -2,12 +2,12 @@ package aoc2024
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
@@ -25,8 +25,10 @@ func parseNetworkMap(r io.Reader) (map[string]collections.Set[string], error) {
 
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		fields := strings.Split(s.Text(), "-")
-		a, b := fields[0], fields[1]
+		a, b, ok := strings.Cut(s.Text(), "-")
+		if !ok || a == "" || b == "" || a == b || strings.Contains(b, "-") {
+			return nil, fmt.Errorf("invalid network connection %q", s.Text())
+		}
 		addEdge(a, b)
 		addEdge(b, a)
 	}
@@ -34,7 +36,10 @@ func parseNetworkMap(r io.Reader) (map[string]collections.Set[string], error) {
 }
 
 func day23p01(r io.Reader) (string, error) {
-	m := aoc.Must(parseNetworkMap(r))
+	m, err := parseNetworkMap(r)
+	if err != nil {
+		return "", err
+	}
 
 	result := collections.NewSet[[3]string]()
 
@@ -59,7 +64,10 @@ func day23p01(r io.Reader) (string, error) {
 }
 
 func day23p02(r io.Reader) (string, error) {
-	m := aoc.Must(parseNetworkMap(r))
+	m, err := parseNetworkMap(r)
+	if err != nil {
+		return "", err
+	}
 
 	cliques := graph.MaximalCliques(m)
 	longest := xiter.MaxBy(func(a, b collections.Set[string]) bool {

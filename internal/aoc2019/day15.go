@@ -1,6 +1,7 @@
 package aoc2019
 
 import (
+	"fmt"
 	"io"
 	"iter"
 	"strconv"
@@ -14,8 +15,11 @@ type status int
 
 const (
 	statusWall   status = 0
+	statusOpen   status = 1
 	statusOxygen status = 2
 )
+
+const maxDroidTiles = 100_000
 
 type droidDirection int
 
@@ -57,7 +61,7 @@ func directionToMovement(dir droidDirection) grid.Position2D[int] {
 	}
 }
 
-func exploreWithDroid(program []int) (grid.Grid2D[int, tile], grid.Position2D[int]) {
+func exploreWithDroid(program []int) (grid.Grid2D[int, tile], grid.Position2D[int], error) {
 	maze := make(grid.Grid2D[int, tile])
 	start := grid.NewPosition2D(0, 0)
 	maze[start] = tileStart
@@ -72,6 +76,7 @@ func exploreWithDroid(program []int) (grid.Grid2D[int, tile], grid.Position2D[in
 	visited.Add(start)
 
 	var oxygenPos grid.Position2D[int]
+	oxygenFound := false
 	for state, ok := queue.PopFront(); ok; state, ok = queue.PopFront() {
 		for _, dir := range allDirections {
 			movement := directionToMovement(dir)
@@ -81,28 +86,37 @@ func exploreWithDroid(program []int) (grid.Grid2D[int, tile], grid.Position2D[in
 				continue
 			}
 
-			computer := New(state.computer.Memory())
+			if visited.Len() == maxDroidTiles {
+				return nil, oxygenPos, fmt.Errorf("droid exploration exceeds %d tiles", maxDroidTiles)
+			}
+			computer := state.computer.Clone()
 			computer.AddInput(int(dir))
 			if err := computer.Run(); err != nil {
-				panic(err)
+				return nil, oxygenPos, fmt.Errorf("move droid from %v in direction %d: %w", state.pos, dir, err)
 			}
 
-			statusCode, err := computer.LastOutput()
-			if err != nil {
-				panic(err)
+			output := computer.GetOutput()
+			if len(output) != 1 || !computer.IsWaiting() {
+				return nil, oxygenPos, fmt.Errorf("droid move needs one reply followed by an input request")
 			}
 
-			s := status(statusCode)
+			s := status(output[0])
 			visited.Add(nextPos)
 
 			switch s {
 			case statusWall:
 				maze[nextPos] = tileWall
 			case statusOxygen:
+				if oxygenFound {
+					return nil, oxygenPos, fmt.Errorf("droid found multiple oxygen locations")
+				}
 				maze[nextPos] = tileOxygen
 				oxygenPos = nextPos
-			default:
+				oxygenFound = true
+			case statusOpen:
 				maze[nextPos] = tileOpen
+			default:
+				return nil, oxygenPos, fmt.Errorf("invalid droid movement status %d", output[0])
 			}
 
 			if s != statusWall {
@@ -114,7 +128,10 @@ func exploreWithDroid(program []int) (grid.Grid2D[int, tile], grid.Position2D[in
 		}
 	}
 
-	return maze, oxygenPos
+	if !oxygenFound {
+		return nil, oxygenPos, fmt.Errorf("droid could not reach oxygen")
+	}
+	return maze, oxygenPos, nil
 }
 
 func mazeNeighbours(maze grid.Grid2D[int, tile]) func(grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
@@ -147,7 +164,10 @@ func day15p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	maze, oxygenPos := exploreWithDroid(program)
+	maze, oxygenPos, err := exploreWithDroid(program)
+	if err != nil {
+		return "", err
+	}
 	start := grid.NewPosition2D(0, 0)
 	steps := findShortestPath(maze, start, oxygenPos)
 
@@ -164,7 +184,10 @@ func day15p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	maze, oxygenPos := exploreWithDroid(program)
+	maze, oxygenPos, err := exploreWithDroid(program)
+	if err != nil {
+		return "", err
+	}
 	minutes := findMaxDistanceFromOxygen(maze, oxygenPos)
 
 	return strconv.Itoa(minutes), nil

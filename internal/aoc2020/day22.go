@@ -45,6 +45,9 @@ func parseDeck(b []byte) ([]int, error) {
 func parseCombat(r io.Reader) (*combat, error) {
 	s := scanner.NewScannerWithSplit(r, scanner.SplitBySeparator([]byte{'\n', '\n'}), parseDeck)
 	decks := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
 	if len(decks) < 2 {
 		return nil, errors.New("not enough decks")
 	}
@@ -59,7 +62,7 @@ func parseCombat(r io.Reader) (*combat, error) {
 	return &combat{
 		player1: p1,
 		player2: p2,
-	}, s.Err()
+	}, nil
 }
 
 func day22p01(r io.Reader) (string, error) {

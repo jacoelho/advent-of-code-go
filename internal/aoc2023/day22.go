@@ -32,12 +32,10 @@ func (b brick) MaxZ() int {
 func (b brick) OccupiedPositions() []grid.Position3D[int] {
 	var positions []grid.Position3D[int]
 
-	// determine the direction of the brick
 	dx := -cmp.Compare(b.Start.X, b.End.X)
 	dy := -cmp.Compare(b.Start.Y, b.End.Y)
 	dz := -cmp.Compare(b.Start.Z, b.End.Z)
 
-	// generate all positions along the brick
 	pos := b.Start
 	for {
 		positions = append(positions, pos)
@@ -80,6 +78,9 @@ func parseBricks(r io.Reader) ([]brick, error) {
 		})
 	}
 
+	if err := lineScanner.Err(); err != nil {
+		return nil, err
+	}
 	return bricks, nil
 }
 
@@ -140,12 +141,10 @@ func day22p01(r io.Reader) (string, error) {
 }
 
 func simulateFalling(bricks []brick) ([]brick, error) {
-	// track the highest Z at each (x,y) position
 	heightMap := make(map[grid.Position2D[int]]int)
 	settledBricks := make([]brick, len(bricks))
 
 	for i, b := range bricks {
-		// find the highest point this brick can rest on
 		maxHeight := 0
 		positions := b.OccupiedPositions()
 
@@ -156,10 +155,8 @@ func simulateFalling(bricks []brick) ([]brick, error) {
 			}
 		}
 
-		// calculate how far down this brick needs to fall
 		fallDistance := b.MinZ() - maxHeight - 1
 
-		// create the settled brick
 		settledBrick := brick{
 			ID:    b.ID,
 			Start: grid.NewPosition3D(b.Start.X, b.Start.Y, b.Start.Z-fallDistance),
@@ -167,7 +164,6 @@ func simulateFalling(bricks []brick) ([]brick, error) {
 		}
 		settledBricks[i] = settledBrick
 
-		// update height map
 		for _, pos := range settledBrick.OccupiedPositions() {
 			xy := grid.NewPosition2D(pos.X, pos.Y)
 			heightMap[xy] = max(heightMap[xy], pos.Z)
@@ -181,13 +177,11 @@ func buildSupportGraph(bricks []brick) (map[int]collections.Set[int], map[int]co
 	supports := make(map[int]collections.Set[int])
 	supportedBy := make(map[int]collections.Set[int])
 
-	// initialize sets
 	for _, brick := range bricks {
 		supports[brick.ID] = collections.NewSet[int]()
 		supportedBy[brick.ID] = collections.NewSet[int]()
 	}
 
-	// build position to brick mapping
 	positionToBrick := make(map[grid.Position3D[int]]int)
 	for _, brick := range bricks {
 		for _, pos := range brick.OccupiedPositions() {
@@ -195,10 +189,8 @@ func buildSupportGraph(bricks []brick) (map[int]collections.Set[int], map[int]co
 		}
 	}
 
-	// find support relationships
 	for _, brick := range bricks {
 		for _, pos := range brick.OccupiedPositions() {
-			// check the position directly below this brick
 			below := grid.NewPosition3D(pos.X, pos.Y, pos.Z-1)
 			if belowBrickID, exists := positionToBrick[below]; exists && belowBrickID != brick.ID {
 				supports[belowBrickID].Add(brick.ID)

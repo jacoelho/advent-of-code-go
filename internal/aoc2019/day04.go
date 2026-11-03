@@ -51,7 +51,7 @@ func hasExactlyOnePair(digits []int) bool {
 	return xmaps.Any(func(k int, v int) bool { return v == 2 }, xslices.Frequencies(digits))
 }
 
-func day4p01(r io.Reader) (string, error) {
+func day04p01(r io.Reader) (string, error) {
 	min, max, err := parse(r)
 	if err != nil {
 		return "", err
@@ -68,7 +68,7 @@ func day4p01(r io.Reader) (string, error) {
 	return strconv.Itoa(count), nil
 }
 
-func day4p02(r io.Reader) (string, error) {
+func day04p02(r io.Reader) (string, error) {
 	min, max, err := parse(r)
 	if err != nil {
 		return "", err

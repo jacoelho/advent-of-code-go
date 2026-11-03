@@ -1,0 +1,16 @@
+{
+  "args": [
+    "go",
+    "test",
+    "-c",
+    "-pgo=off",
+    "-overlay",
+    "/tmp/aoc-2023-day25-performance/candidate-overlay.json",
+    "-o",
+    "/tmp/aoc-2023-day25-performance/candidate.test",
+    "./internal/aoc2023"
+  ],
+  "elapsed_seconds": 0.5876371245831251,
+  "returncode": 0,
+  "output": ""
+}

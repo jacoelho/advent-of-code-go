@@ -1,11 +1,12 @@
 package aoc2019
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
 func parseImageLayers(r io.Reader, width, height int) ([]string, error) {
@@ -35,7 +36,7 @@ func countDigits(layer string) map[rune]int {
 	return freq
 }
 
-func day8p01(r io.Reader) (string, error) {
+func day08p01(r io.Reader) (string, error) {
 	layers, err := parseImageLayers(r, 25, 6)
 	if err != nil {
 		return "", err
@@ -89,7 +90,7 @@ func renderImage(pixels []byte, width, height int) string {
 	return sb.String()
 }
 
-func day8p02(r io.Reader) (string, error) {
+func day08p02(r io.Reader) (string, error) {
 	layers, err := parseImageLayers(r, 25, 6)
 	if err != nil {
 		return "", err
@@ -97,7 +98,5 @@ func day8p02(r io.Reader) (string, error) {
 
 	image := decodeImage(layers, 25, 6)
 	rendered := renderImage(image, 25, 6)
-	fmt.Println(rendered)
-
-	return "YGRYZ", nil
+	return aoc.Decode6RowDisplay(strings.Split(rendered, "\n"), 5)
 }

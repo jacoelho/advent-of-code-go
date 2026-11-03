@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -45,4 +46,16 @@ func Test_day01p02(t *testing.T) {
 	}
 
 	aoc.AOCTest(t, day01p02, tests)
+}
+
+func TestLocationRowErrors(t *testing.T) {
+	for _, input := range []string{"1", "1 2 3"} {
+		t.Run(input, func(t *testing.T) {
+			for _, solve := range []func(io.Reader) (string, error){day01p01, day01p02} {
+				if got, err := solve(strings.NewReader(input)); err == nil {
+					t.Fatalf("got %q; want malformed-row error", got)
+				}
+			}
+		})
+	}
 }

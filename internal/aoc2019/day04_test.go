@@ -13,7 +13,7 @@ func Test_day04p01(t *testing.T) {
 			Want:  "1660",
 		},
 	}
-	aoc.AOCTest(t, day4p01, tests)
+	aoc.AOCTest(t, day04p01, tests)
 }
 
 func Test_day04p02(t *testing.T) {
@@ -23,5 +23,5 @@ func Test_day04p02(t *testing.T) {
 			Want:  "1135",
 		},
 	}
-	aoc.AOCTest(t, day4p02, tests)
+	aoc.AOCTest(t, day04p02, tests)
 }

@@ -1,0 +1,402 @@
+[
+  {
+    "round": 1,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:21.054041+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.3484771247021854,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  64877896 ns/op\t31473836 B/op\t  291328 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 266112625 ns/op\t116951784 B/op\t 1439000 allocs/op\nBenchmarkDay18/part2/sample         \t     243\t    478134 ns/op\t  457782 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1800763791 ns/op\t1060150424 B/op\t 3712406 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 1,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:23.403451+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.4504927499219775,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       7\t  14869970 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  15148714 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1136\t    105493 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  35231042 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 2,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:23.854566+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.44446729123592377,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       7\t  14449780 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  14857732 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1141\t    108789 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  34177167 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 2,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:24.299494+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.287952208891511,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  63988354 ns/op\t31487780 B/op\t  291534 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 259007750 ns/op\t116904824 B/op\t 1439124 allocs/op\nBenchmarkDay18/part2/sample         \t     248\t    478283 ns/op\t  457750 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1765529167 ns/op\t1061079720 B/op\t 3717928 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 3,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:26.588315+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.4343794998712838,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  69972084 ns/op\t31498916 B/op\t  291720 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 295727250 ns/op\t116899224 B/op\t 1439037 allocs/op\nBenchmarkDay18/part2/sample         \t     246\t    482160 ns/op\t  457794 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1860164125 ns/op\t1060827160 B/op\t 3716410 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 3,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:29.023895+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.44330454198643565,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       7\t  14954024 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  15236464 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1099\t    108154 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  34678069 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 4,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:29.468080+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.4591790842823684,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  14617333 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  15493113 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1099\t    107354 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  35271514 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 4,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:29.927853+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.419111500028521,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  69917792 ns/op\t31485704 B/op\t  291503 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 295958042 ns/op\t116899848 B/op\t 1439036 allocs/op\nBenchmarkDay18/part2/sample         \t     235\t    493206 ns/op\t  457764 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1843706166 ns/op\t1060168232 B/op\t 3712526 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 5,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:32.347771+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.231157625094056,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  63778625 ns/op\t31494096 B/op\t  291643 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 277747875 ns/op\t116901352 B/op\t 1439081 allocs/op\nBenchmarkDay18/part2/sample         \t     247\t    473187 ns/op\t  457819 B/op\t    3617 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1692960291 ns/op\t1060113144 B/op\t 3712188 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 5,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:34.579749+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.44920337526127696,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  14152948 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  14774113 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1112\t    108001 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  34569000 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 6,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:35.029716+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.4750526249408722,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  14336557 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  14844113 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1147\t    101485 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       4\t  32853344 ns/op\t44178012 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 6,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:35.505269+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.297401749994606,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  67876334 ns/op\t31474144 B/op\t  291297 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 276172458 ns/op\t116898088 B/op\t 1439026 allocs/op\nBenchmarkDay18/part2/sample         \t     247\t    477645 ns/op\t  457793 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1750831250 ns/op\t1060154856 B/op\t 3712432 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 7,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:37.803328+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.3122154157608747,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  69200458 ns/op\t31487364 B/op\t  291580 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 272231750 ns/op\t116899912 B/op\t 1439046 allocs/op\nBenchmarkDay18/part2/sample         \t     246\t    482043 ns/op\t  457837 B/op\t    3617 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1764289125 ns/op\t1060155432 B/op\t 3712462 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 7,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:40.116445+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.4487054171040654,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  14175208 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  14821304 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1146\t    105744 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  34248403 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 8,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:40.566023+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.45849950006231666,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  14590885 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       7\t  15070226 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1170\t    106326 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       3\t  34322069 ns/op\t44178013 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 8,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:41.025208+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.2897619591094553,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  68074042 ns/op\t31497876 B/op\t  291790 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 277422166 ns/op\t116902744 B/op\t 1439079 allocs/op\nBenchmarkDay18/part2/sample         \t     248\t    478768 ns/op\t  457813 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1736669625 ns/op\t1060168680 B/op\t 3712549 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 9,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:43.315689+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.2855778327211738,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  65975000 ns/op\t31491992 B/op\t  291607 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 271402834 ns/op\t116900728 B/op\t 1439060 allocs/op\nBenchmarkDay18/part2/sample         \t     243\t    484110 ns/op\t  457765 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1746374000 ns/op\t1060971368 B/op\t 3717300 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 9,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:45.602589+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.4674835838377476,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  13600599 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       8\t  14077818 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1219\t     95108 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       4\t  30713198 ns/op\t44178012 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 10,
+    "side": "candidate",
+    "started_utc": "2026-11-03T00:08:46.070695+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/candidate.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 0.4681638749316335,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       8\t  13492370 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       8\t  14203375 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t    1257\t     94085 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       4\t  30460417 ns/op\t44178012 B/op\t 1080537 allocs/op\nPASS\n",
+    "stderr": ""
+  },
+  {
+    "round": 10,
+    "side": "baseline",
+    "started_utc": "2026-11-03T00:08:46.539405+00:00",
+    "args": [
+      "/tmp/aoc-2019-day18-performance/baseline.test",
+      "-test.run=^$",
+      "-test.bench=^BenchmarkDay18$",
+      "-test.benchmem",
+      "-test.benchtime=100ms",
+      "-test.count=1",
+      "-test.cpu=1",
+      "-test.timeout=60s"
+    ],
+    "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+    "elapsed_seconds": 2.1794551671482623,
+    "returncode": 0,
+    "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       2\t  59979979 ns/op\t31497116 B/op\t  291667 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t 265512292 ns/op\t116898744 B/op\t 1439022 allocs/op\nBenchmarkDay18/part2/sample         \t     259\t    448507 ns/op\t  457764 B/op\t    3616 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t1653980291 ns/op\t1060147688 B/op\t 3712404 allocs/op\nPASS\n",
+    "stderr": ""
+  }
+]

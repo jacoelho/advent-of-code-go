@@ -1,67 +1,72 @@
 package matrix
 
-import "github.com/jacoelho/advent-of-code-go/pkg/xmath"
+import "math/big"
 
-// Rat represents a rational number using integers stored in reduced form (normalized)
+// Rat is an immutable arbitrary-precision rational. Its zero value is zero.
+// Compare values with Cmp.
 type Rat struct {
-	numerator, denominator int64
+	value *big.Rat
+	_     [0]func()
 }
 
 func NewRat(num, den int64) Rat {
-	if den == 0 {
-		panic("rational number with zero denominator")
+	return Rat{value: big.NewRat(num, den)}
+}
+
+// NewInteger snapshots value; later mutations cannot change the rational.
+func NewInteger(value *big.Int) Rat {
+	return Rat{value: new(big.Rat).SetInt(value)}
+}
+
+func (r Rat) rational() *big.Rat {
+	if r.value == nil {
+		return new(big.Rat)
 	}
-	if den < 0 {
-		num, den = -num, -den
-	}
-	g := xmath.GCD(num, den)
-	if g != 0 {
-		num /= g
-		den /= g
-	}
-	return Rat{numerator: num, denominator: den}
+	return r.value
 }
 
 func (r Rat) Add(other Rat) Rat {
-	if r.denominator == other.denominator {
-		return NewRat(r.numerator+other.numerator, r.denominator)
-	}
-	lcm := xmath.LCM(r.denominator, other.denominator)
-	num := r.numerator*(lcm/r.denominator) + other.numerator*(lcm/other.denominator)
-	return NewRat(num, lcm)
+	return Rat{value: new(big.Rat).Add(r.rational(), other.rational())}
 }
 
 func (r Rat) Sub(other Rat) Rat {
-	if r.denominator == other.denominator {
-		return NewRat(r.numerator-other.numerator, r.denominator)
-	}
-	lcm := xmath.LCM(r.denominator, other.denominator)
-	num := r.numerator*(lcm/r.denominator) - other.numerator*(lcm/other.denominator)
-	return NewRat(num, lcm)
+	return Rat{value: new(big.Rat).Sub(r.rational(), other.rational())}
 }
 
 func (r Rat) Mul(other Rat) Rat {
-	return NewRat(r.numerator*other.numerator, r.denominator*other.denominator)
+	return Rat{value: new(big.Rat).Mul(r.rational(), other.rational())}
 }
 
 func (r Rat) Div(other Rat) Rat {
-	if other.numerator == 0 {
-		panic("division by zero")
-	}
-	return NewRat(r.numerator*other.denominator, r.denominator*other.numerator)
+	return Rat{value: new(big.Rat).Quo(r.rational(), other.rational())}
 }
 
 func (r Rat) Neg() Rat {
-	return Rat{numerator: -r.numerator, denominator: r.denominator}
+	return Rat{value: new(big.Rat).Neg(r.rational())}
 }
 
 func (r Rat) IsZero() bool {
-	return r.numerator == 0
-}
-func (r Rat) Numerator() int64 {
-	return r.numerator
+	return r.Sign() == 0
 }
 
-func (r Rat) Denominator() int64 {
-	return r.denominator
+func (r Rat) IsInt() bool {
+	return r.rational().IsInt()
+}
+
+func (r Rat) Sign() int {
+	return r.rational().Sign()
+}
+
+func (r Rat) Cmp(other Rat) int {
+	return r.rational().Cmp(other.rational())
+}
+
+// Numerator returns an independent copy.
+func (r Rat) Numerator() *big.Int {
+	return new(big.Int).Set(r.rational().Num())
+}
+
+// Denominator returns an independent copy.
+func (r Rat) Denominator() *big.Int {
+	return new(big.Int).Set(r.rational().Denom())
 }

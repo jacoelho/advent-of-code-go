@@ -1,13 +1,11 @@
 package aoc2024
 
 import (
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
-	"sync"
-	"sync/atomic"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
@@ -25,13 +23,22 @@ func parseGuardMap(r io.Reader) (grid.Grid2D[int, rune], error) {
 	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
 }
 
-func guardPosition(g grid.Grid2D[int, rune]) grid.Position2D[int] {
-	for p, v := range g {
-		if v != '#' && v != '.' {
-			return p
+func guardPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
+	var position grid.Position2D[int]
+	found := false
+	for p, tile := range g {
+		if tile != '^' {
+			continue
 		}
+		if found {
+			return position, fmt.Errorf("guard map has multiple guards")
+		}
+		position, found = p, true
 	}
-	panic("guard not found")
+	if !found {
+		return position, fmt.Errorf("guard not found")
+	}
+	return position, nil
 }
 
 func followGuard(
@@ -61,8 +68,14 @@ func followGuard(
 }
 
 func day06p01(r io.Reader) (string, error) {
-	m := aoc.Must(parseGuardMap(r))
-	startPosition := guardPosition(m)
+	m, err := parseGuardMap(r)
+	if err != nil {
+		return "", err
+	}
+	startPosition, err := guardPosition(m)
+	if err != nil {
+		return "", err
+	}
 
 	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
 	count := xiter.Len(xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
@@ -73,29 +86,29 @@ func day06p01(r io.Reader) (string, error) {
 }
 
 func day06p02(r io.Reader) (string, error) {
-	m := aoc.Must(parseGuardMap(r))
-	startPosition := guardPosition(m)
+	m, err := parseGuardMap(r)
+	if err != nil {
+		return "", err
+	}
+	startPosition, err := guardPosition(m)
+	if err != nil {
+		return "", err
+	}
 
 	positions, _ := followGuard(m, startPosition, collections.NewSet[grid.Position2D[int]]())
 	candidates := xiter.Unique(xiter.Map(func(in [2]grid.Position2D[int]) grid.Position2D[int] {
 		return in[0]
 	}, positions.Iter()))
 
-	var wg sync.WaitGroup
-	var count atomic.Int64
+	var count int
 	for candidate := range candidates {
 		if candidate == startPosition {
 			continue
 		}
-
-		wg.Go(func() {
-			if _, cycles := followGuard(m, startPosition, collections.NewSet(candidate)); cycles {
-				count.Add(1)
-			}
-		})
-
+		if _, cycles := followGuard(m, startPosition, collections.NewSet(candidate)); cycles {
+			count++
+		}
 	}
-	wg.Wait()
 
-	return strconv.FormatInt(count.Load(), 10), nil
+	return strconv.Itoa(count), nil
 }

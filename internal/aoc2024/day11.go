@@ -2,24 +2,29 @@ package aoc2024
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"slices"
 	"strconv"
-	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-func parseStoneArrangement(r io.Reader) []int64 {
-	var result []int64
-	b := bufio.NewScanner(r)
-	for b.Scan() {
-		for v := range strings.FieldsSeq(b.Text()) {
-			result = append(result, aoc.Must(strconv.ParseInt(v, 10, 64)))
+func parseStoneArrangement(r io.Reader) ([]int64, error) {
+	s := scanner.NewScannerWithSplit(r, bufio.ScanWords, func(token []byte) (int64, error) {
+		stone, err := convert.ScanNumber[int64](token)
+		if err != nil {
+			return 0, fmt.Errorf("stone number: %w", err)
 		}
-	}
-	return result
+		if stone < 0 {
+			return 0, fmt.Errorf("stone number must be nonnegative")
+		}
+		return stone, nil
+	})
+	stones := slices.Collect(s.Values())
+	return stones, s.Err()
 }
 
 func memoizeCount() func(int64, int64) int64 {
@@ -65,7 +70,10 @@ func countBlinks(stones []int64, steps int64) int64 {
 }
 
 func day11p01(r io.Reader) (string, error) {
-	stones := parseStoneArrangement(r)
+	stones, err := parseStoneArrangement(r)
+	if err != nil {
+		return "", err
+	}
 
 	total := countBlinks(stones, 25)
 
@@ -73,7 +81,10 @@ func day11p01(r io.Reader) (string, error) {
 }
 
 func day11p02(r io.Reader) (string, error) {
-	stones := parseStoneArrangement(r)
+	stones, err := parseStoneArrangement(r)
+	if err != nil {
+		return "", err
+	}
 
 	total := countBlinks(stones, 75)
 

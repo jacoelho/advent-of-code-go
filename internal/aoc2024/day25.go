@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
@@ -31,8 +30,13 @@ func parseSchematics(r io.Reader) ([]collections.Set[grid.Position2D[int]], erro
 }
 
 func day25p01(r io.Reader) (string, error) {
+	schematics, err := parseSchematics(r)
+	if err != nil {
+		return "", err
+	}
+
 	var total int
-	for pair := range xslices.Pairwise(aoc.Must(parseSchematics(r))) {
+	for pair := range xslices.Pairwise(schematics) {
 		if overlap := pair.V1.Intersect(pair.V2); overlap.IsEmpty() {
 			total++
 		}

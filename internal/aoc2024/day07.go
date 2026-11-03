@@ -2,128 +2,157 @@ package aoc2024
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 )
 
-func parseCalibrationEquations(r io.Reader) (map[int][]int, error) {
-	equations := make(map[int][]int)
+type calibrationEquation struct {
+	target int64
+	values []int64
+}
+
+type calibrationOperators uint8
+
+const (
+	calibrationBasic calibrationOperators = iota
+	calibrationWithConcat
+)
+
+type calibrationState struct {
+	index int
+	value int64
+}
+
+func parseCalibrationEquations(r io.Reader) ([]calibrationEquation, error) {
+	var equations []calibrationEquation
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		values := strings.SplitN(s.Text(), ":", 2)
-		testValue := aoc.MustAtoi(values[0])
-
-		equations[testValue] = xslices.Map(func(in string) int {
-			return aoc.MustAtoi(in)
-		}, strings.Fields(values[1]))
+		if len(equations) == 10_000 {
+			return nil, fmt.Errorf("calibration exceeds 10000 equations")
+		}
+		target, operands, ok := strings.Cut(s.Text(), ":")
+		if !ok {
+			return nil, fmt.Errorf("calibration equation needs a colon")
+		}
+		value, err := convert.ScanNumber[int64]([]byte(strings.TrimSpace(target)))
+		if err != nil {
+			return nil, fmt.Errorf("calibration target: %w", err)
+		}
+		if value < 0 {
+			return nil, fmt.Errorf("calibration target must be nonnegative")
+		}
+		equation := calibrationEquation{target: value}
+		for field := range strings.FieldsSeq(operands) {
+			value, err := convert.ScanNumber[int64]([]byte(field))
+			if err != nil {
+				return nil, fmt.Errorf("calibration operand: %w", err)
+			}
+			if value < 0 {
+				return nil, fmt.Errorf("calibration operands must be nonnegative")
+			}
+			if len(equation.values) == 64 {
+				return nil, fmt.Errorf("calibration equation exceeds 64 operands")
+			}
+			equation.values = append(equation.values, value)
+		}
+		if len(equation.values) == 0 {
+			return nil, fmt.Errorf("calibration equation needs an operand")
+		}
+		equations = append(equations, equation)
 	}
 	return equations, s.Err()
 }
 
-func day07Heuristic(equation []int) func(in [2]int) int {
-	return func(in [2]int) int {
-		if in[0] == 0 && equation[in[0]] == in[1] {
-			return 0
+func removeCalibrationSuffix(value, suffix int64) (int64, bool) {
+	for {
+		if value%10 != suffix%10 {
+			return 0, false
 		}
-		return in[1]
+		value /= 10
+		suffix /= 10
+		if suffix == 0 {
+			return value, true
+		}
 	}
 }
 
-func day07Neighbours(equation []int) func(state [2]int) [][2]int {
-	return func(state [2]int) [][2]int {
-		idx, t := state[0], state[1]
-		if idx < 0 || t < 0 {
-			return nil
+func calibrationReachable(equation calibrationEquation, operators calibrationOperators, remaining *int) (bool, error) {
+	failed := make(map[calibrationState]bool)
+	var visit func(int, int64) (bool, error)
+	visit = func(index int, value int64) (bool, error) {
+		state := calibrationState{index: index, value: value}
+		if failed[state] {
+			return false, nil
+		}
+		if *remaining == 0 {
+			return false, fmt.Errorf("calibration exceeds two million search states")
+		}
+		*remaining -= 1
+		if index == 0 {
+			return value == equation.values[0], nil
 		}
 
-		v := equation[idx]
-		var n [][2]int
-
-		if t%v == 0 {
-			n = append(n, [2]int{idx - 1, t / v})
+		operand := equation.values[index]
+		var candidates []int64
+		if operand == 0 {
+			// Any mathematical prefix, even above int64, can be reset by multiplying by zero.
+			if value == 0 {
+				return true, nil
+			}
+		} else if value%operand == 0 {
+			candidates = append(candidates, value/operand)
 		}
-		if t > v {
-			n = append(n, [2]int{idx - 1, t - v})
+		if value >= operand {
+			candidates = append(candidates, value-operand)
 		}
-
-		return n
+		if operators == calibrationWithConcat {
+			if prefix, ok := removeCalibrationSuffix(value, operand); ok {
+				candidates = append(candidates, prefix)
+			}
+		}
+		for _, candidate := range candidates {
+			found, err := visit(index-1, candidate)
+			if err != nil || found {
+				return found, err
+			}
+		}
+		failed[state] = true
+		return false, nil
 	}
+	return visit(len(equation.values)-1, equation.target)
+}
+
+func calibrationTotal(r io.Reader, operators calibrationOperators) (string, error) {
+	equations, err := parseCalibrationEquations(r)
+	if err != nil {
+		return "", err
+	}
+	remaining := 2_000_000
+	var total int64
+	for _, equation := range equations {
+		found, err := calibrationReachable(equation, operators, &remaining)
+		if err != nil {
+			return "", err
+		}
+		if found {
+			if equation.target > math.MaxInt64-total {
+				return "", fmt.Errorf("calibration total overflows int64")
+			}
+			total += equation.target
+		}
+	}
+	return strconv.FormatInt(total, 10), nil
 }
 
 func day07p01(r io.Reader) (string, error) {
-	equations := aoc.Must(parseCalibrationEquations(r))
-
-	var total int
-	for target, equation := range equations {
-		start := [2]int{len(equation) - 1, target}
-
-		_, _, found := search.AStar(
-			start,
-			day07Neighbours(equation),
-			day07Heuristic(equation),
-			search.ConstantStepCost,
-		)
-		if found {
-			total += target
-		}
-	}
-	return strconv.Itoa(total), nil
-}
-
-func hasDigitsSuffix(a, b int) (int, bool) {
-	if a < b {
-		return a, false
-	}
-
-	for b > 0 {
-		if a%10 != b%10 {
-			return a, false
-		}
-		a /= 10
-		b /= 10
-	}
-	return a, true
+	return calibrationTotal(r, calibrationBasic)
 }
 
 func day07p02(r io.Reader) (string, error) {
-	equations := aoc.Must(parseCalibrationEquations(r))
-
-	var total int
-	for target, equation := range equations {
-		initialNeighbours := day07Neighbours(equation)
-
-		neighbours := func(state [2]int) [][2]int {
-			n := initialNeighbours(state)
-			if n == nil {
-				return nil
-			}
-
-			v, t := equation[state[0]], state[1]
-
-			newT, found := hasDigitsSuffix(t, v)
-			if found {
-				n = append(n, [2]int{state[0] - 1, newT})
-			}
-
-			return n
-		}
-
-		start := [2]int{len(equation) - 1, target}
-
-		_, _, found := search.AStar(
-			start,
-			neighbours,
-			day07Heuristic(equation),
-			search.ConstantStepCost,
-		)
-		if found {
-			total += target
-		}
-	}
-	return strconv.Itoa(total), nil
+	return calibrationTotal(r, calibrationWithConcat)
 }

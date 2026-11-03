@@ -29,11 +29,15 @@ func buildSymbolSet(schematic grid.Grid2D[int, rune]) collections.Set[grid.Posit
 	return symbolSet
 }
 
-func parseSchematic(r io.Reader) grid.Grid2D[int, rune] {
+func parseSchematic(r io.Reader) (grid.Grid2D[int, rune], error) {
 	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
 		return []rune(string(b)), nil
 	})
-	return grid.NewGrid2D[int](slices.Collect(s.Values()))
+	rows := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	return grid.NewGrid2D[int](rows), nil
 }
 
 func findNumbers(schematic grid.Grid2D[int, rune]) func(yield func(number) bool) {
@@ -82,7 +86,10 @@ func findNumbers(schematic grid.Grid2D[int, rune]) func(yield func(number) bool)
 }
 
 func day03p01(r io.Reader) (string, error) {
-	schematic := parseSchematic(r)
+	schematic, err := parseSchematic(r)
+	if err != nil {
+		return "", err
+	}
 	symbolSet := buildSymbolSet(schematic)
 
 	sum := xiter.Sum(xiter.Map(func(num number) int {
@@ -96,7 +103,10 @@ func day03p01(r io.Reader) (string, error) {
 }
 
 func day03p02(r io.Reader) (string, error) {
-	schematic := parseSchematic(r)
+	schematic, err := parseSchematic(r)
+	if err != nil {
+		return "", err
+	}
 	numbers := slices.Collect(findNumbers(schematic))
 
 	sum := 0

@@ -1,0 +1,397 @@
+--- a/internal/aoc2023/day17.go
++++ b/internal/aoc2023/day17.go
+@@ -1,145 +1,127 @@
+ package aoc2023
+ 
+ import (
++	"fmt"
+ 	"io"
+-	"slices"
++	"math"
+ 	"strconv"
+ 
+-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
++	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+ 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+-	"github.com/jacoelho/advent-of-code-go/pkg/search"
+ )
+ 
+-type crucibleState struct {
+-	position  grid.Position2D[int]
+-	direction grid.Position2D[int]
+-	steps     int
++const maxHeatGridCells = 250_000
++
++type heatGrid struct {
++	width, height int
++	cells         []byte
+ }
+ 
+-func crucibleNeighbours(heatMap grid.Grid2D[int, int], minSteps, maxSteps int) func(crucibleState) []crucibleState {
+-	return func(s crucibleState) []crucibleState {
+-		var neighbours []crucibleState
++type crucibleState struct {
++	index int
++	heat  int
++}
+ 
+-		if s.steps < maxSteps {
+-			nextPos := s.position.Add(s.direction)
+-			if heatMap.Contains(nextPos) {
+-				neighbours = append(neighbours, crucibleState{
+-					position:  nextPos,
+-					direction: s.direction,
+-					steps:     s.steps + 1,
+-				})
+-			}
++func parseHeatGrid(r io.Reader) (heatGrid, error) {
++	var result heatGrid
++	s := scanner.NewScanner(r, func(line []byte) ([]byte, error) {
++		if len(line) == 0 || result.height > 0 && len(line) != result.width {
++			return nil, fmt.Errorf("empty or ragged heat grid at row %d", result.height+1)
++		}
++		if len(line) > maxHeatGridCells-len(result.cells) {
++			return nil, fmt.Errorf("heat grid exceeds %d cells", maxHeatGridCells)
+ 		}
+ 
+-		if s.steps >= minSteps {
+-			for _, turnDir := range []grid.Position2D[int]{s.direction.TurnLeft(), s.direction.TurnRight()} {
+-				nextPos := s.position.Add(turnDir)
+-				if heatMap.Contains(nextPos) {
+-					neighbours = append(neighbours, crucibleState{
+-						position:  nextPos,
+-						direction: turnDir,
+-						steps:     1,
+-					})
++		row := make([]byte, len(line))
++		for i, ch := range line {
++			if ch < '0' || ch > '9' {
++				return nil, fmt.Errorf("invalid heat digit %q at row %d", ch, result.height+1)
++			}
++			row[i] = ch - '0'
++		}
++		return row, nil
++	})
++	for row := range s.Values() {
++		result.width = len(row)
++		result.height++
++		result.cells = append(result.cells, row...)
++	}
++	if err := s.Err(); err != nil {
++		return heatGrid{}, err
++	}
++	if result.height == 0 {
++		return heatGrid{}, fmt.Errorf("empty heat grid")
++	}
++	return result, nil
++}
++
++func minimumHeat(heatMap heatGrid, minSteps, maxSteps int) (int, error) {
++	distance := make([]int, 2*len(heatMap.cells))
++	for i := range distance {
++		distance[i] = math.MaxInt
++	}
++	queue := collections.NewHeap(func(a, b crucibleState) bool { return a.heat < b.heat })
++	for axis := range 2 {
++		distance[axis] = 0
++		queue.Push(crucibleState{index: axis})
++	}
++
++	for current := range queue.PopSeq() {
++		if current.heat != distance[current.index] {
++			continue
++		}
++		cell := current.index / 2
++		if cell == len(heatMap.cells)-1 && (cell != 0 || minSteps == 1) {
++			return current.heat, nil
++		}
++
++		// A state ends a legal stride; its parity selects the next, perpendicular axis.
++		dx, dy := 1, 0
++		if current.index%2 == 1 {
++			dx, dy = 0, 1
++		}
++		nextAxis := 1 - current.index%2
++		for _, sign := range []int{-1, 1} {
++			x, y := cell%heatMap.width, cell/heatMap.width
++			heat := current.heat
++			for length := 1; length <= maxSteps; length++ {
++				x += sign * dx
++				y += sign * dy
++				if x < 0 || x >= heatMap.width || y < 0 || y >= heatMap.height {
++					break
++				}
++				next := y*heatMap.width + x
++				heat += int(heatMap.cells[next])
++				if length < minSteps {
++					continue
++				}
++				index := 2*next + nextAxis
++				if heat < distance[index] {
++					distance[index] = heat
++					queue.Push(crucibleState{index: index, heat: heat})
+ 				}
+ 			}
+ 		}
+-
+-		return neighbours
+ 	}
++	return 0, fmt.Errorf("heat-grid destination is unreachable with strides %d..%d", minSteps, maxSteps)
+ }
+ 
+-func crucibleHeuristic(target grid.Position2D[int], minSteps int) func(crucibleState) int {
+-	return func(s crucibleState) int {
+-		if s.position == target && s.steps >= minSteps {
+-			return 0
+-		}
+-		return 1
+-	}
+-}
+-
+-func crucibleStepCost(heatMap grid.Grid2D[int, int]) func(crucibleState, crucibleState) int {
+-	return func(from, to crucibleState) int {
+-		return heatMap[to.position]
+-	}
+-}
+-
+-func parseHeatGrid(r io.Reader) (grid.Grid2D[int, int], error) {
+-	s := scanner.NewScanner(r, func(line []byte) ([]int, error) {
+-		row := make([]int, len(line))
+-		for i, ch := range line {
+-			row[i] = int(ch - '0')
+-		}
+-		return row, nil
+-	})
+-
+-	rows := slices.Collect(s.Values())
+-	if err := s.Err(); err != nil {
+-		return nil, err
+-	}
+-
+-	return grid.NewGrid2D[int](rows), nil
+-}
+-
+-func day17p01(r io.Reader) (string, error) {
++func crucibleHeat(r io.Reader, minSteps, maxSteps int) (string, error) {
+ 	heatMap, err := parseHeatGrid(r)
+ 	if err != nil {
+ 		return "", err
+ 	}
++	heat, err := minimumHeat(heatMap, minSteps, maxSteps)
++	if err != nil {
++		return "", err
++	}
++	return strconv.Itoa(heat), nil
++}
+ 
+-	_, maxX, _, maxY := heatMap.Dimensions()
+-	target := grid.Position2D[int]{X: maxX, Y: maxY}
+-
+-	minHeat := -1
+-	for _, startDir := range []grid.Position2D[int]{{X: 1, Y: 0}, {X: 0, Y: 1}} {
+-		start := crucibleState{
+-			position:  grid.Position2D[int]{X: 0, Y: 0},
+-			direction: startDir,
+-			steps:     0,
+-		}
+-
+-		heat, _, found := search.AStar(
+-			start,
+-			crucibleNeighbours(heatMap, 0, 3),
+-			crucibleHeuristic(target, 0),
+-			crucibleStepCost(heatMap),
+-		)
+-
+-		if found && (minHeat == -1 || heat < minHeat) {
+-			minHeat = heat
+-		}
+-	}
+-
+-	return strconv.Itoa(minHeat), nil
++func day17p01(r io.Reader) (string, error) {
++	return crucibleHeat(r, 1, 3)
+ }
+ 
+ func day17p02(r io.Reader) (string, error) {
+-	heatMap, err := parseHeatGrid(r)
+-	if err != nil {
+-		return "", err
+-	}
+-
+-	_, maxX, _, maxY := heatMap.Dimensions()
+-	target := grid.Position2D[int]{X: maxX, Y: maxY}
+-
+-	minHeat := -1
+-	for _, startDir := range []grid.Position2D[int]{{X: 1, Y: 0}, {X: 0, Y: 1}} {
+-		start := crucibleState{
+-			position:  grid.Position2D[int]{X: 0, Y: 0},
+-			direction: startDir,
+-			steps:     0,
+-		}
+-
+-		heat, _, found := search.AStar(
+-			start,
+-			crucibleNeighbours(heatMap, 4, 10),
+-			crucibleHeuristic(target, 4),
+-			crucibleStepCost(heatMap),
+-		)
+-
+-		if found && (minHeat == -1 || heat < minHeat) {
+-			minHeat = heat
+-		}
+-	}
+-
+-	return strconv.Itoa(minHeat), nil
++	return crucibleHeat(r, 4, 10)
+ }
+--- a/internal/aoc2023/day17_test.go
++++ b/internal/aoc2023/day17_test.go
+@@ -1,8 +1,15 @@
+ package aoc2023
+ 
+ import (
++	"errors"
++	"io"
++	"maps"
++	"math"
++	"math/rand/v2"
++	"strconv"
+ 	"strings"
+ 	"testing"
++	"testing/iotest"
+ 
+ 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+ )
+@@ -66,3 +73,132 @@
+ 	}
+ 	aoc.AOCTest(t, day17p02, tests)
+ }
++
++func TestCrucibleStrides(t *testing.T) {
++	tests := []struct {
++		name  string
++		input string
++		part1 string
++		part2 string
++	}{
++		{"singleton", "7", "0", ""},
++		{"three steps", "1234", "9", ""},
++		{"four steps", "12345", "", "14"},
++		{"vertical start", "1\n2\n3\n4\n5", "", "14"},
++		{"ten steps", "11111111111", "", "10"},
++		{"eleven steps", "111111111111", "", ""},
++		{"zero heat and final stride", "000009\n000009\n000009\n000009\n999900", "0", "36"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			for part, solve := range []func(io.Reader) (string, error){day17p01, day17p02} {
++				want := []string{tt.part1, tt.part2}[part]
++				got, err := solve(strings.NewReader(tt.input))
++				if want == "" {
++					if err == nil {
++						t.Errorf("part %d returned %q for an unreachable destination", part+1, got)
++					}
++				} else if err != nil || got != want {
++					t.Errorf("part %d = %q, %v; want %q", part+1, got, err, want)
++				}
++			}
++		})
++	}
++}
++
++func TestHeatGridErrors(t *testing.T) {
++	for _, input := range []string{"", "1\n\n2", "12\n3", "1x", strings.Repeat(strings.Repeat("1", 500)+"\n", 501)} {
++		for _, solve := range []func(io.Reader) (string, error){day17p01, day17p02} {
++			if _, err := solve(strings.NewReader(input)); err == nil {
++				t.Fatalf("expected an error for invalid heat grid of %d bytes", len(input))
++			}
++		}
++	}
++	failure := errors.New("heat reader failed")
++	for _, solve := range []func(io.Reader) (string, error){day17p01, day17p02} {
++		input := io.MultiReader(strings.NewReader("12\n34\n"), iotest.ErrReader(failure))
++		if _, err := solve(input); !errors.Is(err, failure) {
++			t.Fatalf("error = %v, want reader failure", err)
++		}
++	}
++}
++
++func TestCrucibleTinyGrids(t *testing.T) {
++	random := rand.New(rand.NewPCG(17, 2023))
++	for height := 1; height <= 7; height++ {
++		for width := 1; width <= 7; width++ {
++			rows := make([]string, height)
++			for y := range rows {
++				row := make([]byte, width)
++				for x := range row {
++					row[x] = byte('0' + random.IntN(10))
++				}
++				rows[y] = string(row)
++			}
++			for _, limits := range [][2]int{{1, 3}, {4, 10}} {
++				want, reachable := crucibleStepOracle(rows, limits[0], limits[1])
++				got, err := crucibleHeat(strings.NewReader(strings.Join(rows, "\n")), limits[0], limits[1])
++				if !reachable {
++					if err == nil {
++						t.Fatalf("%v strides %v returned %q for an unreachable destination", rows, limits, got)
++					}
++				} else if err != nil || got != strconv.Itoa(want) {
++					t.Fatalf("%v strides %v = %q, %v; want %d", rows, limits, got, err, want)
++				}
++			}
++		}
++	}
++}
++
++func crucibleStepOracle(rows []string, minSteps, maxSteps int) (int, bool) {
++	type state struct {
++		x, y, direction, steps int
++	}
++	width, height := len(rows[0]), len(rows)
++	if width == 1 && height == 1 {
++		return 0, minSteps == 1
++	}
++	directions := [][2]int{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}
++	distance := map[state]int{{direction: -1}: 0}
++	// Bellman–Ford relaxes one-cell moves, retaining the full direction/run state.
++	for pass := 0; pass < 4*width*height*maxSteps; pass++ {
++		next := maps.Clone(distance)
++		changed := false
++		for current, cost := range distance {
++			for direction, delta := range directions {
++				steps := 1
++				if current.direction >= 0 {
++					if direction == (current.direction+2)%4 {
++						continue
++					}
++					if direction == current.direction {
++						steps = current.steps + 1
++					} else if current.steps < minSteps {
++						continue
++					}
++				}
++				x, y := current.x+delta[0], current.y+delta[1]
++				if steps > maxSteps || x < 0 || y < 0 || x >= width || y >= height {
++					continue
++				}
++				to := state{x: x, y: y, direction: direction, steps: steps}
++				candidate := cost + int(rows[y][x]-'0')
++				if previous, ok := next[to]; !ok || candidate < previous {
++					next[to] = candidate
++					changed = true
++				}
++			}
++		}
++		distance = next
++		if !changed {
++			break
++		}
++	}
++	best := math.MaxInt
++	for at, cost := range distance {
++		if at.x == width-1 && at.y == height-1 && at.steps >= minSteps {
++			best = min(best, cost)
++		}
++	}
++	return best, best != math.MaxInt
++}

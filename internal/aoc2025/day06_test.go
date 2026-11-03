@@ -1,6 +1,7 @@
 package aoc2025
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -39,4 +40,34 @@ func Test_day06p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day06p02, tests)
+}
+
+func TestHomeworkSpacing(t *testing.T) {
+	for _, tt := range []struct {
+		input string
+		want  [2]string
+	}{
+		{"12\n3\n+", [2]string{"15", "15"}},
+		{"12  \n3\n+ ", [2]string{"15", "15"}},
+		{"12  4\n 3  5\n+   *", [2]string{"35", "69"}},
+	} {
+		for _, input := range []string{tt.input, tt.input + "\n", strings.ReplaceAll(tt.input+"\n", "\n", "\r\n")} {
+			for part, solve := range []func(io.Reader) (string, error){day06p01, day06p02} {
+				got, err := solve(strings.NewReader(input))
+				if err != nil || got != tt.want[part] {
+					t.Fatalf("part %d input %q = %q, %v; want %s", part+1, input, got, err, tt.want[part])
+				}
+			}
+		}
+	}
+}
+
+func TestHomeworkInputErrors(t *testing.T) {
+	for _, input := range []string{"", "  \n  ", "12\n3\n ", "12\n3\n-", "1x\n3\n+", "12\n3\n++"} {
+		for _, solve := range []func(io.Reader) (string, error){day06p01, day06p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Fatalf("input %q: expected error", input)
+			}
+		}
+	}
 }

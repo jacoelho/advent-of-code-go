@@ -2,41 +2,92 @@ package aoc2024
 
 import (
 	"bufio"
+	"fmt"
 	"io"
-	"slices"
+	"math"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 )
 
 func parseSleighLaunchSafetyRules(r io.Reader) (map[[2]int]bool, [][]int, error) {
-	var updatePages [][]int
 	rules := make(map[[2]int]bool)
-
+	var updates [][]int
+	readingUpdates := false
+	lines, work := 0, 0
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		text := s.Text()
-
-		switch {
-		case strings.Contains(text, "|"):
-			v := xslices.Map(aoc.MustAtoi, strings.Split(text, "|"))
-			rules[[2]int{v[0], v[1]}] = true
-			rules[[2]int{v[1], v[0]}] = false
-
-		case strings.Contains(text, ","):
-			v := xslices.Map(aoc.MustAtoi, strings.Split(text, ","))
-			updatePages = append(updatePages, v)
+		lines++
+		if lines > 100_000 {
+			return nil, nil, fmt.Errorf("page ordering input exceeds 100000 lines")
 		}
+		text := s.Text()
+		if text == "" {
+			readingUpdates = true
+			continue
+		}
+		if !readingUpdates {
+			left, right, ok := strings.Cut(text, "|")
+			if !ok || strings.Contains(right, "|") {
+				return nil, nil, fmt.Errorf("invalid page rule %q", text)
+			}
+			before, err := convert.ScanNumber[int]([]byte(left))
+			if err != nil {
+				return nil, nil, fmt.Errorf("page rule: %w", err)
+			}
+			after, err := convert.ScanNumber[int]([]byte(right))
+			if err != nil {
+				return nil, nil, fmt.Errorf("page rule: %w", err)
+			}
+			if before < 0 || after < 0 {
+				return nil, nil, fmt.Errorf("page numbers must be nonnegative")
+			}
+			rules[[2]int{before, after}] = true
+			continue
+		}
+
+		var update []int
+		seen := make(map[int]bool)
+		for field := range strings.SplitSeq(text, ",") {
+			page, err := convert.ScanNumber[int]([]byte(field))
+			if err != nil {
+				return nil, nil, fmt.Errorf("page update: %w", err)
+			}
+			if page < 0 || seen[page] {
+				return nil, nil, fmt.Errorf("update pages must be nonnegative and unique")
+			}
+			if len(update) == 1023 {
+				return nil, nil, fmt.Errorf("update exceeds 1023 pages")
+			}
+			seen[page] = true
+			update = append(update, page)
+		}
+		if len(update)%2 == 0 {
+			return nil, nil, fmt.Errorf("update needs an odd number of pages")
+		}
+		work += len(update) * len(update)
+		if work > 10_000_000 {
+			return nil, nil, fmt.Errorf("page ordering exceeds ten million page pairs")
+		}
+		updates = append(updates, update)
 	}
-	return rules, updatePages, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, nil, err
+	}
+	if len(updates) == 0 {
+		return nil, nil, fmt.Errorf("missing page updates")
+	}
+	return rules, updates, nil
 }
 
 func isOrdered(rules map[[2]int]bool, update []int) bool {
-	for i, u := range update {
-		for _, v := range update[i+1:] {
-			if ordered, found := rules[[2]int{u, v}]; found && !ordered {
+	for i, page := range update {
+		if rules[[2]int{page, page}] {
+			return false
+		}
+		for _, later := range update[i+1:] {
+			if rules[[2]int{later, page}] {
 				return false
 			}
 		}
@@ -44,37 +95,77 @@ func isOrdered(rules map[[2]int]bool, update []int) bool {
 	return true
 }
 
-func day05p01(r io.Reader) (string, error) {
-	rules, updatePages := aoc.Must2(parseSleighLaunchSafetyRules(r))
-
-	var total int
-	for _, updatePage := range updatePages {
-		if isOrdered(rules, updatePage) {
-			total += updatePage[len(updatePage)/2]
+func orderPages(rules map[[2]int]bool, update []int) ([]int, error) {
+	incoming := make([]int, len(update))
+	for i, page := range update {
+		for _, before := range update {
+			if rules[[2]int{before, page}] {
+				incoming[i]++
+			}
 		}
 	}
-	return strconv.Itoa(total), nil
+	ordered := make([]int, 0, len(update))
+	for len(ordered) < len(update) {
+		first := -1
+		// Original update order breaks ties among currently available pages.
+		for i, count := range incoming {
+			if count == 0 {
+				first = i
+				break
+			}
+		}
+		if first == -1 {
+			return nil, fmt.Errorf("page update contains a rule cycle")
+		}
+		incoming[first] = -1
+		page := update[first]
+		ordered = append(ordered, page)
+		for i, after := range update {
+			if incoming[i] > 0 && rules[[2]int{page, after}] {
+				incoming[i]--
+			}
+		}
+	}
+	return ordered, nil
+}
+
+func day05p01(r io.Reader) (string, error) {
+	rules, updates, err := parseSleighLaunchSafetyRules(r)
+	if err != nil {
+		return "", err
+	}
+	var total int64
+	for _, update := range updates {
+		if isOrdered(rules, update) {
+			middle := int64(update[len(update)/2])
+			if middle > math.MaxInt64-total {
+				return "", fmt.Errorf("middle page total overflows int64")
+			}
+			total += middle
+		}
+	}
+	return strconv.FormatInt(total, 10), nil
 }
 
 func day05p02(r io.Reader) (string, error) {
-	rules, updatePages := aoc.Must2(parseSleighLaunchSafetyRules(r))
-
-	var total int
-	for _, updatePage := range updatePages {
-		if isOrdered(rules, updatePage) {
+	rules, updates, err := parseSleighLaunchSafetyRules(r)
+	if err != nil {
+		return "", err
+	}
+	var total int64
+	for _, update := range updates {
+		if isOrdered(rules, update) {
 			continue
 		}
-
-		slices.SortFunc(updatePage, func(i, j int) int {
-			if ordered, found := rules[[2]int{i, j}]; found {
-				if ordered {
-					return -1
-				}
-				return 1
-			}
-			return 0
-		})
-		total += updatePage[len(updatePage)/2]
+		ordered, err := orderPages(rules, update)
+		if err != nil {
+			return "", err
+		}
+		middle := int64(ordered[len(ordered)/2])
+		if middle > math.MaxInt64-total {
+			return "", fmt.Errorf("middle page total overflows int64")
+		}
+		total += middle
 	}
-	return strconv.Itoa(total), nil
+	return strconv.FormatInt(total, 10), nil
 }

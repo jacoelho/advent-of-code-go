@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -53,4 +54,20 @@ func Test_day06p02(t *testing.T) {
 	}
 
 	aoc.AOCTest(t, day06p02, tests)
+}
+
+func TestGuardMapErrors(t *testing.T) {
+	for _, input := range []string{".", "^^"} {
+		for _, solve := range []func(io.Reader) (string, error){day06p01, day06p02} {
+			if got, err := solve(strings.NewReader(input)); err == nil {
+				t.Fatalf("input %q: got %q; want guard error", input, got)
+			}
+		}
+	}
+}
+
+func TestEnclosedGuard(t *testing.T) {
+	const input = "###\n#^#\n###"
+	aoc.AOCTest(t, day06p01, []aoc.TestInput{{Input: strings.NewReader(input), Want: "1"}})
+	aoc.AOCTest(t, day06p02, []aoc.TestInput{{Input: strings.NewReader(input), Want: "0"}})
 }

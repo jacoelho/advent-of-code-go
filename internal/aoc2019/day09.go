@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-func day9p01(r io.Reader) (string, error) {
+func day09p01(r io.Reader) (string, error) {
 	program, err := ParseIntcodeInput(r)
 	if err != nil {
 		return "", err
@@ -25,7 +25,7 @@ func day9p01(r io.Reader) (string, error) {
 	return strconv.Itoa(result), nil
 }
 
-func day9p02(r io.Reader) (string, error) {
+func day09p02(r io.Reader) (string, error) {
 	program, err := ParseIntcodeInput(r)
 	if err != nil {
 		return "", err

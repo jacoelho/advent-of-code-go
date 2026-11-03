@@ -1,0 +1,45 @@
+package aoc2023
+
+import (
+	"bytes"
+	"os"
+	"testing"
+)
+
+func BenchmarkDay25Part1(b *testing.B) {
+	actual, err := os.ReadFile("../../inputs/2023/25.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+	fixtures := []struct {
+		name  string
+		input []byte
+		want  string
+	}{
+		{name: "sample", input: []byte(`jqt: rhn xhk nvd
+rsh: frs pzl lsr
+xhk: hfx
+cmg: qnr nvd lhk bvb
+rhn: xhk bvb hfx
+bvb: xhk hfx
+pzl: lsr hfx nvd
+qnr: nvd
+ntq: jqt hfx bvb xhk
+nvd: lhk
+lsr: lhk
+rzs: qnr cmg lsr rsh
+frs: qnr lhk lsr`), want: "54"},
+		{name: "actual", input: actual, want: "614655"},
+	}
+	for _, fixture := range fixtures {
+		b.Run(fixture.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				got, err := day25p01(bytes.NewReader(fixture.input))
+				if err != nil || got != fixture.want {
+					b.Fatalf("day25p01() = %q, %v; want %q", got, err, fixture.want)
+				}
+			}
+		})
+	}
+}

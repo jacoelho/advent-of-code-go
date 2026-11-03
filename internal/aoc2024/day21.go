@@ -1,13 +1,14 @@
 package aoc2024
 
 import (
+	"fmt"
 	"io"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
@@ -27,11 +28,29 @@ var directionalKeyPad = map[rune]grid.Position2D[int]{
 	'<': {X: 0, Y: 1}, 'v': {X: 1, Y: 1}, '>': {X: 2, Y: 1},
 }
 
-func parseCodes(r io.Reader) ([]string, error) {
-	s := scanner.NewScanner(r, func(b []byte) (string, error) {
-		return string(b), nil
+type keypadCode struct {
+	keys   string
+	number int
+}
+
+func parseCodes(r io.Reader) ([]keypadCode, error) {
+	s := scanner.NewScanner(r, func(b []byte) (keypadCode, error) {
+		if len(b) < 2 || b[len(b)-1] != 'A' {
+			return keypadCode{}, fmt.Errorf("keypad code needs digits followed by A")
+		}
+		for _, digit := range b[:len(b)-1] {
+			if digit < '0' || digit > '9' {
+				return keypadCode{}, fmt.Errorf("invalid keypad code %q", b)
+			}
+		}
+		number, err := convert.ScanNumber[int](b[:len(b)-1])
+		if err != nil {
+			return keypadCode{}, fmt.Errorf("keypad code: %w", err)
+		}
+		return keypadCode{keys: string(b), number: number}, nil
 	})
-	return slices.Collect(s.Values()), s.Err()
+	codes := slices.Collect(s.Values())
+	return codes, s.Err()
 }
 
 type robotCacheItem struct {
@@ -129,12 +148,14 @@ func minKeyPresses(count int, code string) int {
 
 func day21(robots int) func(io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		codes := aoc.Must(parseCodes(r))
+		codes, err := parseCodes(r)
+		if err != nil {
+			return "", err
+		}
 		var total int
 		for _, code := range codes {
-			presses := minKeyPresses(robots, code)
-			numericCode := aoc.Must(strconv.Atoi(code[:len(code)-1]))
-			total += numericCode * presses
+			presses := minKeyPresses(robots, code.keys)
+			total += code.number * presses
 		}
 		return strconv.Itoa(total), nil
 	}

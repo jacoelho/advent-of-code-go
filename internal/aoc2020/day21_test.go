@@ -42,3 +42,15 @@ sqjhc mxmxvkd sbzzf (contains fish)`),
 
 	aoc.AOCTest(t, day21p02, tests)
 }
+
+func TestAllergenAssignmentErrors(t *testing.T) {
+	for _, input := range []string{
+		"a b (contains x)",
+		"a (contains x, y)",
+		"a (contains x)\nb (contains x)",
+	} {
+		if _, err := day21p02(strings.NewReader(input)); err == nil {
+			t.Errorf("expected unresolved or inconsistent assignment for %q", input)
+		}
+	}
+}

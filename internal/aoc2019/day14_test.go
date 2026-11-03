@@ -1,14 +1,18 @@
 package aoc2019
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
 func Test_day14p01(t *testing.T) {
 	tests := []aoc.TestInput{
+		{Input: strings.NewReader("1 ORE => 2 FUEL"), Want: "1"},
 		{
 			Input: strings.NewReader(`10 ORE => 10 A
 1 ORE => 1 B
@@ -85,6 +89,8 @@ func Test_day14p01(t *testing.T) {
 
 func Test_day14p02(t *testing.T) {
 	tests := []aoc.TestInput{
+		{Input: strings.NewReader("1 ORE => 2 FUEL"), Want: "2000000000000"},
+		{Input: strings.NewReader("3 ORE => 2 A\n3 A => 1 FUEL"), Want: "222222222222"},
 		{
 			Input: strings.NewReader(`157 ORE => 5 NZVS
 165 ORE => 6 DCFZ
@@ -138,4 +144,35 @@ func Test_day14p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day14p02, tests)
+}
+
+func TestReactionErrors(t *testing.T) {
+	for _, input := range []string{
+		"1 ORE => 0 FUEL",
+		"-1 ORE => 1 FUEL",
+		"1 ORE => 1 FUEL\n2 ORE => 1 FUEL",
+		"1 A => 1 FUEL",
+		"1 A => 1 FUEL\n1 FUEL => 1 A",
+	} {
+		for _, solve := range []func(io.Reader) (string, error){day14p01, day14p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("expected reaction error for %q", input)
+			}
+		}
+	}
+	if _, err := day14p01(strings.NewReader("9223372036854775807 ORE => 1 A\n2 A => 1 FUEL")); err == nil {
+		t.Fatal("expected ore demand overflow")
+	}
+}
+
+func TestReactionReaderErrors(t *testing.T) {
+	failure := errors.New("reaction input failed")
+	for _, solve := range []func(io.Reader) (string, error){day14p01, day14p02} {
+		for _, prefix := range []string{"", "1 ORE => 1 FUEL\n"} {
+			_, err := solve(io.MultiReader(strings.NewReader(prefix), iotest.ErrReader(failure)))
+			if !errors.Is(err, failure) {
+				t.Fatalf("got %v, want reader failure", err)
+			}
+		}
+	}
 }

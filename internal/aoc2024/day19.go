@@ -1,32 +1,42 @@
 package aoc2024
 
 import (
-	"bufio"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 	"github.com/jacoelho/advent-of-code-go/pkg/xstrings"
 )
 
-func parseDesigns(r io.Reader) (collections.Set[string], []string) {
-	s := bufio.NewScanner(r)
-	s.Split(scanner.SplitBySeparator([]byte{'\n', '\n'}))
-	_, patternsString := s.Scan(), s.Text()
-	_, desiredString := s.Scan(), s.Text()
-	if s.Err() != nil {
-		panic(s.Err())
+func parseDesigns(r io.Reader) (collections.Set[string], []string, error) {
+	const inputLimit = 128 << 10
+	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(data) > inputLimit {
+		return nil, nil, fmt.Errorf("towel input exceeds 128 KiB")
+	}
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	patternsString, desiredString, ok := strings.Cut(text, "\n\n")
+	if !ok {
+		return nil, nil, fmt.Errorf("towels need patterns and desired designs")
 	}
 
-	patterns := collections.NewSet(strings.Split(patternsString, ", ")...)
-	desired := strings.Fields(desiredString)
-
-	return patterns, desired
+	patterns := collections.NewSet[string]()
+	for field := range strings.SplitSeq(patternsString, ",") {
+		pattern := strings.TrimSpace(field)
+		if pattern == "" {
+			return nil, nil, fmt.Errorf("towel pattern is empty")
+		}
+		patterns.Add(pattern)
+	}
+	return patterns, strings.Fields(desiredString), nil
 }
 
 func countMatches(designs collections.Set[string], longestDesign int, pattern string) int {
@@ -47,7 +57,10 @@ func countMatches(designs collections.Set[string], longestDesign int, pattern st
 }
 
 func day19p01(r io.Reader) (string, error) {
-	designs, patterns := parseDesigns(r)
+	designs, patterns, err := parseDesigns(r)
+	if err != nil {
+		return "", err
+	}
 	longestDesign := xiter.Max(xiter.Map(func(s string) int { return len(s) }, designs.Iter()))
 
 	matches := xslices.CountFunc(func(s string) bool {
@@ -57,7 +70,10 @@ func day19p01(r io.Reader) (string, error) {
 }
 
 func day19p02(r io.Reader) (string, error) {
-	designs, patterns := parseDesigns(r)
+	designs, patterns, err := parseDesigns(r)
+	if err != nil {
+		return "", err
+	}
 	longestDesign := xiter.Max(xiter.Map(func(s string) int { return len(s) }, designs.Iter()))
 
 	count := xslices.Reduce(func(sum int, pattern string) int {

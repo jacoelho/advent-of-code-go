@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/conc"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
@@ -38,7 +37,10 @@ func secretNumberIterationN(n int) int {
 }
 
 func day22p01(r io.Reader) (string, error) {
-	secretNumbers := aoc.Must(parseSecretNumbers(r))
+	secretNumbers, err := parseSecretNumbers(r)
+	if err != nil {
+		return "", err
+	}
 
 	var total int
 	for _, secretNumber := range secretNumbers {
@@ -48,7 +50,7 @@ func day22p01(r io.Reader) (string, error) {
 }
 
 func sellSequences(n int) map[[4]int]int {
-	digitSecretNumberIter := xiter.Map(func(v int) int { return v % 10 }, xiter.Take(2000, secretNumberIter(n)))
+	digitSecretNumberIter := xiter.Map(func(v int) int { return v % 10 }, xiter.Take(2001, secretNumberIter(n)))
 
 	seen := collections.NewSet[[4]int]()
 	total := make(map[[4]int]int)
@@ -65,7 +67,10 @@ func sellSequences(n int) map[[4]int]int {
 }
 
 func day22p02(r io.Reader) (string, error) {
-	secretNumbers := aoc.Must(parseSecretNumbers(r))
+	secretNumbers, err := parseSecretNumbers(r)
+	if err != nil {
+		return "", err
+	}
 
 	total := make(map[[4]int]int)
 	for _, m := range conc.Map(sellSequences, secretNumbers) {

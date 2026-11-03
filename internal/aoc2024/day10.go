@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
@@ -52,7 +51,10 @@ func trailheads(m grid.Grid2D[int, int]) []grid.Position2D[int] {
 }
 
 func day10p01(r io.Reader) (string, error) {
-	m := aoc.Must(parseTopographicMap(r))
+	m, err := parseTopographicMap(r)
+	if err != nil {
+		return "", err
+	}
 
 	var summits int
 	for _, trail := range trailheads(m) {
@@ -85,7 +87,10 @@ func multiVisitBFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.S
 }
 
 func day10p02(r io.Reader) (string, error) {
-	m := aoc.Must(parseTopographicMap(r))
+	m, err := parseTopographicMap(r)
+	if err != nil {
+		return "", err
+	}
 
 	var summits int
 	for _, trail := range trailheads(m) {

@@ -43,7 +43,7 @@ func shouldHaveBug(hasBug bool, adjacent int) bool {
 	return adjacent == 1 || adjacent == 2
 }
 
-func parseGrid(r io.Reader, mode gridMode) uint32 {
+func parseGrid(r io.Reader, mode gridMode) (uint32, error) {
 	var state uint32
 	scanner := bufio.NewScanner(r)
 	y := 0
@@ -63,7 +63,7 @@ func parseGrid(r io.Reader, mode gridMode) uint32 {
 		}
 		y++
 	}
-	return state
+	return state, scanner.Err()
 }
 
 func isBug(state uint32, pos int) bool { return state&(1<<pos) != 0 }
@@ -95,7 +95,10 @@ func step(state uint32) uint32 {
 }
 
 func day24p01(r io.Reader) (string, error) {
-	state := parseGrid(r, gridModeFlat)
+	state, err := parseGrid(r, gridModeFlat)
+	if err != nil {
+		return "", err
+	}
 	seen := collections.NewSet[uint32]()
 
 	for {
@@ -222,7 +225,10 @@ func stepRecursive(grids map[int]uint32, minutes int) map[int]uint32 {
 }
 
 func simulateRecursive(r io.Reader, minutes int) (string, error) {
-	state := parseGrid(r, gridModeRecursive)
+	state, err := parseGrid(r, gridModeRecursive)
+	if err != nil {
+		return "", err
+	}
 	grids := map[int]uint32{0: state}
 	grids = stepRecursive(grids, minutes)
 

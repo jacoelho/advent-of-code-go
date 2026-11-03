@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -93,4 +94,47 @@ func Test_day18p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day18p02(70, 1024), tests)
+}
+
+func TestMemoryRoutes(t *testing.T) {
+	for _, tt := range []struct {
+		name, input, want string
+		solve             func(io.Reader) (string, error)
+	}{
+		{"blocked start", "0,0", "", day18p01(1, 1)},
+		{"blocked end", "1,1", "", day18p01(1, 1)},
+		{"first byte blocks", "0,0", "0,0", day18p02(1, 0)},
+		{"last byte blocks", "1,0\n0,1", "0,1", day18p02(1, 0)},
+		{"no blocker", "1,0", "", day18p02(1, 0)},
+		{"already blocked", "0,0", "", day18p02(1, 1)},
+		{"single cell route", "0,0", "0", day18p01(0, 0)},
+		{"single cell blocked", "0,0", "0,0", day18p02(0, 0)},
+		{"duplicate events", "1,0\n1,0\n0,1", "0,1", day18p02(1, 2)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.solve(strings.NewReader(tt.input))
+			if tt.want == "" {
+				if err == nil {
+					t.Fatal("expected route error")
+				}
+			} else if err != nil || got != tt.want {
+				t.Fatalf("got %q, %v; want %s", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestMemoryInputErrors(t *testing.T) {
+	for _, factory := range []func(int, int) func(io.Reader) (string, error){day18p01, day18p02} {
+		for _, config := range [][2]int{{-1, 0}, {1025, 0}, {1, -1}, {1, 2}} {
+			if _, err := factory(config[0], config[1])(strings.NewReader("0,0")); err == nil {
+				t.Fatalf("configuration %v: expected error", config)
+			}
+		}
+		for _, input := range []string{"1", "1,0,1", "1,0x", "9223372036854775808,0", "-1,0", "2,0"} {
+			if _, err := factory(1, 0)(strings.NewReader(input)); err == nil {
+				t.Fatalf("input %q: expected error", input)
+			}
+		}
+	}
 }

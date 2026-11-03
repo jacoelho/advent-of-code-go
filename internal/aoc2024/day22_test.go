@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -39,4 +40,19 @@ func Test_day22p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day22p02, tests)
+}
+
+func TestSecretFinalPrice(t *testing.T) {
+	prices := sellSequences(1)
+	if got, ok := prices[[4]int{-6, 3, -1, 7}]; !ok || got != 9 {
+		t.Fatalf("final price = %d, present %t; want 9", got, ok)
+	}
+}
+
+func TestSecretNumberInputError(t *testing.T) {
+	for _, solve := range []func(io.Reader) (string, error){day22p01, day22p02} {
+		if _, err := solve(strings.NewReader("invalid")); err == nil {
+			t.Fatal("expected invalid secret number error")
+		}
+	}
 }

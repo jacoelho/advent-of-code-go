@@ -1,0 +1,17 @@
+{
+  "args": [
+    "/tmp/aoc-2019-day18-performance/candidate.test",
+    "-test.run=^$",
+    "-test.bench=^BenchmarkDay18$",
+    "-test.benchmem",
+    "-test.benchtime=1x",
+    "-test.count=1",
+    "-test.cpu=1",
+    "-test.timeout=60s"
+  ],
+  "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2019",
+  "returncode": 0,
+  "elapsed_seconds": 0.07154499972239137,
+  "stdout": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2019\ncpu: Apple M2 Max\nBenchmarkDay18/part1/sample         \t       1\t  14057500 ns/op\t11881016 B/op\t  421873 allocs/op\nBenchmarkDay18/part1/actual         \t       1\t  14897333 ns/op\t10388968 B/op\t  402390 allocs/op\nBenchmarkDay18/part2/sample         \t       1\t     93167 ns/op\t  178056 B/op\t    3396 allocs/op\nBenchmarkDay18/part2/actual         \t       1\t  33663041 ns/op\t44178024 B/op\t 1080537 allocs/op\nPASS\n",
+  "stderr": ""
+}

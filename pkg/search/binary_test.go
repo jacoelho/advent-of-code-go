@@ -1,77 +1,79 @@
 package search
 
-import "testing"
+import (
+	"errors"
+	"math"
+	"testing"
+)
 
 func TestBinarySearch(t *testing.T) {
-	tests := []struct {
-		name      string
-		min       int
-		max       int
-		predicate func(int) bool
-		want      int
+	for _, tt := range []struct {
+		name     string
+		min, max int64
+		want     int64
 	}{
-		{
-			name: "find threshold at 5",
-			min:  0,
-			max:  10,
-			predicate: func(x int) bool {
-				return x >= 5
-			},
-			want: 5,
-		},
-		{
-			name: "predicate true at min",
-			min:  0,
-			max:  10,
-			predicate: func(x int) bool {
-				return true
-			},
-			want: 0,
-		},
-		{
-			name: "predicate never true",
-			min:  0,
-			max:  10,
-			predicate: func(x int) bool {
-				return false
-			},
-			want: 11,
-		},
-		{
-			name: "single element range - true",
-			min:  5,
-			max:  5,
-			predicate: func(x int) bool {
-				return x >= 5
-			},
-			want: 5,
-		},
-		{
-			name: "single element range - false",
-			min:  5,
-			max:  5,
-			predicate: func(x int) bool {
-				return x >= 6
-			},
-			want: 6,
-		},
-		{
-			name: "find threshold at max",
-			min:  0,
-			max:  10,
-			predicate: func(x int) bool {
-				return x >= 10
-			},
-			want: 10,
-		},
-	}
-
-	for _, tt := range tests {
+		{"interior", 0, 10, 5},
+		{"minimum", 0, 10, 0},
+		{"maximum", 0, 10, 10},
+		{"singleton", 5, 5, 5},
+		{"full signed range", math.MinInt64, math.MaxInt64, 0},
+		{"largest signed value", math.MinInt64, math.MaxInt64, math.MaxInt64},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := BinarySearch(tt.min, tt.max, tt.predicate)
-			if got != tt.want {
-				t.Errorf("BinarySearch() = %v, want %v", got, tt.want)
+			got, err := BinarySearch(tt.min, tt.max, func(value int64) (bool, error) {
+				return value >= tt.want, nil
+			})
+			if err != nil || got != tt.want {
+				t.Fatalf("BinarySearch() = %v, %v; want %v", got, err, tt.want)
 			}
 		})
+	}
+	got, err := BinarySearch(uint64(0), uint64(math.MaxUint64), func(value uint64) (bool, error) {
+		return value == math.MaxUint64, nil
+	})
+	if err != nil || got != math.MaxUint64 {
+		t.Fatalf("unsigned search = %v, %v; want MaxUint64", got, err)
+	}
+}
+
+func TestBinarySearchNoMatch(t *testing.T) {
+	for _, interval := range [][2]int64{{0, 10}, {5, 5}, {0, math.MaxInt64}} {
+		_, err := BinarySearch(interval[0], interval[1], func(int64) (bool, error) {
+			return false, nil
+		})
+		if err == nil {
+			t.Errorf("expected no-match error for %v", interval)
+		}
+	}
+	_, err := BinarySearch(uint64(0), uint64(math.MaxUint64), func(uint64) (bool, error) {
+		return false, nil
+	})
+	if err == nil {
+		t.Fatal("expected unsigned no-match error")
+	}
+}
+
+func TestBinarySearchInvalidInterval(t *testing.T) {
+	_, err := BinarySearch(2, 1, func(int) (bool, error) {
+		t.Fatal("predicate called for invalid interval")
+		return false, nil
+	})
+	if err == nil {
+		t.Fatal("expected invalid interval error")
+	}
+}
+
+func TestBinarySearchPredicateErrors(t *testing.T) {
+	want := errors.New("query failed")
+	for _, threshold := range []int{0, 5, 10} {
+		_, err := BinarySearch(0, 10, func(value int) (bool, error) {
+			if value == threshold {
+				return false, want
+			}
+			return value > threshold, nil
+		})
+		if !errors.Is(err, want) {
+			t.Errorf("threshold %d: error = %v; want %v", threshold, err, want)
+		}
 	}
 }

@@ -1,0 +1,567 @@
+--- a/internal/aoc2023/day25.go
++++ b/internal/aoc2023/day25.go
+@@ -1,156 +1,214 @@
+ package aoc2023
+ 
+ import (
++	"cmp"
+ 	"fmt"
+ 	"io"
+-	"iter"
+ 	"slices"
+ 	"strconv"
+ 	"strings"
+-
+-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
++	"unicode"
++
+ 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+-	"github.com/jacoelho/advent-of-code-go/pkg/search"
+-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
+ )
+-
+-type edge struct {
+-	a, b string
+-}
+ 
+ type wiringLine struct {
+ 	node      string
+ 	neighbors []string
+ }
+ 
+-func (e edge) normalized() edge {
+-	if e.a > e.b {
+-		return edge{e.b, e.a}
+-	}
+-	return e
++type wiringDiagram struct {
++	adjacent    [][]int
++	destination []int
+ }
+ 
+ func parseWiringLine(line []byte) (wiringLine, error) {
+-	parts := strings.Split(string(line), ": ")
+-	if len(parts) != 2 {
+-		return wiringLine{}, fmt.Errorf("invalid line format: %s", line)
+-	}
+-
+-	return wiringLine{
+-		node:      parts[0],
+-		neighbors: strings.Fields(parts[1]),
+-	}, nil
+-}
+-
+-func parseWiringDiagram(r io.Reader) (map[string]collections.Set[string], error) {
+-	graph := make(map[string]collections.Set[string])
+-
+-	addEdge := func(a, b string) {
+-		if _, exists := graph[a]; !exists {
+-			graph[a] = collections.NewSet[string]()
+-		}
+-		graph[a].Add(b)
+-	}
+-
+-	s := scanner.NewScanner(r, parseWiringLine)
+-	for wl := range s.Values() {
+-		for _, neighbor := range wl.neighbors {
+-			addEdge(wl.node, neighbor)
+-			addEdge(neighbor, wl.node)
+-		}
+-	}
+-
+-	return graph, s.Err()
+-}
+-
+-func findEdgeUsageFrequency(graph map[string]collections.Set[string], samples int) map[edge]int {
+-	edgeCount := make(map[edge]int)
+-	nodes := make([]string, 0, len(graph))
+-	for node := range graph {
+-		nodes = append(nodes, node)
+-	}
+-
+-	neighbours := func(node string) iter.Seq[string] {
+-		return graph[node].Iter()
+-	}
+-
+-	for i := 0; i < samples && i < len(nodes); i++ {
+-		start := nodes[i]
+-		distances := search.BFSDistances(start, neighbours)
+-
+-		parent := make(map[string]string)
+-		for node, dist := range distances {
+-			if dist == 0 {
+-				continue
+-			}
+-
+-			for neighbor := range graph[node].Iter() {
+-				if neighborDist, exists := distances[neighbor]; exists && neighborDist == dist-1 {
+-					parent[node] = neighbor
+-					break
+-				}
+-			}
+-		}
+-
+-		for end := range distances {
+-			if end == start {
+-				continue
+-			}
+-
+-			current := end
+-			for {
+-				prev, exists := parent[current]
+-				if !exists {
+-					break
+-				}
+-				e := edge{prev, current}.normalized()
+-				edgeCount[e]++
+-				current = prev
+-			}
+-		}
+-	}
+-
+-	return edgeCount
+-}
+-
+-func removeEdges(graph map[string]collections.Set[string], edges []edge) map[string]collections.Set[string] {
+-	newGraph := make(map[string]collections.Set[string])
+-
+-	for node, neighbors := range graph {
+-		newGraph[node] = neighbors.Clone()
+-	}
+-
+-	for _, e := range edges {
+-		if set, exists := newGraph[e.a]; exists {
+-			set.Remove(e.b)
+-		}
+-		if set, exists := newGraph[e.b]; exists {
+-			set.Remove(e.a)
+-		}
+-	}
+-
+-	return newGraph
+-}
+-
+-func findComponentSizes(graph map[string]collections.Set[string]) []int {
+-	visited := collections.NewSet[string]()
+-	sizes := []int{}
+-
+-	neighbours := func(node string) iter.Seq[string] {
+-		return graph[node].Iter()
+-	}
+-
+-	for start := range graph {
+-		if visited.Contains(start) {
++	node, neighbors, ok := strings.Cut(string(line), ":")
++	validName := func(name string) bool {
++		return len(name) > 0 && len(name) <= 128 && !strings.ContainsRune(name, ':') && !strings.ContainsFunc(name, unicode.IsSpace)
++	}
++	if !ok || !validName(node) {
++		return wiringLine{}, fmt.Errorf("invalid wiring declaration %q", line)
++	}
++
++	result := wiringLine{node: node, neighbors: strings.Fields(neighbors)}
++	for _, neighbor := range result.neighbors {
++		if !validName(neighbor) || neighbor == node {
++			return wiringLine{}, fmt.Errorf("invalid wire %q to %q", node, neighbor)
++		}
++	}
++	return result, nil
++}
++
++func parseWiringDiagram(r io.Reader) (wiringDiagram, error) {
++	const inputLimit = 4 << 20
++	limited := &io.LimitedReader{R: r, N: inputLimit + 1}
++	nodes := make(map[string]int)
++	wires := make(map[[2]string]struct{})
++	s := scanner.NewScanner(limited, parseWiringLine)
++	for line := range s.Values() {
++		nodes[line.node] = 0
++		for _, neighbor := range line.neighbors {
++			nodes[neighbor] = 0
++			wire := [2]string{line.node, neighbor}
++			if wire[0] > wire[1] {
++				wire[0], wire[1] = wire[1], wire[0]
++			}
++			wires[wire] = struct{}{}
++			if len(nodes) > 4096 || len(wires) > 20_000 {
++				return wiringDiagram{}, fmt.Errorf("wiring exceeds 4096 vertices or 20000 wires")
++			}
++		}
++		if len(nodes) > 4096 {
++			return wiringDiagram{}, fmt.Errorf("wiring exceeds 4096 vertices")
++		}
++	}
++	if err := s.Err(); err != nil {
++		return wiringDiagram{}, err
++	}
++	if limited.N == 0 {
++		return wiringDiagram{}, fmt.Errorf("wiring input exceeds 4 MiB")
++	}
++	if len(nodes) < 2 {
++		return wiringDiagram{}, fmt.Errorf("wiring needs at least two vertices")
++	}
++
++	names := make([]string, 0, len(nodes))
++	for name := range nodes {
++		names = append(names, name)
++	}
++	slices.Sort(names)
++	for i, name := range names {
++		nodes[name] = i
++	}
++	edges := make([][2]int, 0, len(wires))
++	for wire := range wires {
++		edges = append(edges, [2]int{nodes[wire[0]], nodes[wire[1]]})
++	}
++	slices.SortFunc(edges, func(a, b [2]int) int {
++		if order := cmp.Compare(a[0], b[0]); order != 0 {
++			return order
++		}
++		return cmp.Compare(a[1], b[1])
++	})
++
++	graph := wiringDiagram{
++		adjacent:    make([][]int, len(nodes)),
++		destination: make([]int, 0, 2*len(edges)),
++	}
++	for _, edge := range edges {
++		arc := len(graph.destination)
++		graph.destination = append(graph.destination, edge[1], edge[0])
++		graph.adjacent[edge[0]] = append(graph.adjacent[edge[0]], arc)
++		graph.adjacent[edge[1]] = append(graph.adjacent[edge[1]], arc+1)
++	}
++	return graph, nil
++}
++
++func (graph wiringDiagram) threeEdgeCut() ([]bool, error) {
++	residual := make([]uint8, len(graph.destination))
++	previous := make([]int, len(graph.adjacent))
++	queue := make([]int, 0, len(graph.adjacent))
++	remaining := 200_000_000
++	var cut []bool
++
++	// Every global cut separates vertex zero from at least one target.
++	for target := 1; target < len(graph.adjacent); target++ {
++		for i := range residual {
++			residual[i] = 1
++		}
++		for flow := range 4 {
++			for i := range previous {
++				previous[i] = -1
++			}
++			previous[0] = -2
++			queue = append(queue[:0], 0)
++			for head := 0; head < len(queue) && previous[target] == -1; head++ {
++				for _, arc := range graph.adjacent[queue[head]] {
++					if remaining == 0 {
++						return nil, fmt.Errorf("wiring search exceeds 200 million arc visits")
++					}
++					remaining--
++					next := graph.destination[arc]
++					if residual[arc] == 0 || previous[next] != -1 {
++						continue
++					}
++					previous[next] = arc
++					queue = append(queue, next)
++					if next == target {
++						break
++					}
++				}
++			}
++			if previous[target] == -1 {
++				if flow < 3 {
++					return nil, fmt.Errorf("global wiring cut is smaller than three")
++				}
++				if cut == nil {
++					cut = make([]bool, len(graph.adjacent))
++					for _, node := range queue {
++						cut[node] = true
++					}
++				}
++				break
++			}
++			for node := target; node != 0; {
++				arc := previous[node]
++				residual[arc]--
++				// A reverse residual can reach two: cancellation must remain possible.
++				residual[arc^1]++
++				node = graph.destination[arc^1]
++			}
++		}
++	}
++	if cut == nil {
++		return nil, fmt.Errorf("global wiring cut exceeds three")
++	}
++	return cut, nil
++}
++
++func (graph wiringDiagram) partitionProduct(cut []bool) (int, error) {
++	crossing := 0
++	for arc := 0; arc < len(graph.destination); arc += 2 {
++		if cut[graph.destination[arc]] != cut[graph.destination[arc+1]] {
++			crossing++
++		}
++	}
++	if crossing != 3 {
++		return 0, fmt.Errorf("partition does not cross exactly three wires")
++	}
++
++	visited := make([]bool, len(graph.adjacent))
++	queue := make([]int, 0, len(graph.adjacent))
++	var sizes [2]int
++	components := 0
++	for start := range graph.adjacent {
++		if visited[start] {
+ 			continue
+ 		}
+-
+-		componentSize := xiter.Len(search.BFSWithVisited(start, visited, neighbours))
+-		sizes = append(sizes, componentSize)
+-	}
+-
+-	return sizes
++		if components == len(sizes) {
++			return 0, fmt.Errorf("partition has more than two components")
++		}
++		visited[start] = true
++		queue = append(queue[:0], start)
++		for head := 0; head < len(queue); head++ {
++			at := queue[head]
++			for _, arc := range graph.adjacent[at] {
++				next := graph.destination[arc]
++				if visited[next] || cut[at] != cut[next] {
++					continue
++				}
++				visited[next] = true
++				queue = append(queue, next)
++			}
++		}
++		sizes[components] = len(queue)
++		components++
++	}
++	if components != 2 {
++		return 0, fmt.Errorf("partition needs two nonempty components")
++	}
++	return sizes[0] * sizes[1], nil
+ }
+ 
+ func day25p01(r io.Reader) (string, error) {
+@@ -158,29 +216,13 @@
+ 	if err != nil {
+ 		return "", err
+ 	}
+-
+-	edgeFreq := findEdgeUsageFrequency(graph, len(graph))
+-	allEdges := make([]edge, 0, len(edgeFreq))
+-	for e := range edgeFreq {
+-		allEdges = append(allEdges, e)
+-	}
+-
+-	slices.SortFunc(allEdges, func(a, b edge) int {
+-		return edgeFreq[b] - edgeFreq[a]
+-	})
+-
+-	topN := min(20, len(allEdges))
+-	topEdges := allEdges[:topN]
+-
+-	for testEdges := range xslices.Combinations(topEdges, 3) {
+-		testGraph := removeEdges(graph, testEdges)
+-
+-		sizes := findComponentSizes(testGraph)
+-
+-		if len(sizes) == 2 {
+-			return strconv.Itoa(xslices.Product(sizes)), nil
+-		}
+-	}
+-
+-	return "", fmt.Errorf("no valid partition found")
+-}
++	cut, err := graph.threeEdgeCut()
++	if err != nil {
++		return "", err
++	}
++	product, err := graph.partitionProduct(cut)
++	if err != nil {
++		return "", err
++	}
++	return strconv.Itoa(product), nil
++}
+--- a/internal/aoc2023/day25_test.go
++++ b/internal/aoc2023/day25_test.go
+@@ -1,6 +1,9 @@
+ package aoc2023
+ 
+ import (
++	"fmt"
++	"slices"
++	"strconv"
+ 	"strings"
+ 	"testing"
+ 
+@@ -32,3 +35,165 @@
+ 	}
+ 	aoc.AOCTest(t, day25p01, tests)
+ }
++
++func wiringFixture(vertices int, wires [][2]int) string {
++	var result strings.Builder
++	for node := range vertices {
++		fmt.Fprintf(&result, "n%02d:", node)
++		for _, wire := range wires {
++			if wire[0] == node {
++				fmt.Fprintf(&result, " n%02d", wire[1])
++			}
++		}
++		result.WriteByte('\n')
++	}
++	return result.String()
++}
++
++func joinedCliques(wires int) string {
++	var edges [][2]int
++	for _, group := range [][2]int{{0, 5}, {5, 11}} {
++		for a := group[0]; a < group[1]; a++ {
++			for b := a + 1; b < group[1]; b++ {
++				edges = append(edges, [2]int{a, b})
++			}
++		}
++	}
++	for i := range wires {
++		edges = append(edges, [2]int{i, 5 + i})
++	}
++	return wiringFixture(11, edges)
++}
++
++func TestThreeWirePartition(t *testing.T) {
++	aoc.AOCTest(t, day25p01, []aoc.TestInput{{Input: strings.NewReader(joinedCliques(3)), Want: "30"}})
++}
++
++func TestWiringMinimumCut(t *testing.T) {
++	var complete [][2]int
++	for a := range 5 {
++		for b := a + 1; b < 5; b++ {
++			complete = append(complete, [2]int{a, b})
++		}
++	}
++	tests := []struct{ name, input string }{
++		{"disconnected", joinedCliques(0)},
++		{"one wire", joinedCliques(1)},
++		{"two wires", joinedCliques(2)},
++		{"four wires", wiringFixture(5, complete)},
++		{"later smaller cut", "a: b c d z\nb: c d\nc: d\nz:"},
++		{"isolated vertex", joinedCliques(3) + "isolated:\n"},
++		{"self loop", "a: a b\nb: c\nc: a"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if _, err := day25p01(strings.NewReader(tt.input)); err == nil {
++				t.Fatal("expected unsupported wiring error")
++			}
++		})
++	}
++}
++
++const cancellationWiring = `aa: bb xx0 zz
++bb: cc dd0 dd1
++cc: zz xx1 xx2
++dd0: dd1 dd2 dd3
++dd1: dd2 dd3
++dd2: dd3 zz
++xx0: xx1 xx2 xx3
++xx1: xx2 xx3
++xx2: xx3`
++
++func TestWiringResidualCancellation(t *testing.T) {
++	got, err := day25p01(strings.NewReader(cancellationWiring))
++	if err != nil {
++		t.Fatal(err)
++	}
++	switch got {
++	case "11", "32", "35":
++	default:
++		t.Fatalf("partition product %s is not a minimum-cut product", got)
++	}
++}
++
++func TestWiringDeterministicOrder(t *testing.T) {
++	for _, input := range []string{joinedCliques(3), cancellationWiring} {
++		want, err := day25p01(strings.NewReader(input))
++		if err != nil {
++			t.Fatal(err)
++		}
++		lines := strings.Split(strings.TrimSuffix(input, "\n"), "\n")
++		slices.Reverse(lines)
++		var reordered strings.Builder
++		for _, line := range lines {
++			node, neighbors, _ := strings.Cut(line, ":")
++			fields := strings.Fields(neighbors)
++			slices.Reverse(fields)
++			fmt.Fprintf(&reordered, "%s: %s\n", node, strings.Join(fields, " "))
++			for _, neighbor := range fields {
++				fmt.Fprintf(&reordered, "%s: %s %s\n", neighbor, node, node)
++			}
++		}
++		got, err := day25p01(strings.NewReader(reordered.String()))
++		if err != nil {
++			t.Fatal(err)
++		}
++		if got != want {
++			t.Errorf("reordered/duplicate graph got %s, want %s", got, want)
++		}
++	}
++}
++
++func TestWiringFiveVertexGraphs(t *testing.T) {
++	var possible [][2]int
++	for a := range 5 {
++		for b := a + 1; b < 5; b++ {
++			possible = append(possible, [2]int{a, b})
++		}
++	}
++	for graph := range 1 << len(possible) {
++		var wires [][2]int
++		for i, wire := range possible {
++			if graph&(1<<i) != 0 {
++				wires = append(wires, wire)
++			}
++		}
++		minimum := len(wires) + 1
++		products := make(map[int]bool)
++		// Fix vertex zero on one side and enumerate every nontrivial bipartition.
++		for side := 1; side < (1<<5)-1; side += 2 {
++			crossing := 0
++			for _, wire := range wires {
++				if (side>>wire[0])&1 != (side>>wire[1])&1 {
++					crossing++
++				}
++			}
++			if crossing > minimum {
++				continue
++			}
++			if crossing < minimum {
++				minimum = crossing
++				clear(products)
++			}
++			size := 0
++			for node := range 5 {
++				size += (side >> node) & 1
++			}
++			products[size*(5-size)] = true
++		}
++		got, err := day25p01(strings.NewReader(wiringFixture(5, wires)))
++		if minimum != 3 {
++			if err == nil {
++				t.Fatalf("graph %010b: minimum %d, unexpectedly returned %s", graph, minimum, got)
++			}
++			continue
++		}
++		if err != nil {
++			t.Fatalf("graph %010b: %v", graph, err)
++		}
++		product, err := strconv.Atoi(got)
++		if err != nil || !products[product] {
++			t.Fatalf("graph %010b: product %q not in %v", graph, got, products)
++		}
++	}
++}

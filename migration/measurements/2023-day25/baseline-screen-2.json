@@ -1,0 +1,17 @@
+{
+  "args": [
+    "/tmp/aoc-2023-day25-performance/baseline.test",
+    "-test.run=^$",
+    "-test.bench=^BenchmarkDay25Part1$",
+    "-test.benchmem",
+    "-test.benchtime=1x",
+    "-test.count=1",
+    "-test.cpu=1",
+    "-test.timeout=60s"
+  ],
+  "cwd": "/Volumes/External/Projects/advent-of-code-go/internal/aoc2023",
+  "returncode": 0,
+  "elapsed_seconds": 3.4115643752738833,
+  "output": "goos: darwin\ngoarch: arm64\npkg: github.com/jacoelho/advent-of-code-go/internal/aoc2023\ncpu: Apple M2 Max\nBenchmarkDay25Part1/sample         \t       1\t    228459 ns/op\t  125904 B/op\t    1817 allocs/op\nBenchmarkDay25Part1/actual         \t       1\t3404524167 ns/op\t1083065472 B/op\t14898755 allocs/op\nPASS\n",
+  "sample": 2
+}

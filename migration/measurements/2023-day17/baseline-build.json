@@ -1,0 +1,18 @@
+{
+  "args": [
+    "go",
+    "test",
+    "-c",
+    "-pgo=off",
+    "-overlay",
+    "/tmp/aoc-2023-day17-performance/baseline-overlay.json",
+    "-o",
+    "/tmp/aoc-2023-day17-performance/baseline.test",
+    "./internal/aoc2023"
+  ],
+  "cwd": "/Volumes/External/Projects/advent-of-code-go",
+  "returncode": 0,
+  "elapsed_seconds": 1.1876733750104904,
+  "stdout": "",
+  "stderr": ""
+}

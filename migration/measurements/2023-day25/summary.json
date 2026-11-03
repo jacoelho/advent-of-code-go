@@ -1,0 +1,82 @@
+{
+  "sample": {
+    "baseline": {
+      "ns/op": {
+        "median": 212940.0,
+        "min": 203582.0,
+        "max": 232557.0
+      },
+      "B/op": {
+        "median": 125634.5,
+        "min": 125616.0,
+        "max": 125660.0
+      },
+      "allocs/op": {
+        "median": 1816.0,
+        "min": 1816.0,
+        "max": 1816.0
+      }
+    },
+    "candidate": {
+      "ns/op": {
+        "median": 14316.5,
+        "min": 13966.0,
+        "max": 16110.0
+      },
+      "B/op": {
+        "median": 14792.0,
+        "min": 14792.0,
+        "max": 14792.0
+      },
+      "allocs/op": {
+        "median": 102.0,
+        "min": 102.0,
+        "max": 102.0
+      }
+    },
+    "time_reduction_percent": 93.27674462289846,
+    "time_ratio": 14.87374707505326
+  },
+  "actual": {
+    "baseline": {
+      "ns/op": {
+        "median": 3214100937.5,
+        "min": 3144652125.0,
+        "max": 3648747542.0
+      },
+      "B/op": {
+        "median": 1083008496.0,
+        "min": 1082915472.0,
+        "max": 1083144048.0
+      },
+      "allocs/op": {
+        "median": 14898715.5,
+        "min": 14898670.0,
+        "max": 14898751.0
+      }
+    },
+    "candidate": {
+      "ns/op": {
+        "median": 54883021.0,
+        "min": 54432000.0,
+        "max": 58788521.0
+      },
+      "B/op": {
+        "median": 1033640.0,
+        "min": 935208.0,
+        "max": 1033640.0
+      },
+      "allocs/op": {
+        "median": 7867.0,
+        "min": 7862.0,
+        "max": 7867.0
+      }
+    },
+    "time_reduction_percent": 98.29243007400106,
+    "time_ratio": 58.562755455826675
+  },
+  "confirmed_process_count": 20,
+  "golden_failures": 0,
+  "sample_counts_per_side": 10,
+  "accepted": true
+}

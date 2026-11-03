@@ -1,6 +1,7 @@
 package aoc2025
 
 import (
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
@@ -18,7 +19,36 @@ func readProblems(r io.Reader) ([][]rune, error) {
 	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
 		return []rune(string(b)), nil
 	})
-	return slices.Collect(s.Values()), s.Err()
+	rows := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(rows) < 2 {
+		return nil, fmt.Errorf("homework needs numbers and an operator row")
+	}
+	width := 0
+	for _, row := range rows {
+		width = max(width, len(row))
+	}
+	if width == 0 {
+		return nil, fmt.Errorf("empty homework")
+	}
+	for i, row := range rows {
+		for _, cell := range row {
+			valid := cell == ' ' || cell >= '0' && cell <= '9'
+			if i == len(rows)-1 {
+				valid = cell == ' ' || cell == '+' || cell == '*'
+			}
+			if !valid {
+				return nil, fmt.Errorf("invalid homework character %q on row %d", cell, i+1)
+			}
+		}
+		for len(row) < width {
+			row = append(row, ' ')
+		}
+		rows[i] = row
+	}
+	return rows, nil
 }
 
 func isSeparatorColumn(grid [][]rune, col int) bool {
@@ -57,7 +87,7 @@ func extractColumnNumbers(grid [][]rune, numRows, startCol, endCol int) []int {
 	return nums
 }
 
-func extractProblems(grid [][]rune, extract numberExtractor) []problem {
+func extractProblems(grid [][]rune, extract numberExtractor) ([]problem, error) {
 	operatorRow := len(grid) - 1
 	numRows := operatorRow
 	maxColumn := len(grid[0])
@@ -82,10 +112,21 @@ func extractProblems(grid [][]rune, extract numberExtractor) []problem {
 		for col < maxColumn && !isSeparatorColumn(grid, col) {
 			col++
 		}
+		if op := grid[operatorRow][startCol]; op != '+' && op != '*' {
+			return nil, fmt.Errorf("homework problem at column %d needs an operator", startCol+1)
+		}
+		for _, cell := range grid[operatorRow][startCol+1 : col] {
+			if cell != ' ' {
+				return nil, fmt.Errorf("homework problem at column %d has multiple operators", startCol+1)
+			}
+		}
 		problems = append(problems, newProblem(startCol, col))
 	}
 
-	return problems
+	if len(problems) == 0 {
+		return nil, fmt.Errorf("empty homework")
+	}
+	return problems, nil
 }
 
 func parseMathHomework(r io.Reader, extract numberExtractor) ([]problem, error) {
@@ -93,7 +134,7 @@ func parseMathHomework(r io.Reader, extract numberExtractor) ([]problem, error) 
 	if err != nil {
 		return nil, err
 	}
-	return extractProblems(grid, extract), nil
+	return extractProblems(grid, extract)
 }
 
 func totalProblems(problems []problem) int {

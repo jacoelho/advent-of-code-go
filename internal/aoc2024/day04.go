@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
@@ -23,7 +22,10 @@ func parseWordSearch(r io.Reader) (grid.Grid2D[int, rune], error) {
 }
 
 func day04p01(r io.Reader) (string, error) {
-	m := aoc.Must(parseWordSearch(r))
+	m, err := parseWordSearch(r)
+	if err != nil {
+		return "", err
+	}
 
 	var count int
 	for p, v := range m {
@@ -45,7 +47,10 @@ func day04p01(r io.Reader) (string, error) {
 }
 
 func day04p02(r io.Reader) (string, error) {
-	m := aoc.Must(parseWordSearch(r))
+	m, err := parseWordSearch(r)
+	if err != nil {
+		return "", err
+	}
 
 	// order matters after for the match
 	corners := []grid.Position2D[int]{

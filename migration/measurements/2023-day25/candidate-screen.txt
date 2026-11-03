@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/jacoelho/advent-of-code-go/internal/aoc2023
+cpu: Apple M2 Max
+BenchmarkDay25Part1/sample         	       1	    138083 ns/op	   14800 B/op	     102 allocs/op
+BenchmarkDay25Part1/actual         	       1	  62807375 ns/op	 1033640 B/op	    7867 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/jacoelho/advent-of-code-go/internal/aoc2023
+cpu: Apple M2 Max
+BenchmarkDay25Part1/sample         	       1	     44209 ns/op	   14800 B/op	     102 allocs/op
+BenchmarkDay25Part1/actual         	       1	  60803708 ns/op	 1033640 B/op	    7867 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/jacoelho/advent-of-code-go/internal/aoc2023
+cpu: Apple M2 Max
+BenchmarkDay25Part1/sample         	       1	     37417 ns/op	   14800 B/op	     102 allocs/op
+BenchmarkDay25Part1/actual         	       1	  58860750 ns/op	 1033640 B/op	    7867 allocs/op
+PASS

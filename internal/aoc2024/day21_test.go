@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -41,4 +42,14 @@ func Test_day21p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day21p02, tests)
+}
+
+func TestKeypadCodeErrors(t *testing.T) {
+	for _, input := range []string{"\n", "A", "02XA", "9223372036854775808A"} {
+		for _, solve := range []func(io.Reader) (string, error){day21p01, day21p02} {
+			if got, err := solve(strings.NewReader(input)); err == nil {
+				t.Fatalf("input %q: got %q; want keypad code error", input, got)
+			}
+		}
+	}
 }

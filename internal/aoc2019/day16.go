@@ -2,11 +2,9 @@ package aoc2019
 
 import (
 	"io"
-	"slices"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
@@ -34,35 +32,23 @@ func digitsToString(digits []int, n int) string {
 	return result.String()
 }
 
-func generatePattern(position, length int) []int {
-	basePattern := []int{0, 1, 0, -1}
-	pattern := make([]int, 0, length+1)
-
-	for len(pattern) <= length {
-		for _, val := range basePattern {
-			for range position {
-				pattern = append(pattern, val)
-				if len(pattern) > length {
-					break
-				}
-			}
-			if len(pattern) > length {
-				break
-			}
-		}
-	}
-
-	return pattern[1 : length+1]
-}
-
 func applyFFTPhase(input []int) []int {
 	output := make([]int, len(input))
 	n := len(input)
 	halfPoint := n / 2
+	prefix := make([]int, n+1)
+	for i, digit := range input {
+		prefix[i+1] = prefix[i] + digit
+	}
 
 	for i := range halfPoint {
-		pattern := generatePattern(i+1, n)
-		sum := xiter.DotProduct(slices.Values(input), slices.Values(pattern))
+		width := i + 1
+		sum, sign := 0, 1
+		// Nonzero pattern blocks alternate signs, separated by equally wide zero blocks.
+		for start := i; start < n; start += 2 * width {
+			sum += sign * (prefix[min(start+width, n)] - prefix[start])
+			sign = -sign
+		}
 		output[i] = xmath.Abs(sum) % 10
 	}
 

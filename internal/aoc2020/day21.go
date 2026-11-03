@@ -87,15 +87,19 @@ func day21p02(r io.Reader) (string, error) {
 
 	allergenCandidates := allergenCandidates(foods)
 
-	// resolve using constraint propagation
 	allergenToIngredient := make(map[string]string)
 
 	for len(allergenCandidates) > 0 {
+		for allergen, candidates := range allergenCandidates {
+			if candidates.Len() == 0 {
+				return "", fmt.Errorf("allergen %s has no possible ingredient", allergen)
+			}
+		}
 		pair, found := xmaps.Find(allergenCandidates, func(_ string, candidates collections.Set[string]) bool {
 			return candidates.Len() == 1
 		})
 		if !found {
-			break
+			return "", fmt.Errorf("cannot resolve allergen assignment from non-singleton candidates")
 		}
 
 		ingredient, _ := pair.V.Next()

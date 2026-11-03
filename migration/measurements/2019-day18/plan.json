@@ -1,0 +1,24 @@
+{
+  "samples_per_side": 10,
+  "benchtime": "100ms",
+  "cpu": 1,
+  "pgo": "off",
+  "race": false,
+  "order": "baseline,candidate on odd rounds; candidate,baseline on even rounds",
+  "budget_seconds": 300,
+  "acceptance": {
+    "each_actual_time_reduction_percent_min_exclusive": 20,
+    "each_sample_time_regression_percent_max_inclusive": 10,
+    "all_operations_correct": true
+  },
+  "golden_failure": "stop, preserve and report; no retries",
+  "fixture_sha256": "659e2882de3388facfcb9a262fddbc3845174c850d73a61f59535a32eb6a2f55",
+  "harness_sha256": "b65d1283efe87abe8cdf70afa7836a96fa46cf08adfda08eaf144f5c0b4823ab",
+  "source_sha256": {
+    "baseline": "f88c2c63272bfb2cfe271899a8a1b8ea02436f4f0954d6b5575b7628f4c3bc33",
+    "candidate": "4bf79a6f9bbb99feb19a7f3cadba3894d4bad38c30b7221f4b94d0c65fb5a02c"
+  },
+  "screen_exclusion": "three1x exploratory samples per side excluded from confirmation",
+  "coordination": "parent source/docs only; reference worker read-only; exclusive window",
+  "date": "2026-11-03"
+}

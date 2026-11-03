@@ -92,6 +92,9 @@ func traceWire(instructions []instruction) map[grid.Position2D[int]]int {
 		for range inst.distance {
 			current = current.Add(offset)
 			stepCount++
+			if current == (grid.Position2D[int]{}) {
+				continue
+			}
 			if _, exists := steps[current]; !exists {
 				steps[current] = stepCount
 			}
@@ -101,7 +104,7 @@ func traceWire(instructions []instruction) map[grid.Position2D[int]]int {
 	return steps
 }
 
-func day3p01(r io.Reader) (string, error) {
+func day03p01(r io.Reader) (string, error) {
 	wire1, wire2, err := parseWiresPaths(r)
 	if err != nil {
 		return "", err
@@ -119,10 +122,13 @@ func day3p01(r io.Reader) (string, error) {
 		}
 	}
 
+	if minDistance == math.MaxInt {
+		return "", fmt.Errorf("wires do not intersect outside the central port")
+	}
 	return strconv.Itoa(minDistance), nil
 }
 
-func day3p02(r io.Reader) (string, error) {
+func day03p02(r io.Reader) (string, error) {
 	wire1, wire2, err := parseWiresPaths(r)
 	if err != nil {
 		return "", err
@@ -138,5 +144,8 @@ func day3p02(r io.Reader) (string, error) {
 		}
 	}
 
+	if minSteps == math.MaxInt {
+		return "", fmt.Errorf("wires do not intersect outside the central port")
+	}
 	return strconv.Itoa(minSteps), nil
 }

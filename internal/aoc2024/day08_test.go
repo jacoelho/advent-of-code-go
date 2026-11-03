@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ func Test_day08p01(t *testing.T) {
 ........A...
 .........A..
 ............
-............0`),
+............`),
 			Want: "14",
 		},
 		{
@@ -57,4 +58,33 @@ func Test_day08p02(t *testing.T) {
 	}
 
 	aoc.AOCTest(t, day08p02, tests)
+}
+
+func TestAntinodeLines(t *testing.T) {
+	for _, tt := range []struct{ input, first, second string }{
+		{"A.A", "0", "3"},
+		{"A....\n.....\n..A..\n.....\n.....", "1", "5"},
+		{"..A\n...\nA..", "0", "3"},
+		{"A.a", "0", "0"},
+		{"A\n.\nA", "0", "3"},
+		{"...\n...", "0", "0"},
+	} {
+		for i, solve := range []func(io.Reader) (string, error){day08p01, day08p02} {
+			want := [2]string{tt.first, tt.second}[i]
+			got, err := solve(strings.NewReader(tt.input))
+			if err != nil || got != want {
+				t.Fatalf("input %q, part %d = %q, %v; want %s", tt.input, i+1, got, err, want)
+			}
+		}
+	}
+}
+
+func TestAntennaInputErrors(t *testing.T) {
+	for _, input := range []string{"", "AA\n...", "A_", "Aé"} {
+		for _, solve := range []func(io.Reader) (string, error){day08p01, day08p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Fatalf("input %q: expected error", input)
+			}
+		}
+	}
 }

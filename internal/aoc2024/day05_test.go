@@ -1,6 +1,9 @@
 package aoc2024
 
 import (
+	"errors"
+	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -89,4 +92,55 @@ func Test_day05p02(t *testing.T) {
 	}
 
 	aoc.AOCTest(t, day05p02, tests)
+}
+
+func TestPageOrdering(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  [2]string
+	}{
+		{"chain", "1|2\n2|3\n\n3,1,2", [2]string{"0", "2"}},
+		{"valid", "1|2\n2|3\n\n1,2,3", [2]string{"2", "0"}},
+		{"original order breaks ties", "1|3\n\n3,2,1", [2]string{"0", "1"}},
+		{"absent intermediate page", "1|2\n2|3\n\n3,1,4", [2]string{"1", "0"}},
+		{"unrelated cycle", "8|9\n9|8\n1|2\n\n2,1,3", [2]string{"0", "2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for part, solve := range []func(io.Reader) (string, error){day05p01, day05p02} {
+				got, err := solve(strings.NewReader(tt.input))
+				if err != nil || got != tt.want[part] {
+					t.Errorf("part %d: got %q, %v; want %q", part+1, got, err, tt.want[part])
+				}
+			}
+		})
+	}
+}
+
+func TestPageOrderingCycle(t *testing.T) {
+	input := "1|2\n2|1\n\n1,2,3"
+	if got, err := day05p01(strings.NewReader(input)); err != nil || got != "0" {
+		t.Errorf("part 1: got %q, %v; want 0", got, err)
+	}
+	if got, err := day05p02(strings.NewReader(input)); err == nil {
+		t.Errorf("part 2: got %q, want cycle error", got)
+	}
+}
+
+func TestPageOrderingInvalidInput(t *testing.T) {
+	for _, input := range []string{"1|2\n\n1,2,1", "1|2|3\n\n1,2,3"} {
+		for _, solve := range []func(io.Reader) (string, error){day05p01, day05p02} {
+			if got, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("input %q: got %q, want error", input, got)
+			}
+		}
+	}
+	for _, input := range []string{"x|2\n\n1,2,3", "1|2\n\n1,x,3"} {
+		for _, solve := range []func(io.Reader) (string, error){day05p01, day05p02} {
+			if _, err := solve(strings.NewReader(input)); !errors.Is(err, strconv.ErrSyntax) {
+				t.Errorf("input %q: got %v, want numeric syntax error", input, err)
+			}
+		}
+	}
 }

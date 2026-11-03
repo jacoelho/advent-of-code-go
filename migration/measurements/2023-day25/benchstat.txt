@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/jacoelho/advent-of-code-go/internal/aoc2023
+cpu: Apple M2 Max
+                  │ /tmp/aoc-2023-day25-performance/baseline-confirmed.txt │ /tmp/aoc-2023-day25-performance/candidate-confirmed.txt │
+                  │                         sec/op                         │             sec/op               vs base                │
+Day25Part1/sample                                             212.94µ ± 8%                      14.32µ ± 12%  -93.28% (p=0.000 n=10)
+Day25Part1/actual                                            3214.10m ± 9%                      54.88m ±  5%  -98.29% (p=0.000 n=10)
+geomean                                                        26.16m                           886.4µ        -96.61%
+
+                  │ /tmp/aoc-2023-day25-performance/baseline-confirmed.txt │ /tmp/aoc-2023-day25-performance/candidate-confirmed.txt │
+                  │                          B/op                          │              B/op                vs base                │
+Day25Part1/sample                                            122.69Ki ± 0%                      14.45Ki ± 0%  -88.23% (p=0.000 n=10)
+Day25Part1/actual                                         1057625.5Ki ± 0%                     1009.4Ki ± 5%  -99.90% (p=0.000 n=10)
+geomean                                                       11.12Mi                           120.8Ki       -98.94%
+
+                  │ /tmp/aoc-2023-day25-performance/baseline-confirmed.txt │ /tmp/aoc-2023-day25-performance/candidate-confirmed.txt │
+                  │                       allocs/op                        │            allocs/op             vs base                │
+Day25Part1/sample                                              1816.0 ± 0%                        102.0 ± 0%  -94.38% (p=0.000 n=10)
+Day25Part1/actual                                          14898.716k ± 0%                       7.867k ± 0%  -99.95% (p=0.000 n=10)
+geomean                                                        164.5k                             895.8       -99.46%

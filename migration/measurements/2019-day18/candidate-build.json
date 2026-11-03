@@ -1,0 +1,18 @@
+{
+  "args": [
+    "go",
+    "test",
+    "-c",
+    "-pgo=off",
+    "-overlay",
+    "/tmp/aoc-2019-day18-performance/candidate-overlay.json",
+    "-o",
+    "/tmp/aoc-2019-day18-performance/candidate.test",
+    "./internal/aoc2019"
+  ],
+  "cwd": "/Volumes/External/Projects/advent-of-code-go",
+  "returncode": 0,
+  "elapsed_seconds": 0.5445949169807136,
+  "stdout": "",
+  "stderr": ""
+}

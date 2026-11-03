@@ -1,14 +1,14 @@
 package aoc2023
 
 import (
+	"cmp"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type trailSegment struct {
@@ -18,10 +18,16 @@ type trailSegment struct {
 
 type trailNetwork struct {
 	segments [][]trailSegment
-	indexMap map[grid.Position2D[int]]int
 	startIdx int
 	endIdx   int
 }
+
+type trailConditions uint8
+
+const (
+	slipperyTrail trailConditions = iota
+	dryTrail
+)
 
 const (
 	tilePath       = '.'
@@ -30,14 +36,11 @@ const (
 	tileSlopeRight = '>'
 	tileSlopeDown  = 'v'
 	tileSlopeLeft  = '<'
-)
 
-var slopeDirections = map[rune][]grid.Position2D[int]{
-	tileSlopeUp:    {{X: 0, Y: -1}},
-	tileSlopeRight: {{X: 1, Y: 0}},
-	tileSlopeDown:  {{X: 0, Y: 1}},
-	tileSlopeLeft:  {{X: -1, Y: 0}},
-}
+	maxTrailCells     = 1_000_000
+	maxTrailJunctions = 4096
+	maxHikingStates   = 50_000_000
+)
 
 func isSlope(tile rune) bool {
 	return tile == tileSlopeUp || tile == tileSlopeRight || tile == tileSlopeDown || tile == tileSlopeLeft
@@ -50,17 +53,24 @@ func parseTrail(r io.Reader) (grid.Grid2D[int, rune], grid.Position2D[int], grid
 
 	trail := make(grid.Grid2D[int, rune])
 	var start, end grid.Position2D[int]
-	var startFound, endFound bool
-
 	y := 0
 	for line := range lineScanner.Values() {
+		if len(trail)+len(line) > maxTrailCells || y >= maxTrailCells {
+			return nil, start, end, fmt.Errorf("trail exceeds %d cells or rows", maxTrailCells)
+		}
 		for x, char := range line {
+			if char != tilePath && char != tileForest && !isSlope(char) {
+				return nil, start, end, fmt.Errorf("invalid trail tile %q at %d,%d", char, x, y)
+			}
 			trail[grid.NewPosition2D(x, y)] = char
 		}
 		y++
 	}
+	if err := lineScanner.Err(); err != nil {
+		return nil, start, end, err
+	}
 
-	// Find start position (top row, single '.')
+	var startFound, endFound bool
 	minX, maxX, minY, maxY := trail.Dimensions()
 	for x := minX; x <= maxX; x++ {
 		pos := grid.NewPosition2D(x, minY)
@@ -70,8 +80,6 @@ func parseTrail(r io.Reader) (grid.Grid2D[int, rune], grid.Position2D[int], grid
 			break
 		}
 	}
-
-	// Find end position (bottom row, single '.')
 	for x := minX; x <= maxX; x++ {
 		pos := grid.NewPosition2D(x, maxY)
 		if trail[pos] == tilePath {
@@ -80,195 +88,170 @@ func parseTrail(r io.Reader) (grid.Grid2D[int, rune], grid.Position2D[int], grid
 			break
 		}
 	}
-
 	if !startFound || !endFound {
-		return nil, grid.Position2D[int]{}, grid.Position2D[int]{}, fmt.Errorf("start or end not found")
+		return nil, start, end, fmt.Errorf("trail start or end not found")
 	}
 
 	return trail, start, end, nil
 }
 
-func dfsLongestPath(
-	trail grid.Grid2D[int, rune],
-	current, end grid.Position2D[int],
-	visited collections.Set[grid.Position2D[int]],
-	pathLength int,
-) int {
-	if current == end {
-		return pathLength
-	}
-
-	visited.Add(current)
-	maxLength := 0
-
-	for _, neighbor := range getAccessiblePositions(trail, current, visited, false) {
-		length := dfsLongestPath(trail, neighbor, end, visited, pathLength+1)
-		maxLength = max(maxLength, length)
-	}
-
-	visited.Remove(current)
-	return maxLength
-}
-
-func getAccessiblePositions(
-	trail grid.Grid2D[int, rune],
-	pos grid.Position2D[int],
-	visited collections.Set[grid.Position2D[int]],
-	climbableSlopes bool,
-) []grid.Position2D[int] {
-	tile := trail[pos]
-	var directions []grid.Position2D[int]
-
-	if tile == tilePath || (climbableSlopes && isSlope(tile)) {
-		directions = grid.OffsetsNeighbours4[int]()
-	} else if dirs, ok := slopeDirections[tile]; ok {
-		directions = dirs
-	} else {
-		return nil
-	}
-
-	var result []grid.Position2D[int]
-	for _, dir := range directions {
-		neighbor := pos.Add(dir)
-		if trail.Contains(neighbor) && trail[neighbor] != tileForest && !visited.Contains(neighbor) {
-			result = append(result, neighbor)
+func trailNeighbors(trail grid.Grid2D[int, rune], pos grid.Position2D[int], conditions trailConditions) []grid.Position2D[int] {
+	directions := grid.OffsetsNeighbours4[int]()
+	if conditions == slipperyTrail {
+		switch trail[pos] {
+		case tileSlopeUp:
+			directions = []grid.Position2D[int]{{X: 0, Y: -1}}
+		case tileSlopeRight:
+			directions = []grid.Position2D[int]{{X: 1, Y: 0}}
+		case tileSlopeDown:
+			directions = []grid.Position2D[int]{{X: 0, Y: 1}}
+		case tileSlopeLeft:
+			directions = []grid.Position2D[int]{{X: -1, Y: 0}}
 		}
 	}
-	return result
+
+	var neighbors []grid.Position2D[int]
+	for _, dir := range directions {
+		neighbor := pos.Add(dir)
+		if tile, exists := trail[neighbor]; exists && tile != tileForest {
+			neighbors = append(neighbors, neighbor)
+		}
+	}
+	return neighbors
 }
 
 func day23p01(r io.Reader) (string, error) {
-	trail, start, end, err := parseTrail(r)
-	if err != nil {
-		return "", err
-	}
-
-	visited := collections.NewSet[grid.Position2D[int]]()
-	longestPath := dfsLongestPath(trail, start, end, visited, 0)
-	return strconv.Itoa(longestPath), nil
+	return longestHike(r, slipperyTrail)
 }
 
 func day23p02(r io.Reader) (string, error) {
+	return longestHike(r, dryTrail)
+}
+
+func longestHike(r io.Reader, conditions trailConditions) (string, error) {
 	trail, start, end, err := parseTrail(r)
 	if err != nil {
 		return "", err
 	}
 
-	network := buildTrailNetwork(trail, start, end)
-	longestPath := findLongestHike(network)
-
-	return strconv.Itoa(longestPath), nil
+	network, err := buildTrailNetwork(trail, start, end, conditions)
+	if err != nil {
+		return "", err
+	}
+	length, err := findLongestHike(network)
+	if err != nil {
+		return "", err
+	}
+	return strconv.Itoa(length), nil
 }
 
-func buildTrailNetwork(trail grid.Grid2D[int, rune], start, end grid.Position2D[int]) trailNetwork {
+func buildTrailNetwork(trail grid.Grid2D[int, rune], start, end grid.Position2D[int], conditions trailConditions) (trailNetwork, error) {
 	junctions := findTrailJunctions(trail, start, end)
-
-	indexMap := make(map[grid.Position2D[int]]int)
-	var startIdx, endIdx int
-	idx := 0
-	for junction := range junctions.Iter() {
-		indexMap[junction] = idx
-		if junction == start {
-			startIdx = idx
-		}
-		if junction == end {
-			endIdx = idx
-		}
-		idx++
+	if len(junctions) > maxTrailJunctions {
+		return trailNetwork{}, fmt.Errorf("trail exceeds %d junctions", maxTrailJunctions)
 	}
 
-	segments := make([][]trailSegment, len(indexMap))
-	emptyVisited := collections.NewSet[grid.Position2D[int]]()
+	indexMap := make(map[grid.Position2D[int]]int, len(junctions))
+	for i, junction := range junctions {
+		indexMap[junction] = i
+	}
 
-	for junction := range junctions.Iter() {
-		jIdx := indexMap[junction]
-		neighbors := getAccessiblePositions(trail, junction, emptyVisited, true)
-
-		for _, neighbor := range neighbors {
-			toJunction, distance := followTrail(trail, junction, neighbor, 1)
-			if junctions.Contains(toJunction) {
-				toIdx := indexMap[toJunction]
-				segments[jIdx] = append(segments[jIdx], trailSegment{toIdx: toIdx, distance: distance})
+	network := trailNetwork{
+		segments: make([][]trailSegment, len(junctions)),
+		startIdx: indexMap[start],
+		endIdx:   indexMap[end],
+	}
+	for i, junction := range junctions {
+		for _, neighbor := range trailNeighbors(trail, junction, conditions) {
+			segment, ok, err := followTrail(trail, indexMap, junction, neighbor, conditions)
+			if err != nil {
+				return trailNetwork{}, err
+			}
+			if ok {
+				network.segments[i] = append(network.segments[i], segment)
 			}
 		}
 	}
-
-	return trailNetwork{
-		segments: segments,
-		indexMap: indexMap,
-		startIdx: startIdx,
-		endIdx:   endIdx,
-	}
+	return network, nil
 }
 
-func findTrailJunctions(trail grid.Grid2D[int, rune], start, end grid.Position2D[int]) collections.Set[grid.Position2D[int]] {
-	junctions := collections.NewSet(start, end)
-	emptyVisited := collections.NewSet[grid.Position2D[int]]()
-
-	for pos := range trail {
-		tile := trail[pos]
-		if tile == tilePath || isSlope(tile) {
-			neighbors := getAccessiblePositions(trail, pos, emptyVisited, true)
-			if len(neighbors) != 2 && pos != start && pos != end {
-				junctions.Add(pos)
-			}
+func findTrailJunctions(trail grid.Grid2D[int, rune], start, end grid.Position2D[int]) []grid.Position2D[int] {
+	var junctions []grid.Position2D[int]
+	for pos, tile := range trail {
+		if tile == tileForest {
+			continue
+		}
+		if pos == start || pos == end || len(trailNeighbors(trail, pos, dryTrail)) != 2 {
+			junctions = append(junctions, pos)
 		}
 	}
-
+	slices.SortFunc(junctions, func(a, b grid.Position2D[int]) int {
+		return cmp.Or(cmp.Compare(a.Y, b.Y), cmp.Compare(a.X, b.X))
+	})
 	return junctions
 }
 
 func followTrail(
 	trail grid.Grid2D[int, rune],
-	from, current grid.Position2D[int],
-	distance int,
-) (grid.Position2D[int], int) {
-	emptyVisited := collections.NewSet[grid.Position2D[int]]()
-	prev := from
-	pos := current
-	dist := distance
-
-	for {
-		neighbors := getAccessiblePositions(trail, pos, emptyVisited, true)
-		nextOptions := xslices.Filter(func(n grid.Position2D[int]) bool {
-			return n != prev
-		}, neighbors)
-
-		if len(nextOptions) == 0 {
-			return pos, dist
+	junctions map[grid.Position2D[int]]int,
+	previous, current grid.Position2D[int],
+	conditions trailConditions,
+) (trailSegment, bool, error) {
+	for distance := 1; distance <= len(trail); distance++ {
+		if idx, ok := junctions[current]; ok {
+			return trailSegment{toIdx: idx, distance: distance}, true, nil
 		}
 
-		nextPos := nextOptions[0]
-		nextNeighbors := getAccessiblePositions(trail, nextPos, emptyVisited, true)
-		if len(nextNeighbors) != 2 {
-			return nextPos, dist + 1
+		// Only degree-two cells remain inside corridors; a slope can block their sole continuation.
+		var next grid.Position2D[int]
+		found := false
+		for _, neighbor := range trailNeighbors(trail, current, conditions) {
+			if neighbor != previous {
+				next = neighbor
+				found = true
+				break
+			}
 		}
-
-		prev = pos
-		pos = nextPos
-		dist++
+		if !found {
+			return trailSegment{}, false, nil
+		}
+		previous, current = current, next
 	}
+	return trailSegment{}, false, fmt.Errorf("trail corridor does not reach a junction")
 }
 
-func findLongestHike(network trailNetwork) int {
-	var visited uint64
-	return exploreTrail(network, network.startIdx, network.endIdx, visited, 0)
-}
+func findLongestHike(network trailNetwork) (int, error) {
+	visited := make([]bool, len(network.segments))
+	states := 0
+	longest := -1
 
-func exploreTrail(network trailNetwork, current, end int, visited uint64, pathLength int) int {
-	if current == end {
-		return pathLength
-	}
-
-	visited |= (1 << current)
-	maxLength := 0
-
-	for _, segment := range network.segments[current] {
-		if visited&(1<<segment.toIdx) == 0 {
-			length := exploreTrail(network, segment.toIdx, end, visited, pathLength+segment.distance)
-			maxLength = max(maxLength, length)
+	var explore func(int, int) error
+	explore = func(current, distance int) error {
+		states++
+		if states > maxHikingStates {
+			return fmt.Errorf("hiking search exceeds %d states", maxHikingStates)
 		}
-	}
+		if current == network.endIdx {
+			longest = max(longest, distance)
+			return nil
+		}
 
-	return maxLength
+		visited[current] = true
+		for _, segment := range network.segments[current] {
+			if !visited[segment.toIdx] {
+				if err := explore(segment.toIdx, distance+segment.distance); err != nil {
+					return err
+				}
+			}
+		}
+		visited[current] = false
+		return nil
+	}
+	if err := explore(network.startIdx, 0); err != nil {
+		return 0, err
+	}
+	if longest < 0 {
+		return 0, fmt.Errorf("no hiking route reaches the end")
+	}
+	return longest, nil
 }

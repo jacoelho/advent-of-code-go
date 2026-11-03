@@ -1,13 +1,14 @@
 package aoc2023
 
 import (
-	"bufio"
+	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 )
 
 func hash(s string) int {
@@ -20,61 +21,98 @@ func hash(s string) int {
 	return current
 }
 
+func initializationSequence(r io.Reader) (string, error) {
+	const inputLimit = 4 << 20
+	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) > inputLimit {
+		return "", fmt.Errorf("initialization sequence exceeds 4 MiB")
+	}
+	sequence := strings.TrimSuffix(string(data), "\n")
+	sequence = strings.TrimSuffix(sequence, "\r")
+	if strings.ContainsAny(sequence, "\r\n") {
+		return "", fmt.Errorf("initialization sequence must be one line")
+	}
+	return sequence, nil
+}
+
 func day15p01(r io.Reader) (string, error) {
-	scanner := bufio.NewScanner(r)
-	scanner.Scan()
-	line := scanner.Text()
-
-	steps := strings.Split(line, ",")
-	sum := xiter.Sum(xiter.Map(hash, slices.Values(steps)))
-
+	sequence, err := initializationSequence(r)
+	if err != nil {
+		return "", err
+	}
+	sum := 0
+	for step := range strings.SplitSeq(sequence, ",") {
+		sum += hash(step)
+	}
 	return strconv.Itoa(sum), nil
 }
 
 type lens struct {
 	label       string
-	focalLength int
+	focalLength int64
 }
 
 func day15p02(r io.Reader) (string, error) {
-	scanner := bufio.NewScanner(r)
-	scanner.Scan()
-	line := scanner.Text()
-
+	sequence, err := initializationSequence(r)
+	if err != nil {
+		return "", err
+	}
+	if sequence == "" {
+		return "0", nil
+	}
 	boxes := make([][]lens, 256)
-
-	steps := strings.SplitSeq(line, ",")
-	for step := range steps {
-		if strings.Contains(step, "=") {
-			parts := strings.Split(step, "=")
-			label := parts[0]
-			focalLength, _ := strconv.Atoi(parts[1])
-			boxNum := hash(label)
-
-			idx := slices.IndexFunc(boxes[boxNum], func(l lens) bool {
-				return l.label == label
-			})
-			if idx != -1 {
-				boxes[boxNum][idx].focalLength = focalLength
-			} else {
-				boxes[boxNum] = append(boxes[boxNum], lens{label, focalLength})
+	for step := range strings.SplitSeq(sequence, ",") {
+		label, value, assignment := strings.Cut(step, "=")
+		if !assignment {
+			var ok bool
+			label, ok = strings.CutSuffix(step, "-")
+			if !ok {
+				return "", fmt.Errorf("invalid lens step %q", step)
 			}
-		} else {
-			label := strings.TrimSuffix(step, "-")
-			boxNum := hash(label)
-
+		}
+		if label == "" {
+			return "", fmt.Errorf("empty lens label")
+		}
+		boxNum := hash(label)
+		if !assignment {
 			boxes[boxNum] = slices.DeleteFunc(boxes[boxNum], func(l lens) bool {
 				return l.label == label
 			})
+			continue
+		}
+		focalLength, err := convert.ScanNumber[int64]([]byte(value))
+		if err != nil {
+			return "", fmt.Errorf("lens %q focal length: %w", label, err)
+		}
+		if focalLength < 0 {
+			return "", fmt.Errorf("negative focal length for lens %q", label)
+		}
+		index := slices.IndexFunc(boxes[boxNum], func(l lens) bool {
+			return l.label == label
+		})
+		if index != -1 {
+			boxes[boxNum][index].focalLength = focalLength
+		} else {
+			boxes[boxNum] = append(boxes[boxNum], lens{label: label, focalLength: focalLength})
 		}
 	}
 
-	totalPower := 0
+	var totalPower int64
 	for boxNum, box := range boxes {
 		for slotNum, l := range box {
-			totalPower += (boxNum + 1) * (slotNum + 1) * l.focalLength
+			factor := int64(boxNum+1) * int64(slotNum+1)
+			if l.focalLength > math.MaxInt64/factor {
+				return "", fmt.Errorf("lens focusing power overflows int64")
+			}
+			power := factor * l.focalLength
+			if totalPower > math.MaxInt64-power {
+				return "", fmt.Errorf("total focusing power overflows int64")
+			}
+			totalPower += power
 		}
 	}
-
-	return strconv.Itoa(totalPower), nil
+	return strconv.FormatInt(totalPower, 10), nil
 }

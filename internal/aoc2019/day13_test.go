@@ -1,6 +1,8 @@
 package aoc2019
 
 import (
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
@@ -8,6 +10,8 @@ import (
 
 func Test_day13p01(t *testing.T) {
 	tests := []aoc.TestInput{
+		{Input: strings.NewReader("104,0,104,0,104,2,104,0,104,0,104,0,99"), Want: "0"},
+		{Input: strings.NewReader("104,0,104,0,104,2,104,0,104,0,104,2,104,1,104,0,104,2,104,0,104,0,104,0,99"), Want: "1"},
 		{
 			Input: aoc.FileInput(t, 2019, 13),
 			Want:  "268",
@@ -18,10 +22,33 @@ func Test_day13p01(t *testing.T) {
 
 func Test_day13p02(t *testing.T) {
 	tests := []aoc.TestInput{
+		{Input: strings.NewReader("2,20,21,22,104,-1,104,0,104,17,99"), Want: "17"},
+		{Input: strings.NewReader(joystickProgram), Want: "1"},
 		{
 			Input: aoc.FileInput(t, 2019, 13),
 			Want:  "13989",
 		},
 	}
 	aoc.AOCTest(t, day13p02, tests)
+}
+
+const joystickProgram = "2,100,100,100,104,0,104,0,104,3,104,2,104,0,104,4,3,101,104,-1,104,0,4,101,99"
+
+func TestArcadeProtocolErrors(t *testing.T) {
+	programs := []string{
+		"2,100,100,100,104,0,104,0,99",
+		"2,100,100,100,104,0,104,0,104,5,99",
+		"2,100,100,100,104,-2,104,0,104,2,99",
+		"2,100,100,100,104,0,104,-1,104,2,99",
+	}
+	for _, solve := range []func(io.Reader) (string, error){day13p01, day13p02} {
+		for _, program := range programs {
+			if _, err := solve(strings.NewReader(program)); err == nil {
+				t.Errorf("expected arcade error for %s", program)
+			}
+		}
+	}
+	if _, err := day13p01(strings.NewReader(joystickProgram)); err == nil {
+		t.Fatal("expected joystick request error during scan")
+	}
 }

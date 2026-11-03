@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -35,4 +36,12 @@ func Test_day11p02(t *testing.T) {
 	}
 
 	aoc.AOCTest(t, day11p02, tests)
+}
+
+func TestStoneParseErrors(t *testing.T) {
+	for _, solve := range []func(io.Reader) (string, error){day11p01, day11p02} {
+		if got, err := solve(strings.NewReader("125 nope")); err == nil {
+			t.Fatalf("got %q; want numeric conversion error", got)
+		}
+	}
 }

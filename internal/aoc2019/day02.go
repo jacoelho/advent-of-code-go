@@ -23,7 +23,7 @@ func runIntcodeWithInputs(program []int, noun, verb int) (int, error) {
 	return computer.Memory()[0], nil
 }
 
-func day2p01(r io.Reader) (string, error) {
+func day02p01(r io.Reader) (string, error) {
 	program, err := ParseIntcodeInput(r)
 	if err != nil {
 		return "", err
@@ -37,7 +37,7 @@ func day2p01(r io.Reader) (string, error) {
 	return strconv.Itoa(result), nil
 }
 
-func day2p02(r io.Reader) (string, error) {
+func day02p02(r io.Reader) (string, error) {
 	program, err := ParseIntcodeInput(r)
 	if err != nil {
 		return "", err

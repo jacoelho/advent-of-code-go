@@ -1,6 +1,7 @@
 package aoc2024
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -98,4 +99,40 @@ v^^>>><<^^<>>^v^<v^vv<>v^<<>^<^v^v><^<<<><<^<v><v<>vv>>v><v^<vv<>v^<<^`),
 		},
 	}
 	aoc.AOCTest(t, day15p02, tests)
+}
+
+func TestWarehouseParseErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"missing section", "###\n#@#\n###"},
+		{"missing robot", "###\n#.#\n###\n\n>"},
+		{"duplicate robot", "####\n#@@#\n####\n\n>"},
+		{"invalid tile", "####\n#@?#\n####\n\n>"},
+		{"invalid movement", "###\n#@#\n###\n\n?"},
+		{"open map", "@\n\n>"},
+		{"ragged map", "#####\n#@.#\n#####\n\n>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, solve := range []func(io.Reader) (string, error){day15p01, day15p02} {
+				if got, err := solve(strings.NewReader(tt.input)); err == nil {
+					t.Fatalf("got %q; want warehouse parse error", got)
+				}
+			}
+		})
+	}
+}
+
+func TestWarehouseLineEndings(t *testing.T) {
+	for _, newline := range []string{"\n", "\r\n"} {
+		input := strings.ReplaceAll("###\n#@#\n###\n\n>\n", "\n", newline)
+		for _, solve := range []func(io.Reader) (string, error){day15p01, day15p02} {
+			got, err := solve(strings.NewReader(input))
+			if err != nil || got != "0" {
+				t.Fatalf("got %q, %v; want 0", got, err)
+			}
+		}
+	}
 }

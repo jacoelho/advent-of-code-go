@@ -130,7 +130,6 @@ func day20p01(r io.Reader) (string, error) {
 func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] {
 	return func(yield func(grid.Grid2D[int, rune]) bool) {
 		current := g
-		// 4 rotations
 		for range 4 {
 			if !yield(current) {
 				return
@@ -138,7 +137,6 @@ func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] 
 			current = current.TurnRight()
 		}
 
-		// flip and 4 more rotations
 		current = g.FlipHorizontal()
 		for range 4 {
 			if !yield(current) {
@@ -149,7 +147,6 @@ func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] 
 	}
 }
 
-// find which tile has a border matching the given border
 func findTileWithBorder(border string, tiles []imageTile, excludeID int) (int, bool) {
 	for _, tile := range tiles {
 		if tile.id == excludeID {
@@ -165,7 +162,6 @@ func findTileWithBorder(border string, tiles []imageTile, excludeID int) (int, b
 	return 0, false
 }
 
-// find a tile and orientation that matches the given border constraints
 func findMatchingTileOrientation(tiles []imageTile, used map[int]bool, leftBorder, topBorder string) (imageTile, bool) {
 	for _, tile := range tiles {
 		if used[tile.id] {
@@ -184,7 +180,6 @@ func findMatchingTileOrientation(tiles []imageTile, used map[int]bool, leftBorde
 	return imageTile{}, false
 }
 
-// assemble tiles into a grid layout
 func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 	corners := findCorners(tiles)
 	if len(corners) == 0 {
@@ -194,10 +189,8 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 	// start with first corner, orient it so matching borders face right and down
 	cornerTile := corners[0]
 
-	// find an orientation where the corner has matches on right and bottom
 	var startOriented grid.Grid2D[int, rune]
 
-	// try all orientations to find one where right and bottom match other tiles
 	for oriented := range allOrientations(cornerTile.grid) {
 		rightBorder := string(oriented.Right())
 		bottomBorder := string(oriented.Bottom())
@@ -216,20 +209,17 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 	used := make(map[int]bool)
 	used[cornerTile.id] = true
 
-	// determine grid size
 	gridSize := 1
 	for gridSize*gridSize < len(tiles) {
 		gridSize++
 	}
 
-	// fill the grid row by row
 	for y := 0; y < gridSize; y++ {
 		for x := 0; x < gridSize; x++ {
 			if x == 0 && y == 0 {
 				continue
 			}
 
-			// get constraints from placed neighbors
 			var leftBorder, topBorder string
 			if x > 0 {
 				if leftTile, exists := placed[grid.Position2D[int]{X: x - 1, Y: y}]; exists {
@@ -246,7 +236,6 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 				continue
 			}
 
-			// find a tile that matches the constraints
 			if matchedTile, found := findMatchingTileOrientation(tiles, used, leftBorder, topBorder); found {
 				placed[grid.Position2D[int]{X: x, Y: y}] = matchedTile
 				used[matchedTile.id] = true
