@@ -54,13 +54,15 @@ func (d *Deque[T]) PushBack(value T) {
 	d.size++
 }
 
-// PopFront removes and returns the front element of the deque.
+// PopFront removes and returns the front element without retaining its references.
 func (d *Deque[T]) PopFront() (T, bool) {
 	if d.size == 0 {
 		var zero T
 		return zero, false
 	}
 	value := d.data[d.head]
+	var zero T
+	d.data[d.head] = zero
 	d.head = (d.head + 1) % d.cap
 	d.size--
 
@@ -71,7 +73,7 @@ func (d *Deque[T]) PopFront() (T, bool) {
 	return value, true
 }
 
-// PopBack removes and returns the back element of the deque.
+// PopBack removes and returns the back element without retaining its references.
 func (d *Deque[T]) PopBack() (T, bool) {
 	if d.size == 0 {
 		var zero T
@@ -79,6 +81,8 @@ func (d *Deque[T]) PopBack() (T, bool) {
 	}
 	d.tail = (d.tail - 1 + d.cap) % d.cap
 	value := d.data[d.tail]
+	var zero T
+	d.data[d.tail] = zero
 	d.size--
 
 	// Shrink capacity if necessary

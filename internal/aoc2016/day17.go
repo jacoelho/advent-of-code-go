@@ -7,13 +7,17 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 type vaultPath struct {
 	position grid.Position2D[int]
 	path     string
+}
+
+func (p vaultPath) atVault() bool {
+	return p.position == (grid.Position2D[int]{X: 3, Y: 3})
 }
 
 type vaultBudget struct{ paths, bytes int }
@@ -41,7 +45,10 @@ func vaultPasscode(r io.Reader) (string, error) {
 	return string(data), nil
 }
 
-func vaultNeighbours(passcode string, current vaultPath) []vaultPath {
+func vaultNeighbours(passcode string, current vaultPath, budget *vaultBudget) ([]vaultPath, error) {
+	if current.atVault() {
+		return nil, nil
+	}
 	digest := md5.Sum([]byte(passcode + current.path))
 	doors := [4]byte{digest[0] >> 4, digest[0] & 15, digest[1] >> 4, digest[1] & 15}
 	directions := [4]grid.Position2D[int]{{Y: -1}, {Y: 1}, {X: -1}, {X: 1}}
@@ -49,10 +56,13 @@ func vaultNeighbours(passcode string, current vaultPath) []vaultPath {
 	for i, direction := range directions {
 		position := current.position.Add(direction)
 		if doors[i] >= 11 && position.X >= 0 && position.Y >= 0 && position.X < 4 && position.Y < 4 {
+			if err := budget.consume(len(passcode) + len(current.path) + 1); err != nil {
+				return nil, err
+			}
 			next = append(next, vaultPath{position, current.path + string("UDLR"[i])})
 		}
 	}
-	return next
+	return next, nil
 }
 
 func day17p01(r io.Reader) (string, error) {
@@ -67,18 +77,15 @@ func shortestVault(passcode string, budget vaultBudget) (string, error) {
 	if err := budget.consume(len(passcode)); err != nil {
 		return "", err
 	}
-	queue := collections.NewDeque[vaultPath](32)
-	queue.PushBack(vaultPath{})
-	for queue.Size() > 0 {
-		current, _ := queue.PopFront()
-		if current.position == (grid.Position2D[int]{X: 3, Y: 3}) {
-			return current.path, nil
+	children := func(current vaultPath) ([]vaultPath, error) {
+		return vaultNeighbours(passcode, current, &budget)
+	}
+	for current, err := range search.BFSTree(vaultPath{}, children) {
+		if err != nil {
+			return "", err
 		}
-		for _, next := range vaultNeighbours(passcode, current) {
-			if err := budget.consume(len(passcode) + len(next.path)); err != nil {
-				return "", err
-			}
-			queue.PushBack(next)
+		if current.atVault() {
+			return current.path, nil
 		}
 	}
 	return "", fmt.Errorf("vault is unreachable")
@@ -100,20 +107,16 @@ func longestVault(passcode string, budget vaultBudget) (int, error) {
 	if err := budget.consume(len(passcode)); err != nil {
 		return 0, err
 	}
-	stack := []vaultPath{{}}
+	children := func(current vaultPath) ([]vaultPath, error) {
+		return vaultNeighbours(passcode, current, &budget)
+	}
 	longest := -1
-	for len(stack) > 0 {
-		current := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if current.position == (grid.Position2D[int]{X: 3, Y: 3}) {
-			longest = max(longest, len(current.path))
-			continue
+	for current, err := range search.DFSTree(vaultPath{}, children) {
+		if err != nil {
+			return 0, err
 		}
-		for _, next := range vaultNeighbours(passcode, current) {
-			if err := budget.consume(len(passcode) + len(next.path)); err != nil {
-				return 0, err
-			}
-			stack = append(stack, next)
+		if current.atVault() {
+			longest = max(longest, len(current.path))
 		}
 	}
 	if longest < 0 {

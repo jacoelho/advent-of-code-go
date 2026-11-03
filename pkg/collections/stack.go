@@ -14,12 +14,15 @@ func (s *Stack[T]) Push(value T) {
 	*s = append(*s, value)
 }
 
+// Pop removes the top value without retaining its references in the stack.
 func (s *Stack[T]) Pop() (T, bool) {
 	if len(*s) == 0 {
 		var zero T
 		return zero, false
 	}
 	el := (*s)[len(*s)-1]
+	var zero T
+	(*s)[len(*s)-1] = zero
 	*s = (*s)[:len(*s)-1]
 	return el, true
 }

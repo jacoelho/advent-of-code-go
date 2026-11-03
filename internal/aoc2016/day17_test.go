@@ -44,6 +44,14 @@ func TestVaultSearchBudget(t *testing.T) {
 	}
 }
 
+func TestVaultBudgetAfterGoal(t *testing.T) {
+	// The first DFS goal is reached after 78 generated paths; other branches remain.
+	got, err := longestVault("ihgpwlah", vaultBudget{paths: 78, bytes: 1 << 20})
+	if err == nil || got != 0 {
+		t.Fatalf("longest returned %d, %v after exhaustion; want no partial answer", got, err)
+	}
+}
+
 func TestDay17ReadErrors(t *testing.T) {
 	failure := errors.New("input failed")
 	for _, solve := range []func(io.Reader) (string, error){
