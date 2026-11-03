@@ -35,7 +35,8 @@ func probeTrajectories(r io.Reader) (int64, int64, error) {
 	if ymax >= 0 {
 		return 0, 0, fmt.Errorf("target must lie wholly below the launch point")
 	}
-	// A higher upward velocity returns through y=0, then skips below ymin.
+	// An initial vertical velocity of -ymin or more returns through y=0,
+	// then falls below ymin in its next step.
 	vxmin, vxmax := min(int64(0), xmin), max(int64(0), xmax)
 	if vxmax-vxmin+1 > 5_000_000/(-2*ymin) {
 		return 0, 0, fmt.Errorf("probe search exceeds 5000000 velocities")

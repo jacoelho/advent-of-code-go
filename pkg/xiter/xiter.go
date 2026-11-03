@@ -5,7 +5,8 @@ import (
 	"iter"
 )
 
-// https://github.com/golang/go/issues/61898
+// The iterator adapters below are adapted from the xiter proposal. See
+// https://github.com/golang/go/issues/61898.
 
 // Concat returns an iterator over the concatenation of the sequences.
 func Concat[V any](seqs ...iter.Seq[V]) iter.Seq[V] {

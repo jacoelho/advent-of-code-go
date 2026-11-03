@@ -85,7 +85,8 @@ func HasSuffix[Slice ~[]E, E comparable](slice Slice, suffix Slice) bool {
 	return HasSuffixFunc(slice, suffix, func(a, b E) bool { return a == b })
 }
 
-// SubSlices generates all subslices from the beginning of the input slice up to the given length.
+// SubSlices returns the prefixes s[:1] through s[:min(n, len(s))]. The prefixes
+// share s's backing array. It panics if n is negative.
 func SubSlices[Slice ~[]E, E any](s Slice, n int) []Slice {
 	if n > len(s) {
 		n = len(s)
@@ -99,7 +100,9 @@ func SubSlices[Slice ~[]E, E any](s Slice, n int) []Slice {
 	return result
 }
 
-// Combinations generates all combinations of k elements from the input slice.
+// Combinations yields a new slice for each k-element selection by increasing
+// input index. It yields one empty slice for k == 0 and no values for k < 0 or
+// k > len(s). Equal input values can produce duplicate combinations.
 func Combinations[Slice ~[]E, E any](s Slice, k int) iter.Seq[Slice] {
 	if k > len(s) || k < 0 {
 		return func(yield func(Slice) bool) {}

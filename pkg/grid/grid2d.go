@@ -79,7 +79,6 @@ func (g *Grid2D[T, V]) TurnRight() Grid2D[T, V] {
 		// normalize to origin
 		x := pos.X - minX
 		y := pos.Y - minY
-		// apply rotation: (x, y) -> (maxY - minY - y, x)
 		newX := (maxY - minY) - y
 		newY := x
 		result[Position2D[T]{X: newX, Y: newY}] = v
@@ -96,7 +95,6 @@ func (g *Grid2D[T, V]) TurnLeft() Grid2D[T, V] {
 		// normalize to origin
 		x := pos.X - minX
 		y := pos.Y - minY
-		// apply rotation: (x, y) -> (y, maxX - minX - x)
 		newX := y
 		newY := (maxX - minX) - x
 		result[Position2D[T]{X: newX, Y: newY}] = v
@@ -113,7 +111,6 @@ func (g *Grid2D[T, V]) FlipHorizontal() Grid2D[T, V] {
 		// normalize to origin
 		x := pos.X - minX
 		y := pos.Y - minY
-		// flip horizontally: (x, y) -> (maxX - minX - x, y)
 		newX := (maxX - minX) - x
 		newY := y
 		result[Position2D[T]{X: newX, Y: newY}] = v
@@ -130,7 +127,6 @@ func (g *Grid2D[T, V]) FlipVertical() Grid2D[T, V] {
 		// normalize to origin
 		x := pos.X - minX
 		y := pos.Y - minY
-		// flip vertically: (x, y) -> (x, maxY - minY - y)
 		newX := x
 		newY := (maxY - minY) - y
 		result[Position2D[T]{X: newX, Y: newY}] = v

@@ -12,7 +12,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
-// 1 space padding + 1 letter
+// outerPortalThreshold is the maximum distance from the passage bounds treated as the
+// outer rim.
 const outerPortalThreshold = 2
 
 type donutMaze struct {
@@ -202,7 +203,7 @@ func (m *donutMaze) recursiveNeighbours(state recursiveState) iter.Seq[recursive
 
 		isOuter := m.outerPortals[state.pos]
 
-		// at level 0, outer portals act as walls (can't go up from outermost level)
+		// At level zero, an outer portal cannot lead to a shallower level.
 		if state.level == 0 && isOuter {
 			return
 		}

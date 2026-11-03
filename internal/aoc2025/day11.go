@@ -40,7 +40,6 @@ func parseDevicesList(r io.Reader) (deviceNetwork, error) {
 			delete(network.ids, name)
 		}
 		network.ids[name] = id
-		// Superseded definitions must not contribute to retained graph storage.
 		network.targets[id] = line[end:]
 	}
 	if err := s.Err(); err != nil {

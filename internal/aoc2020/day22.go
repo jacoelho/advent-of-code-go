@@ -90,7 +90,7 @@ func awardRound(winner *collections.Deque[int], winnerCard, loserCard int) {
 	winner.PushBack(loserCard)
 }
 
-// playCombat runs the standard combat game and returns the winner and their deck
+// playCombat plays standard combat in place and returns the winning player and deck.
 func playCombat(c *combat) (winner, *collections.Deque[int]) {
 	for c.player1.Size() > 0 && c.player2.Size() > 0 {
 		c1, _ := c.player1.PopFront()
@@ -107,7 +107,8 @@ func playCombat(c *combat) (winner, *collections.Deque[int]) {
 	return winnerPlayer2, c.player2
 }
 
-// scoreDeck computes the score by summing value*position from bottom=1 to top=N
+// scoreDeck returns the sum of each card value times its position,
+// counting from one at the bottom.
 func scoreDeck(d *collections.Deque[int]) int {
 	total := 0
 	multiplier := 1
@@ -169,7 +170,7 @@ func playRecursiveCombat(c *combat) (winner, *collections.Deque[int]) {
 	return winnerPlayer2, c.player2
 }
 
-// deckState returns a string representation of the deck state.
+// deckState encodes both ordered decks as a key for repeated-state detection.
 func deckState(p1, p2 *collections.Deque[int]) string {
 	var b strings.Builder
 	writeDeck(&b, p1)
@@ -186,5 +187,4 @@ func writeDeck(b *strings.Builder, d *collections.Deque[int]) {
 	}
 }
 
-// hasAtLeastCards returns true if the deque has at least n elements.
 func hasAtLeastCards(d *collections.Deque[int], n int) bool { return d.Size() >= n }

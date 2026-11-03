@@ -196,7 +196,8 @@ func computeFreeVarLimits(step machineRequirements, base []int64, coefficients [
 			if coefficient >= 0 {
 				continue
 			}
-			// Even all positive contributions must offset this negative coefficient.
+			// Maximize the other positive terms to bound this free variable while
+			// keeping the dependent variable nonnegative.
 			available := big.NewInt(value)
 			for other, freeCol := range freeCols {
 				if c := coefficients[other][i]; other != k && c > 0 {

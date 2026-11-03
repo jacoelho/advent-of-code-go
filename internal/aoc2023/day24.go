@@ -221,7 +221,9 @@ func hailRockEquations(stones []hailstone) *matrix.Matrix {
 		velocity := stone.velocity.sub(anchor.velocity)
 		position := stone.position.sub(anchor.position)
 		rhs := stone.position.cross(stone.velocity).sub(anchorCross)
-		// r×(vi−v0) + (pi−p0)×u = pi×vi − p0×v0 cancels the common r×u term.
+		// Let r and u be the rock position and velocity. Subtracting the anchor
+		// collision equation cancels r×u:
+		// r×(vi−v0) + (pi−p0)×u = pi×vi − p0×v0.
 		rows := [3][7]matrix.Rat{
 			{{}, velocity[2], velocity[1].Neg(), {}, position[2].Neg(), position[1], rhs[0]},
 			{velocity[2].Neg(), {}, velocity[0], position[2], {}, position[0].Neg(), rhs[1]},

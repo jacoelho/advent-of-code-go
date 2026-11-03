@@ -15,9 +15,10 @@ import (
 type Edges[T comparable] func(T, func(T, int) bool) error
 
 // Limits bounds search storage and expansion. Zero means unlimited; negative
-// limits are invalid. States counts distinct discovered states, including start.
-// Frontier counts queued entries, including stale entries. Expanded counts
-// non-goal, non-stale entries whose edges are requested, including reopenings.
+// limits are invalid. MaxStates bounds distinct discovered states, including
+// start. MaxFrontier bounds queued entries, including stale entries.
+// MaxExpanded bounds non-goal, non-stale entries whose edges are requested,
+// including reopenings.
 type Limits struct {
 	MaxExpanded int
 	MaxStates   int

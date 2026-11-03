@@ -24,9 +24,8 @@ func (h *Heap[E]) Push(elem E) {
 	heap.Push(&h.s, elem)
 }
 
-// Pop removes and returns the minimum element (according to the less function)
-// from the heap.
-// The complexity is O(log n) where n = h.Len().
+// Pop removes and returns the minimum value according to less, or (zero, false)
+// when empty. Its time complexity is O(log n), where n = h.Len().
 func (h *Heap[E]) Pop() (E, bool) {
 	if h.Len() == 0 {
 		var zero E
@@ -46,8 +45,8 @@ func (h *Heap[E]) PopSeq() iter.Seq[E] {
 	}
 }
 
-// Peek returns the minimum element (according to the less function) in the heap.
-// The complexity is O(1).
+// Peek returns the minimum value according to less without removing it, or
+// (zero, false) when empty. Its time complexity is O(1).
 func (h *Heap[E]) Peek() (E, bool) {
 	if h.Len() == 0 {
 		var zero E
@@ -61,8 +60,7 @@ func (h *Heap[E]) Len() int {
 	return len(h.s.s)
 }
 
-// sliceHeap just exists to use the existing heap.Interface as the
-// implementation of Heap.
+// sliceHeap adapts the backing slice to [heap.Interface].
 type sliceHeap[E any] struct {
 	s    []E
 	less func(E, E) bool
@@ -85,7 +83,8 @@ func (s *sliceHeap[E]) Push(x any) {
 func (s *sliceHeap[E]) Pop() any {
 	var zero E
 	e := s.s[len(s.s)-1]
-	// avoid memory leak by clearing out popped value in slice
+	// Clear the unused slot so the backing array does not retain the popped
+	// value.
 	s.s[len(s.s)-1] = zero
 	s.s = s.s[:len(s.s)-1]
 	return e

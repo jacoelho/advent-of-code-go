@@ -82,8 +82,8 @@ func Max[E cmp.Ordered](seq iter.Seq[E]) (E, bool) {
 	return m, found
 }
 
-// Apply yields start followed by repeated applications of f. Each traversal
-// starts again at start; replay also requires f to have no persistent mutation.
+// Apply yields start, f(start), f(f(start)), and so on until iteration stops.
+// Each traversal starts again at start and invokes f again.
 func Apply[E any](start E, f func(E) E) iter.Seq[E] {
 	return func(yield func(E) bool) {
 		for value := start; yield(value); value = f(value) {
@@ -101,8 +101,8 @@ func Enumerate[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
 	}
 }
 
-// Nth returns the nth element from the sequence (0-indexed). A negative index
-// returns (zero, false) without invoking the source.
+// Nth returns the zero-based nth value, or (zero, false) if the source ends
+// first. A negative index returns (zero, false) without invoking the source.
 func Nth[T any](seq iter.Seq[T], n int) (T, bool) {
 	var result T
 	if n < 0 {
@@ -121,7 +121,9 @@ func Nth[T any](seq iter.Seq[T], n int) (T, bool) {
 	return result, found
 }
 
-// Permutations generates all permutations of the input slice using Heap's algorithm.
+// Permutations yields a fresh slice for each permutation using Heap's
+// algorithm, without modifying slice. Empty input yields no values; equal input
+// values can produce duplicate permutations.
 func Permutations[T any](slice []T) iter.Seq[[]T] {
 	return func(yield func([]T) bool) {
 		if len(slice) == 0 {

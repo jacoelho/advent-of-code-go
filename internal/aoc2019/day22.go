@@ -138,7 +138,7 @@ func (f linearFunc) pow(n uint64) linearFunc {
 	return result
 }
 
-// converts shuffle operations to inverse linear form f^-1(x) = ax + b (mod m)
+// shuffleToLinear returns the inverse of s as an affine transformation modulo mod.
 func shuffleToLinear(s shuffle, mod *big.Int) (linearFunc, error) {
 	switch s.op {
 	// f(x) = -x-1 is self-inverse, so f^-1(x) = -x-1
@@ -168,7 +168,8 @@ func shuffleToLinear(s shuffle, mod *big.Int) (linearFunc, error) {
 	}
 }
 
-// The inverse of g(f(x)) is f^-1(g^-1(x)).
+// composeInverse returns the inverse of the instruction sequence.
+// Since the inverse of g(f(x)) is f^-1(g^-1(x)), it composes inverses in input order.
 func composeInverse(instructions []shuffle, mod *big.Int) (linearFunc, error) {
 	f := linearFunc{
 		a:   big.NewInt(1),

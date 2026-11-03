@@ -98,9 +98,8 @@ func calculateLagoonArea(instructions []instruction, decoder instructionDecoder)
 
 	area := xmath.PolygonArea(vertices)
 
-	// Pick's theorem: A = i + b/2 - 1
-	// where A is area, i is interior points, b is boundary points
-	// Total area = i + b = A + b/2 + 1
+	// Pick's theorem gives i = area - perimeter/2 + 1 interior lattice points.
+	// Including the boundary tiles gives i + perimeter = area + perimeter/2 + 1.
 	return area + perimeter/2 + 1, nil
 }
 

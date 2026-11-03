@@ -128,7 +128,7 @@ func day20p01(r io.Reader) (string, error) {
 	return strconv.Itoa(result), nil
 }
 
-// Generate all 8 orientations of a tile grid
+// allOrientations yields the four rotations of g and of its horizontal reflection.
 func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] {
 	return func(yield func(grid.Grid2D[int, rune]) bool) {
 		current := g
@@ -247,7 +247,6 @@ func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
 	return placed
 }
 
-// remove borders from a tile (remove first and last row/column)
 func removeBorder(g grid.Grid2D[int, rune]) grid.Grid2D[int, rune] {
 	minX, maxX, minY, maxY := g.Dimensions()
 	result := make(grid.Grid2D[int, rune])
@@ -277,7 +276,6 @@ func mergeToSingleGrid(assembled map[grid.Position2D[int]]imageTile) grid.Grid2D
 		minX, maxX, minY, maxY := borderless.Dimensions()
 		tileWidth := maxX - minX + 1
 
-		// copy borderless tile to final position
 		for y := minY; y <= maxY; y++ {
 			for x := minX; x <= maxX; x++ {
 				val := borderless[grid.Position2D[int]{X: x, Y: y}]
@@ -315,7 +313,7 @@ func findSeaMonsters(g grid.Grid2D[int, rune]) []grid.Position2D[int] {
 	return monsters
 }
 
-// count water roughness (# not part of sea monsters)
+// countRoughness counts lit pixels that do not belong to any sea monster.
 func countRoughness(g grid.Grid2D[int, rune], monsters []grid.Position2D[int]) int {
 	allHash := collections.NewSet[grid.Position2D[int]]()
 	for pos, val := range g {

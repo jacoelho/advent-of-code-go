@@ -28,7 +28,7 @@ func day04p01(r io.Reader) (string, error) {
 
 	var count int
 	for p, v := range m {
-		if v != 'X' { // start at X to avoid double counting
+		if v != 'X' {
 			continue
 		}
 		for _, offset := range grid.OffsetsNeighbours8[int]() {
@@ -51,7 +51,7 @@ func day04p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	// order matters after for the match
+	// Keep opposite corners two entries apart for the pattern comparisons below.
 	corners := [4]grid.Position2D[int]{
 		{X: -1, Y: -1},
 		{X: -1, Y: 1},
@@ -61,7 +61,7 @@ func day04p02(r io.Reader) (string, error) {
 
 	var count int
 	for p, v := range m {
-		if v != 'A' { // central point
+		if v != 'A' {
 			continue
 		}
 

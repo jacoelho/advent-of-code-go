@@ -112,7 +112,8 @@ func (s Seq[T]) Count() int {
 	return count
 }
 
-// Any stops at the first value satisfying predicate. It is false when empty.
+// Any reports whether any value satisfies predicate. It stops at the first
+// match and returns false for an empty source.
 func (s Seq[T]) Any(predicate func(T) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
@@ -122,7 +123,8 @@ func (s Seq[T]) Any(predicate func(T) bool) bool {
 	return false
 }
 
-// Every stops at the first value failing predicate. It is true when empty.
+// Every reports whether every value satisfies predicate. It stops at the first
+// failure and returns true for an empty source.
 func (s Seq[T]) Every(predicate func(T) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {

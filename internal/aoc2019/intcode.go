@@ -79,7 +79,7 @@ func ParseIntcodeInput(r io.Reader) ([]int, error) {
 	return program, nil
 }
 
-// Unwritten nonnegative addresses read as zero without allocating memory.
+// readMemory returns zero for unwritten nonnegative addresses without growing memory.
 func (c *IntcodeComputer) readMemory(addr int) (int, error) {
 	if addr < 0 {
 		return 0, fmt.Errorf("memory read out of bounds: address %d", addr)
@@ -176,7 +176,7 @@ func (c *IntcodeComputer) AddInput(values ...int) {
 	c.waiting = false
 }
 
-// GetOutput returns the output buffer and clears it
+// GetOutput returns a copy of the buffered output and clears the buffer.
 func (c *IntcodeComputer) GetOutput() []int {
 	output := slices.Clone(c.output)
 	c.output = nil
@@ -367,7 +367,8 @@ func (c *IntcodeComputer) executeInstruction() (bool, error) {
 	}
 }
 
-// Run stops at halt or an input request; each call has a bounded instruction budget.
+// Run executes until halt, missing input, or an error.
+// It returns an error if a resource limit or the per-call instruction budget is exceeded.
 func (c *IntcodeComputer) Run() error {
 	if len(c.memory) > maxIntcodeMemory || len(c.input) > maxIntcodeMemory {
 		return fmt.Errorf("intcode memory or input exceeds %d words", maxIntcodeMemory)
@@ -384,7 +385,7 @@ func (c *IntcodeComputer) Run() error {
 	return fmt.Errorf("intcode execution exceeds %d instructions without pausing", maxIntcodeSteps)
 }
 
-// Memory returns a copy of the current memory state
+// Memory returns a copy of the current memory state.
 func (c *IntcodeComputer) Memory() []int {
 	return slices.Clone(c.memory)
 }
@@ -393,7 +394,7 @@ func (c *IntcodeComputer) SetMemory(addr, value int) error {
 	return c.writeMemory(addr, value)
 }
 
-// ReadOutputString converts the output buffer to a string and clears it
+// ReadOutputString drains the output buffer, converting each value to a byte.
 func (c *IntcodeComputer) ReadOutputString() string {
 	output := c.GetOutput()
 	var result []byte
@@ -403,7 +404,7 @@ func (c *IntcodeComputer) ReadOutputString() string {
 	return string(result)
 }
 
-// Clone creates a deep copy of the computer state
+// Clone creates a deep copy of the computer state.
 func (c *IntcodeComputer) Clone() *IntcodeComputer {
 	return &IntcodeComputer{
 		memory:       slices.Clone(c.memory),
@@ -416,7 +417,8 @@ func (c *IntcodeComputer) Clone() *IntcodeComputer {
 	}
 }
 
-// StringsToASCII converts strings to ASCII integer codes, adding newlines after each string
+// StringsToASCII appends the rune values in each line followed by a newline.
+// It does not validate that the input is ASCII.
 func StringsToASCII(lines ...string) []int {
 	var result []int
 	for _, line := range lines {

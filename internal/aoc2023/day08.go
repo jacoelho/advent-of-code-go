@@ -167,7 +167,8 @@ func alignNavigation(schedules []navigationSchedule) (*big.Int, error) {
 		}
 	}
 	work := maxAlignmentWork
-	// Before every walk is periodic, a common hit must be transient in this walk.
+	// Any shared hit before all walks are periodic must be a transient hit
+	// of the last walk to enter its cycle.
 	for _, step := range schedules[latest].transient {
 		shared := true
 		for _, schedule := range schedules {

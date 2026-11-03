@@ -77,7 +77,8 @@ func day14p01(r io.Reader) (string, error) {
 	return sum.String(), nil
 }
 
-// A cube fixes the bits in fixed; the remaining bits describe an address range.
+// dockingCube represents 36-bit addresses satisfying address&fixed == value.
+// Bits outside fixed may vary.
 type dockingCube struct{ fixed, value uint64 }
 
 func subtractDockingCube(cube, covered dockingCube) []dockingCube {

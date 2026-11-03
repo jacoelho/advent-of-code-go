@@ -200,7 +200,6 @@ func day10p02(r io.Reader) (string, error) {
 					entryBend = ' '
 				}
 			} else if inside {
-				// not on loop and inside - count it
 				enclosed++
 			}
 		}

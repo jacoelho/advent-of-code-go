@@ -315,7 +315,8 @@ type grayCodeChange struct {
 	take    bool
 }
 
-// Gray-code transitions change one item between consecutive inventory subsets.
+// grayCodeChanges yields the single-item changes that enumerate subsets of n items in
+// Gray-code order, starting from an empty inventory.
 func grayCodeChanges(n int) func(yield func(grayCodeChange) bool) {
 	return func(yield func(grayCodeChange) bool) {
 		currentMask := 0

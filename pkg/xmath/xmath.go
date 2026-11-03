@@ -37,8 +37,9 @@ type Point[T constraints.Signed] interface {
 	GetY() T
 }
 
-// PolygonArea calculates the area of a polygon using the Shoelace formula.
-// The polygon vertices should be provided in order (clockwise or counter-clockwise).
+// PolygonArea returns the absolute shoelace area, truncated to an integer.
+// Vertices must be ordered clockwise or counterclockwise. Fewer than three
+// vertices have area zero.
 func PolygonArea[T constraints.Signed, P Point[T]](vertices []P) T {
 	if len(vertices) < 3 {
 		return 0

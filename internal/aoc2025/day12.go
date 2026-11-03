@@ -321,7 +321,7 @@ func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork
 		if chosen == -1 {
 			return true, nil
 		}
-		// Remaining pieces cannot acquire placements that already overlap occupied cells.
+		// The remaining pieces must fit in the union of currently legal placements.
 		if bits.OnesCount64(allCells) < requiredArea {
 			return reject(state)
 		}

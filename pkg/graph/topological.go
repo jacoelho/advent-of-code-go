@@ -7,13 +7,13 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
-// TopologicalOrder orders every node before its successors, choosing the earliest
-// node in nodes whenever several are ready. Nodes must be distinct and contain
-// every edge endpoint. Duplicate edges do not change the ordering.
+// TopologicalOrder orders every node before its successors, choosing the
+// earliest node in nodes whenever several are ready. Nodes must be distinct and
+// contain every edge endpoint. Duplicate edges do not change the ordering.
 //
-// Successors is called once per node; inputs are not modified. A cycle or invalid
-// endpoint returns an error and no partial order. Time is O(V log V + E), with
-// O(V + E) storage.
+// For valid input, successors is called once per node; inputs are not modified.
+// A cycle or invalid endpoint returns an error and no partial order. Time is
+// O(V log V + E), with O(V + E) storage.
 func TopologicalOrder[T comparable](nodes []T, successors func(T) iter.Seq[T]) ([]T, error) {
 	indices := make(map[T]int, len(nodes))
 	for i, node := range nodes {

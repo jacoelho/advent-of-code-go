@@ -133,7 +133,8 @@ func DecodeSeparatedDisplay(rows []string) (string, error) {
 	return string(text), nil
 }
 
-// Five columns preserve full-width letters such as Y; most letters leave the last column dark.
+// sixRowLetter recognizes five-column glyphs; the fifth column accommodates full-width
+// letters such as Y.
 func sixRowLetter(glyph string) (byte, bool) {
 	switch glyph {
 	case `

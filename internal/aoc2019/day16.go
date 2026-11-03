@@ -52,7 +52,7 @@ func applyFFTPhase(input []int) []int {
 		output[i] = xmath.Abs(sum) % 10
 	}
 
-	// backward summation
+	// From the midpoint onward, each output is the suffix sum modulo 10.
 	output[n-1] = input[n-1]
 	for i := n - 2; i >= halfPoint; i-- {
 		output[i] = (output[i+1] + input[i]) % 10
@@ -84,7 +84,8 @@ func day16p02(r io.Reader) (string, error) {
 
 	totalLen := len(signal) * 10000
 
-	// optimization only works if offset is in second half
+	// Suffix summation is valid only when the offset is in the second half of the
+	// repeated signal.
 	if offset < totalLen/2 {
 		return "", nil
 	}

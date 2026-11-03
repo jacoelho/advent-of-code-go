@@ -113,13 +113,13 @@ func getAxisState(moons []*Moon, axis int) axisState {
 
 	for i, m := range moons {
 		switch axis {
-		case 0: // x
+		case 0:
 			state.positions[i] = m.x
 			state.velocities[i] = m.vx
-		case 1: // y
+		case 1:
 			state.positions[i] = m.y
 			state.velocities[i] = m.vy
-		case 2: // z
+		case 2:
 			state.positions[i] = m.z
 			state.velocities[i] = m.vz
 		}

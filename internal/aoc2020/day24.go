@@ -79,7 +79,6 @@ func initialBlackTiles(r io.Reader) (map[grid.Position2D[int]]bool, error) {
 		return nil, err
 	}
 
-	// black tiles are flipped an odd number of times
 	blackTiles := make(map[grid.Position2D[int]]bool)
 	for pos, count := range flipCount {
 		if count%2 == 1 {
@@ -123,12 +122,10 @@ func nextDay(blackTiles map[grid.Position2D[int]]bool) map[grid.Position2D[int]]
 		isBlack := blackTiles[tile]
 
 		if isBlack {
-			// black stays black if it has 1 or 2 black neighbors
 			if count == 1 || count == 2 {
 				nextBlack[tile] = true
 			}
 		} else {
-			// white flips to black if it has exactly 2 black neighbors
 			if count == 2 {
 				nextBlack[tile] = true
 			}

@@ -2,8 +2,10 @@ package aoc2023
 
 import "math/big"
 
-// combineCongruences requires positive moduli and does not mutate its inputs.
-// An incompatible pair has no solution; otherwise the result is normalized modulo the LCM.
+// combineCongruences solves x ≡ a (mod m) and x ≡ b (mod n).
+// It requires positive moduli and does not mutate its inputs. Incompatible
+// congruences return nil, nil, false; otherwise residue is normalized modulo
+// modulus, the LCM of m and n.
 func combineCongruences(a, m, b, n *big.Int) (residue, modulus *big.Int, compatible bool) {
 	var inverse, remainder big.Int
 	divisor := new(big.Int).GCD(&inverse, nil, m, n)

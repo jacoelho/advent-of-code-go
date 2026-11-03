@@ -74,7 +74,7 @@ func Neighbours4[T constraints.Signed](p Position2D[T]) iter.Seq[Position2D[T]] 
 func OffsetsNeighbours8[T constraints.Signed]() []Position2D[T] {
 	return []Position2D[T]{
 		{X: -1, Y: -1}, {X: 0, Y: -1}, {X: 1, Y: -1},
-		{X: -1, Y: 0} /*  element */, {X: 1, Y: 0},
+		{X: -1, Y: 0}, {X: 1, Y: 0},
 		{X: -1, Y: 1}, {X: 0, Y: 1}, {X: 1, Y: 1},
 	}
 }

@@ -107,7 +107,7 @@ func parseReactions(r io.Reader) (reactionSystem, error) {
 			}
 		}
 	}
-	// Demand flows from consumers to their ingredients, opposite evaluation order.
+	// Edges point from consumers to their ingredients, so consumers are processed first.
 	order, err := graph.TopologicalOrder(names, func(name string) iter.Seq[string] {
 		return func(yield func(string) bool) {
 			for _, ingredient := range system.recipes[name].inputs {

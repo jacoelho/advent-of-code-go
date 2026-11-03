@@ -28,7 +28,8 @@ func findFreeColumns(varCount int, pivotCols []int) []int {
 	return freeCols
 }
 
-// ExtractParametricSolution uses a consistent matrix reduced by RREF and its PivotCols.
+// ExtractParametricSolution returns the solutions of a consistent augmented
+// matrix m already reduced by [RREF]. pivotCols must contain its pivot columns;
 // varCount excludes the right-hand-side column.
 func ExtractParametricSolution(
 	m *Matrix,
@@ -66,8 +67,9 @@ func ExtractParametricSolution(
 	}
 }
 
-// ScaleToIntegers uses one positive common denominator for base and coefficients.
-// It returns an error if any scaled value or the denominator cannot fit in int64.
+// ScaleToIntegers multiplies base and coeffs by one positive common
+// denominator. It returns the scaled base, scaled coefficients and denominator,
+// or an error if any scaled value or the denominator cannot fit in int64.
 func ScaleToIntegers(base []Rat, coeffs [][]Rat) ([]int64, [][]int64, int64, error) {
 	commonDen := big.NewInt(1)
 	includeDenominator := func(value Rat) {

@@ -6,15 +6,16 @@ import (
 )
 
 // CountDAGPaths sums terminal contributions along every path from roots. A
-// terminal contribution must be nonnegative; even a zero contribution suppresses
-// expansion. Repeated roots and parallel edges retain their multiplicity.
+// terminal contribution must be nonnegative; even a zero contribution
+// suppresses expansion. Repeated roots and parallel edges retain their
+// multiplicity.
 //
 // Counts are memoized across roots. Reachable cycles and int overflow return an
-// error with no partial count. Children is called once per nonterminal node and
-// must invoke yield synchronously, without retaining it, stopping if it returns
-// false. Callers must provide a finite graph with stable node identities.
-// Traversal uses an explicit stack, retaining pending children only for the active
-// ancestry.
+// error with no partial count. The children callback is called once per
+// nonterminal node and must invoke yield synchronously, without retaining it,
+// stopping if it returns false. Callers must provide a finite graph with stable
+// node identities. Traversal uses an explicit stack, retaining pending children
+// only for the active ancestry.
 func CountDAGPaths[T comparable](roots []T, children func(T, func(T) bool), terminal func(T) (int, bool)) (int, error) {
 	type frame struct {
 		node             T

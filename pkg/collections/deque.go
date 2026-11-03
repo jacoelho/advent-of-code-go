@@ -11,7 +11,7 @@ type Deque[T any] struct {
 	size, cap  int
 }
 
-// NewDeque creates a new deque with a specified initial capacity.
+// NewDeque returns an empty deque with initial capacity max(1, capacity).
 func NewDeque[T any](capacity int) *Deque[T] {
 	if capacity < 1 {
 		capacity = 1
@@ -22,7 +22,6 @@ func NewDeque[T any](capacity int) *Deque[T] {
 	}
 }
 
-// resize adjusts the capacity of the deque.
 func (d *Deque[T]) resize(newCap int) {
 	newData := make([]T, newCap)
 	for i := 0; i < d.size; i++ {
@@ -54,7 +53,8 @@ func (d *Deque[T]) PushBack(value T) {
 	d.size++
 }
 
-// PopFront removes and returns the front element without retaining its references.
+// PopFront removes and returns the front value, or (zero, false) when empty. It
+// clears the removed slot so unused storage does not retain references.
 func (d *Deque[T]) PopFront() (T, bool) {
 	if d.size == 0 {
 		var zero T
@@ -66,14 +66,14 @@ func (d *Deque[T]) PopFront() (T, bool) {
 	d.head = (d.head + 1) % d.cap
 	d.size--
 
-	// Shrink capacity if necessary
 	if d.size > 0 && d.size <= d.cap/4 {
 		d.resize(d.cap / 2)
 	}
 	return value, true
 }
 
-// PopBack removes and returns the back element without retaining its references.
+// PopBack removes and returns the back value, or (zero, false) when empty. It
+// clears the removed slot so unused storage does not retain references.
 func (d *Deque[T]) PopBack() (T, bool) {
 	if d.size == 0 {
 		var zero T
@@ -85,14 +85,14 @@ func (d *Deque[T]) PopBack() (T, bool) {
 	d.data[d.tail] = zero
 	d.size--
 
-	// Shrink capacity if necessary
 	if d.size > 0 && d.size <= d.cap/4 {
 		d.resize(d.cap / 2)
 	}
 	return value, true
 }
 
-// PeekFront returns the front element without removing it.
+// PeekFront returns the front value without removing it, or (zero, false) when
+// empty.
 func (d *Deque[T]) PeekFront() (T, bool) {
 	if d.size == 0 {
 		var zero T
@@ -101,7 +101,8 @@ func (d *Deque[T]) PeekFront() (T, bool) {
 	return d.data[d.head], true
 }
 
-// PeekBack returns the back element without removing it.
+// PeekBack returns the back value without removing it, or (zero, false) when
+// empty.
 func (d *Deque[T]) PeekBack() (T, bool) {
 	if d.size == 0 {
 		var zero T

@@ -65,7 +65,6 @@ func tilt(platform grid.Grid2D[int, rune], dir direction) grid.Grid2D[int, rune]
 	}[dir]
 
 	if params.axis == vertical {
-		// North/South: iterate over columns
 		for x := minX; x <= maxX; x++ {
 			var nextY int
 			if params.directionType == backward {
