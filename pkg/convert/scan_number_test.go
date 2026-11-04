@@ -3,6 +3,7 @@ package convert
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"golang.org/x/exp/constraints"
@@ -56,4 +57,60 @@ func TestScanNumberBounds(t *testing.T) {
 	}
 	type offset int16
 	checkScanNumberBounds[offset](t, -32768, 32767, "-32769", "32768")
+}
+
+func TestScanNumberDecimalLengths(t *testing.T) {
+	long := strings.Repeat("0", 64) + "42"
+	for _, tt := range []struct {
+		input string
+		want  int64
+	}{
+		{"999999999999999999", 999999999999999999},
+		{long, 42},
+	} {
+		got, err := ScanNumber[int64]([]byte(tt.input))
+		if err != nil || got != tt.want {
+			t.Fatalf("ScanNumber[int64](%q) = %d, %v; want %d", tt.input, got, err, tt.want)
+		}
+	}
+	if got, err := ScanNumber[int8]([]byte(long)); err != nil || got != 42 {
+		t.Fatalf("ScanNumber[int8](%q) = %d, %v; want 42", long, got, err)
+	}
+}
+
+func checkScanNumberError[T constraints.Signed](t *testing.T, input, wantFunc string, wantCause error) {
+	t.Helper()
+	got, err := ScanNumber[T]([]byte(input))
+	var numberError *strconv.NumError
+	if got != 0 || !errors.As(err, &numberError) {
+		t.Fatalf("ScanNumber(%q) = %d, %v; want zero and NumError", input, got, err)
+	}
+	if numberError.Func != wantFunc || numberError.Num != input || numberError.Err != wantCause {
+		t.Fatalf("ScanNumber(%q) error = %#v; want Func=%q, Num=%q, Err=%v", input, numberError, wantFunc, input, wantCause)
+	}
+}
+
+func TestScanNumberErrorDetails(t *testing.T) {
+	t.Run("narrow range", func(t *testing.T) {
+		checkScanNumberError[int8](t, "128", "ScanNumber", strconv.ErrRange)
+	})
+	t.Run("syntax before narrow range", func(t *testing.T) {
+		checkScanNumberError[int8](t, "128x", "ParseInt", strconv.ErrSyntax)
+	})
+	t.Run("empty", func(t *testing.T) {
+		checkScanNumberError[int64](t, "", "ParseInt", strconv.ErrSyntax)
+	})
+	t.Run("integer range", func(t *testing.T) {
+		checkScanNumberError[int64](t, "9223372036854775808", "ParseInt", strconv.ErrRange)
+	})
+	for _, input := range []string{"9223372036854775808x", "18446744073709551616x"} {
+		t.Run(input, func(t *testing.T) {
+			_, err := strconv.ParseInt(input, 10, 64)
+			var numberError *strconv.NumError
+			if !errors.As(err, &numberError) {
+				t.Fatalf("ParseInt(%q) = %v; want NumError", input, err)
+			}
+			checkScanNumberError[int64](t, input, numberError.Func, numberError.Err)
+		})
+	}
 }

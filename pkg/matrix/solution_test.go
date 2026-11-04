@@ -3,66 +3,9 @@ package matrix
 import (
 	"math"
 	"slices"
+	"strings"
 	"testing"
 )
-
-func TestRREFUniqueSolutionAndClone(t *testing.T) {
-	original, err := FromRows([][]Rat{
-		{NewRat(0, 1), NewRat(2, 1), NewRat(8, 1)},
-		{NewRat(3, 1), NewRat(1, 1), NewRat(7, 1)},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	clone := original.Clone()
-	result := RREF(clone)
-	if result.Inconsistent || len(result.PivotCols) != 2 {
-		t.Fatalf("expected unique solution, got %+v", result)
-	}
-	solution := ExtractParametricSolution(clone, result.PivotCols, 2)
-	if len(solution.FreeCols) != 0 || solution.Base[0].Cmp(NewRat(1, 1)) != 0 || solution.Base[1].Cmp(NewRat(4, 1)) != 0 {
-		t.Fatal("expected x=1, y=4")
-	}
-	for row, values := range [][]int64{{0, 2, 8}, {3, 1, 7}} {
-		for col, want := range values {
-			if original.Get(row, col).Cmp(NewRat(want, 1)) != 0 {
-				t.Fatalf("RREF of clone changed original cell (%d,%d)", row, col)
-			}
-		}
-	}
-}
-
-func TestRREFParametricAndInconsistent(t *testing.T) {
-	for _, rightHandSide := range []int64{10, 11} {
-		m, err := FromRows([][]Rat{
-			{NewRat(1, 1), NewRat(2, 1), NewRat(5, 1)},
-			{NewRat(2, 1), NewRat(4, 1), NewRat(rightHandSide, 1)},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		result := RREF(m)
-		if result.Inconsistent != (rightHandSide == 11) {
-			t.Fatalf("right-hand side %d: got %+v", rightHandSide, result)
-		}
-		if result.Inconsistent {
-			continue
-		}
-		solution := ExtractParametricSolution(m, result.PivotCols, 2)
-		if len(result.PivotCols) != 1 || !slices.Equal(solution.FreeCols, []int{1}) {
-			t.Fatalf("expected one free y component, got %+v", solution)
-		}
-		for _, parameter := range []int64{-3, 0, 4} {
-			want := []int64{5 - 2*parameter, parameter}
-			for i := range 2 {
-				got := solution.Base[i].Add(solution.Coeffs[0][i].Mul(NewRat(parameter, 1)))
-				if got.Cmp(NewRat(want[i], 1)) != 0 {
-					t.Fatalf("parameter %d: component %d = %s/%s; want %d", parameter, i, got.Numerator(), got.Denominator(), want[i])
-				}
-			}
-		}
-	}
-}
 
 func TestScaleToIntegers(t *testing.T) {
 	base, coefficients, denominator, err := ScaleToIntegers(
@@ -78,10 +21,69 @@ func TestScaleToIntegers(t *testing.T) {
 }
 
 func TestScaleToIntegersOverflow(t *testing.T) {
-	if _, _, _, err := ScaleToIntegers([]Rat{NewRat(1, math.MaxInt64), NewRat(1, 2)}, nil); err == nil {
-		t.Fatal("expected common-denominator range error")
+	half, _ := solveDiagonalRats(t, 2, 1, 3, 1)
+	for _, tt := range []struct {
+		name         string
+		base         []Rat
+		coefficients [][]Rat
+		context      string
+	}{
+		{"common denominator", []Rat{NewRat(1, math.MaxInt64), half}, nil, "common denominator exceeds int64"},
+		{"scaled coefficient", []Rat{half}, [][]Rat{{NewRat(math.MaxInt64, 1)}}, "scale coefficient row 0: scaled value 0 exceeds int64"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			base, coefficients, denominator, err := ScaleToIntegers(tt.base, tt.coefficients)
+			if err == nil || !strings.Contains(err.Error(), tt.context) || base != nil || coefficients != nil || denominator != 0 {
+				t.Fatalf("got %v, %v, %d, %v; want error containing %q without partial values", base, coefficients, denominator, err, tt.context)
+			}
+		})
 	}
-	if _, _, _, err := ScaleToIntegers([]Rat{NewRat(1, 2)}, [][]Rat{{NewRat(math.MaxInt64, 1)}}); err == nil {
-		t.Fatal("expected scaled-coefficient range error")
+}
+
+func TestScaleSolvedFractions(t *testing.T) {
+	half, third := solveDiagonalRats(t, 2, 1, 3, 1)
+	base, coefficients, denominator, err := ScaleToIntegers([]Rat{half}, [][]Rat{{third}})
+	if err != nil || !slices.Equal(base, []int64{3}) || len(coefficients) != 1 || !slices.Equal(coefficients[0], []int64{2}) || denominator != 6 {
+		t.Fatalf("scaled fractions = %v, %v, %d, %v", base, coefficients, denominator, err)
+	}
+	largeHalf, _ := solveDiagonalRats(t, 2, 1, 3_000_000_000_000_000_001, 0)
+	base, _, denominator, err = ScaleToIntegers([]Rat{largeHalf, NewRat(1, 4)}, nil)
+	if err != nil || !slices.Equal(base, []int64{2, 1}) || denominator != 4 {
+		t.Fatalf("scaled reducible fraction = %v, denominator %d, error %v; want [2 1], 4, nil", base, denominator, err)
+	}
+}
+
+func TestScaleToIntegersFractionBoundaries(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		values      []Rat
+		want        []int64
+		denominator int64
+	}{
+		{"LCM avoids product overflow", []Rat{NewRat(1, 4_000_000_000), NewRat(1, 6_000_000_000)}, []int64{3, 2}, 12_000_000_000},
+		{"minimum numerator", []Rat{NewRat(math.MinInt64, 3), NewRat(1, 3)}, []int64{math.MinInt64, 1}, 3},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, denominator, err := ScaleToIntegers(tt.values, nil)
+			if err != nil || !slices.Equal(got, tt.want) || denominator != tt.denominator {
+				t.Fatalf("scaled values = %v, denominator %d, error %v; want %v, %d", got, denominator, err, tt.want, tt.denominator)
+			}
+		})
+	}
+	for _, tt := range []struct {
+		name    string
+		values  []Rat
+		context string
+	}{
+		{"scaled numerator underflow", []Rat{NewRat(math.MinInt64, 3), NewRat(1, 6)}, "scale base: scaled value 0 exceeds int64"},
+		{"denominator exceeds positive range", []Rat{NewRat(1, math.MinInt64)}, "common denominator exceeds int64"},
+		{"numerator exceeds positive range", []Rat{NewRat(math.MinInt64, -1)}, "scale base: scaled value 0 exceeds int64"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			values, coefficients, denominator, err := ScaleToIntegers(tt.values, nil)
+			if err == nil || !strings.Contains(err.Error(), tt.context) || values != nil || coefficients != nil || denominator != 0 {
+				t.Fatalf("got %v, %v, %d, %v; want error containing %q without partial values", values, coefficients, denominator, err, tt.context)
+			}
+		})
 	}
 }

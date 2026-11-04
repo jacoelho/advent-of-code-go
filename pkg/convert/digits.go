@@ -65,10 +65,30 @@ func ExtractDigits[T constraints.Signed](line string) []T {
 	return digits
 }
 
+func scanSmallDecimal(line []byte) (int64, bool) {
+	// Eighteen unsigned decimal digits always fit in int64.
+	if len(line) == 0 || len(line) > 18 {
+		return 0, false
+	}
+	var n int64
+	for _, b := range line {
+		digit := b - '0'
+		if digit > 9 {
+			return 0, false
+		}
+		n = n*10 + int64(digit)
+	}
+	return n, true
+}
+
 func ScanNumber[T constraints.Signed](line []byte) (T, error) {
-	n, err := strconv.ParseInt(string(line), 10, 64)
-	if err != nil {
-		return 0, err
+	n, ok := scanSmallDecimal(line)
+	if !ok {
+		var err error
+		n, err = strconv.ParseInt(string(line), 10, 64)
+		if err != nil {
+			return 0, err
+		}
 	}
 	value := T(n)
 	if int64(value) != n {
