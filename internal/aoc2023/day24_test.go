@@ -2,7 +2,10 @@ package aoc2023
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"math/big"
+	"math/rand/v2"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -19,6 +22,14 @@ func Test_day24p01(t *testing.T) {
 		},
 		{
 			Input: strings.NewReader("199999999999999,300000000000000,0 @2,0,0\n200000000000000,299999999999999,0 @-1,3,0"),
+			Want:  "0",
+		},
+		{
+			Input: strings.NewReader("199999999999999,300000000000000,0 @2,0,0\n200000000000000,299999999999999,0 @-1,1000,0"),
+			Want:  "0",
+		},
+		{
+			Input: strings.NewReader("399999999999999,300000000000000,0 @2,0,0\n400000000000000,299999999999999,0 @1,1000,0"),
 			Want:  "0",
 		},
 		{
@@ -88,17 +99,93 @@ func TestHailPathIntersections(t *testing.T) {
 		{"collinear diverging", "2,5,0 @-1,0,0\n8,5,0 @1,0,0", 0},
 		{"collinear shared origin", "5,5,0 @-1,0,0\n5,5,0 @1,0,0", 1},
 		{"overlap outside square", "0,11,0 @1,1,0\n2,13,0 @-1,-1,0", 0},
+		{"coordinate difference overflow", "-9223372036854775808,5,0 @9223372036854775807,0,0\n9223372036854775807,4,0 @-9223372036854775807,1,0", 1},
+		{"minimum determinant", "9223372036854775807,5,0 @-9223372036854775808,0,0\n0,4,0 @0,1,0", 1},
+		{"determinant overflow", "0,5,0 @4000000000,0,0\n5,0,0 @0,4000000000,0", 1},
+		{"wide positive products", "-4000000000,5,0 @4000000000,0,0\n0,4,0 @0,1,0", 1},
+		{"wide negative products", "4000000000,5,0 @-4000000000,0,0\n0,4,0 @0,1,0", 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			stones, err := parseHailstones(strings.NewReader(tt.input))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := countHailIntersections(stones, 0, 10); got != tt.want {
-				t.Fatalf("intersections = %d; want %d", got, tt.want)
+			for order := range 2 {
+				if got := countHailIntersections(stones, 0, 10); got != tt.want {
+					t.Fatalf("order %d: intersections = %d; want %d", order, got, tt.want)
+				}
+				stones[0], stones[1] = stones[1], stones[0]
 			}
 		})
 	}
+}
+
+func TestHailIntersectionsExact(t *testing.T) {
+	random := rand.New(rand.NewPCG(24, 2023))
+	for sample := range 256 {
+		lower, upper := int64(-10), int64(10)
+		var positions, velocities [2][2]int64
+		for stone := range 2 {
+			for axis := range 2 {
+				positions[stone][axis] = random.Int64N(41) - 20
+				velocities[stone][axis] = random.Int64N(2001) - 1000
+				if sample >= 128 {
+					lower, upper = 200000000000000, 400000000000000
+					positions[stone][axis] = lower + random.Int64N(upper-lower+1)
+				}
+			}
+		}
+		want, nonparallel := hailIntersectionOracle(positions, velocities, lower, upper)
+		if !nonparallel {
+			continue // Parallel and stationary paths have explicit cases above.
+		}
+		input := fmt.Sprintf("%d,%d,0 @%d,%d,0\n%d,%d,0 @%d,%d,0",
+			positions[0][0], positions[0][1], velocities[0][0], velocities[0][1],
+			positions[1][0], positions[1][1], velocities[1][0], velocities[1][1])
+		stones, err := parseHailstones(strings.NewReader(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for order := range 2 {
+			if got := countHailIntersections(stones, lower, upper) == 1; got != want {
+				t.Fatalf("sample %d order %d: intersects = %v; want %v; input %q", sample, order, got, want, input)
+			}
+			stones[0], stones[1] = stones[1], stones[0]
+		}
+	}
+}
+
+// Use arbitrary-precision fractions and explicit times/points as an independent
+// oracle for the checked integer and scaled-product intersection predicate.
+func hailIntersectionOracle(positions, velocities [2][2]int64, lower, upper int64) (intersects, nonparallel bool) {
+	var p, v [2][2]*big.Rat
+	var delta [2]*big.Rat
+	for axis := range 2 {
+		for stone := range 2 {
+			p[stone][axis] = new(big.Rat).SetInt64(positions[stone][axis])
+			v[stone][axis] = new(big.Rat).SetInt64(velocities[stone][axis])
+		}
+		delta[axis] = new(big.Rat).Sub(p[1][axis], p[0][axis])
+	}
+	cross := func(a, b [2]*big.Rat) *big.Rat {
+		return new(big.Rat).Sub(new(big.Rat).Mul(a[0], b[1]), new(big.Rat).Mul(a[1], b[0]))
+	}
+	determinant := cross(v[0], v[1])
+	if determinant.Sign() == 0 {
+		return false, false
+	}
+	timeA := new(big.Rat).Quo(cross(delta, v[1]), determinant)
+	timeB := new(big.Rat).Quo(cross(delta, v[0]), determinant)
+	if timeA.Sign() < 0 || timeB.Sign() < 0 {
+		return false, true
+	}
+	for axis := range 2 {
+		coordinate := new(big.Rat).Add(p[0][axis], new(big.Rat).Mul(v[0][axis], timeA))
+		if coordinate.Cmp(new(big.Rat).SetInt64(lower)) < 0 || coordinate.Cmp(new(big.Rat).SetInt64(upper)) > 0 {
+			return false, true
+		}
+	}
+	return true, true
 }
 
 func TestHailRockRejectsInvalidCandidates(t *testing.T) {

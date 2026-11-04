@@ -1,6 +1,7 @@
 package aoc2025
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -144,37 +145,28 @@ func parseInitializationProcedure(r io.Reader) ([]machineRequirements, error) {
 	return steps, s.Err()
 }
 
-func validateAndSum(base []int64, coefficients [][]int64, params []int64, denominator int64) (int64, bool) {
+type joltageFamily struct {
+	base         []int64
+	coefficients [][]int64
+	denominator  int64
+	freeButtons  []int
+}
+
+func (f *joltageFamily) validateAndSum(params []int64) (int64, bool) {
 	var total int64
-	for i, value := range base {
+	for i, value := range f.base {
 		for k, param := range params {
-			value += coefficients[k][i] * param
+			value += f.coefficients[k][i] * param
 		}
-		if value < 0 || value%denominator != 0 {
+		if value < 0 || value%f.denominator != 0 {
 			return 0, false
 		}
-		total += value / denominator
+		total += value / f.denominator
 	}
 	return total, true
 }
 
-func buildCoefficientMatrix(step machineRequirements) *matrix.Matrix {
-	buttonCount := len(step.buttonMasks)
-	mat := matrix.New(len(step.joltage), buttonCount+1)
-	for i, target := range step.joltage {
-		mat.Set(i, buttonCount, matrix.NewRat(target, 1))
-	}
-	for j, mask := range step.buttonMasks {
-		for i := range step.joltage {
-			if mask&(uint64(1)<<i) != 0 {
-				mat.Set(i, j, matrix.NewRat(1, 1))
-			}
-		}
-	}
-	return mat
-}
-
-func computeFreeVarLimits(step machineRequirements, base []int64, coefficients [][]int64, freeCols []int) []int64 {
+func (f *joltageFamily) freeVarLimits(step machineRequirements) []int64 {
 	upper := make([]int64, len(step.buttonMasks))
 	for i, mask := range step.buttonMasks {
 		if mask == 0 {
@@ -188,19 +180,19 @@ func computeFreeVarLimits(step machineRequirements, base []int64, coefficients [
 		}
 	}
 
-	limits := make([]int64, len(freeCols))
-	for k, col := range freeCols {
+	limits := make([]int64, len(f.freeButtons))
+	for k, col := range f.freeButtons {
 		limit := upper[col]
-		for i, value := range base {
-			coefficient := coefficients[k][i]
+		for i, value := range f.base {
+			coefficient := f.coefficients[k][i]
 			if coefficient >= 0 {
 				continue
 			}
 			// Maximize the other positive terms to bound this free variable while
 			// keeping the dependent variable nonnegative.
 			available := big.NewInt(value)
-			for other, freeCol := range freeCols {
-				if c := coefficients[other][i]; other != k && c > 0 {
+			for other, freeCol := range f.freeButtons {
+				if c := f.coefficients[other][i]; other != k && c > 0 {
 					term := new(big.Int).Mul(big.NewInt(c), big.NewInt(upper[freeCol]))
 					available.Add(available, term)
 				}
@@ -218,12 +210,12 @@ func computeFreeVarLimits(step machineRequirements, base []int64, coefficients [
 	return limits
 }
 
-func admitJoltageArithmetic(base []int64, coefficients [][]int64, denominator int64, limits []int64) error {
+func (f *joltageFamily) admitArithmetic(limits []int64) error {
 	totalBound := new(big.Int)
-	for i, value := range base {
+	for i, value := range f.base {
 		bound := new(big.Int).Abs(big.NewInt(value))
 		for k, limit := range limits {
-			term := new(big.Int).Abs(big.NewInt(coefficients[k][i]))
+			term := new(big.Int).Abs(big.NewInt(f.coefficients[k][i]))
 			term.Mul(term, big.NewInt(limit))
 			bound.Add(bound, term)
 		}
@@ -231,7 +223,7 @@ func admitJoltageArithmetic(base []int64, coefficients [][]int64, denominator in
 		if !bound.IsInt64() {
 			return fmt.Errorf("unsupported joltage range: scaled expression exceeds int64")
 		}
-		totalBound.Add(totalBound, bound.Quo(bound, big.NewInt(denominator)))
+		totalBound.Add(totalBound, bound.Quo(bound, big.NewInt(f.denominator)))
 	}
 	if !totalBound.IsInt64() {
 		return fmt.Errorf("unsupported joltage range: press sum exceeds int64")
@@ -247,10 +239,10 @@ func spendMachineWork(remaining *int, cost int) error {
 	return nil
 }
 
-func findMinimum(base []int64, coefficients [][]int64, denominator int64, limits []int64, remaining *int) (int64, error) {
+func (f *joltageFamily) minimum(limits []int64, remaining *int) (int64, error) {
 	best := int64(noSolution)
 	params := make([]int64, len(limits))
-	work := 1 + len(base)*(len(limits)+1)
+	work := 1 + len(f.base)*(len(limits)+1)
 
 	var dfs func(int) error
 	dfs = func(k int) error {
@@ -258,7 +250,7 @@ func findMinimum(base []int64, coefficients [][]int64, denominator int64, limits
 			if err := spendMachineWork(remaining, work); err != nil {
 				return err
 			}
-			if total, valid := validateAndSum(base, coefficients, params, denominator); valid && (best == noSolution || total < best) {
+			if total, valid := f.validateAndSum(params); valid && (best == noSolution || total < best) {
 				best = total
 			}
 			return nil
@@ -270,13 +262,13 @@ func findMinimum(base []int64, coefficients [][]int64, denominator int64, limits
 			}
 			params[k] = param
 			feasible := true
-			for i, value := range base {
+			for i, value := range f.base {
 				for j := 0; j <= k; j++ {
-					value += coefficients[j][i] * params[j]
+					value += f.coefficients[j][i] * params[j]
 				}
 				for j := k + 1; j < len(limits); j++ {
-					if coefficients[j][i] > 0 {
-						value += coefficients[j][i] * limits[j]
+					if f.coefficients[j][i] > 0 {
+						value += f.coefficients[j][i] * limits[j]
 					}
 				}
 				if value < 0 {
@@ -326,19 +318,52 @@ func minButtonPresses(step machineRequirements, remaining *int) (int64, error) {
 	return int64(best), nil
 }
 
-func solveSystem(step machineRequirements) (base []int64, coefficients [][]int64, denominator int64, freeCols []int, err error) {
-	buttonCount := len(step.buttonMasks)
-	mat := buildCoefficientMatrix(step)
-	result := matrix.RREF(mat)
-	if result.Inconsistent {
-		return nil, nil, 0, nil, fmt.Errorf("joltage has inconsistent constraints")
+func solveJoltage(step machineRequirements) (joltageFamily, error) {
+	buttons := make([]matrix.Var[int], len(step.buttonMasks))
+	for i := range buttons {
+		buttons[i] = matrix.Variable(i)
 	}
-	solution := matrix.ExtractParametricSolution(mat, result.PivotCols, buttonCount)
-	base, coefficients, denominator, err = matrix.ScaleToIntegers(solution.Base, solution.Coeffs)
+	system := matrix.NewSystem(buttons...)
+	for counter, target := range step.joltage {
+		var sum matrix.Expr[int]
+		for i, mask := range step.buttonMasks {
+			if mask&(uint64(1)<<counter) != 0 {
+				sum = sum.Add(buttons[i].Scale(1))
+			}
+		}
+		system.Add(sum.Equal(target))
+	}
+	solution, err := system.Solve()
 	if err != nil {
-		return nil, nil, 0, nil, fmt.Errorf("unsupported joltage range: %w", err)
+		if errors.Is(err, matrix.ErrInconsistent) {
+			return joltageFamily{}, fmt.Errorf("joltage has inconsistent constraints: %w", err)
+		}
+		return joltageFamily{}, fmt.Errorf("joltage equations: %w", err)
 	}
-	return base, coefficients, denominator, solution.FreeCols, nil
+
+	free := solution.Free()
+	family := joltageFamily{freeButtons: make([]int, len(free))}
+	base := make([]matrix.Rat, len(buttons))
+	coefficients := make([][]matrix.Rat, len(free))
+	for i, button := range free {
+		family.freeButtons[i] = button.Key()
+		coefficients[i] = make([]matrix.Rat, len(buttons))
+	}
+	for i, button := range buttons {
+		expression, err := solution.Expression(button)
+		if err != nil {
+			return joltageFamily{}, fmt.Errorf("joltage button %d: %w", i, err)
+		}
+		base[i] = expression.Constant()
+		for j, parameter := range free {
+			coefficients[j][i] = expression.Coefficient(parameter)
+		}
+	}
+	family.base, family.coefficients, family.denominator, err = matrix.ScaleToIntegers(base, coefficients)
+	if err != nil {
+		return joltageFamily{}, fmt.Errorf("unsupported joltage range: %w", err)
+	}
+	return family, nil
 }
 
 func minButtonPressesForJoltage(step machineRequirements, remaining *int) (int64, error) {
@@ -347,17 +372,17 @@ func minButtonPressesForJoltage(step machineRequirements, remaining *int) (int64
 		return 0, err
 	}
 
-	base, coefficients, denominator, freeCols, err := solveSystem(step)
+	family, err := solveJoltage(step)
 	if err != nil {
 		return 0, err
 	}
 
-	limits := computeFreeVarLimits(step, base, coefficients, freeCols)
-	if err := admitJoltageArithmetic(base, coefficients, denominator, limits); err != nil {
+	limits := family.freeVarLimits(step)
+	if err := family.admitArithmetic(limits); err != nil {
 		return 0, err
 	}
 
-	minimum, err := findMinimum(base, coefficients, denominator, limits, remaining)
+	minimum, err := family.minimum(limits, remaining)
 	if err != nil {
 		return 0, err
 	}

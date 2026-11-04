@@ -2,9 +2,12 @@ package aoc2023
 
 import (
 	"bytes"
+	"cmp"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
+	"math/bits"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
@@ -180,24 +183,127 @@ func hailPathsIntersect(a, b hailstone, lower, upper matrix.Rat) bool {
 		return parallelHailPathsIntersect(a, b, lower, upper)
 	}
 	delta := b.position.sub(a.position)
-	timeA := hailXYCross(delta, b.velocity).Div(determinant)
-	timeB := hailXYCross(delta, a.velocity).Div(determinant)
-	if timeA.Sign() < 0 || timeB.Sign() < 0 {
+	numeratorA := hailXYCross(delta, b.velocity)
+	if numeratorA.Sign() != 0 && numeratorA.Sign() != determinant.Sign() {
 		return false
 	}
-	point := a.position
-	for i := range 2 {
-		point[i] = point[i].Add(a.velocity[i].Mul(timeA))
+	numeratorB := hailXYCross(delta, a.velocity)
+	if numeratorB.Sign() != 0 && numeratorB.Sign() != determinant.Sign() {
+		return false
 	}
-	return hailPointInBounds(point, lower, upper)
+	timeA := numeratorA.Div(determinant)
+	for i := range 2 {
+		coordinate := a.position[i].Add(a.velocity[i].Mul(timeA))
+		if coordinate.Cmp(lower) < 0 || coordinate.Cmp(upper) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+type hailXYStone struct {
+	position, velocity [2]int64
+}
+
+func hailSubtract(a, b int64) (int64, bool) {
+	difference := a - b
+	return difference, (a^b)&(a^difference) >= 0
+}
+
+// hailProduct returns the signed 128-bit product as a signed high word and an
+// unsigned low word. Correcting the unsigned high word also handles MinInt64.
+func hailProduct(a, b int64) (int64, uint64) {
+	high, low := bits.Mul64(uint64(a), uint64(b))
+	if a < 0 {
+		high -= uint64(b)
+	}
+	if b < 0 {
+		high -= uint64(a)
+	}
+	return int64(high), low
+}
+
+func hailIntegerCross(a, b [2]int64) (int64, bool) {
+	leftHigh, leftLow := hailProduct(a[0], b[1])
+	rightHigh, rightLow := hailProduct(a[1], b[0])
+	left, right := int64(leftLow), int64(rightLow)
+	if leftHigh != left>>63 || rightHigh != right>>63 {
+		return 0, false
+	}
+	return hailSubtract(left, right)
+}
+
+// hailIntegerPathsIntersect reports whether checked integer arithmetic decided
+// the intersection. Overflow and parallel paths require the rational predicate.
+func hailIntegerPathsIntersect(a, b hailXYStone, lower, upper int64) (intersects, exact bool) {
+	determinant, ok := hailIntegerCross(a.velocity, b.velocity)
+	if !ok || determinant == 0 {
+		return false, false
+	}
+	var delta [2]int64
+	for axis := range 2 {
+		delta[axis], ok = hailSubtract(b.position[axis], a.position[axis])
+		if !ok {
+			return false, false
+		}
+	}
+	numeratorA, ok := hailIntegerCross(delta, b.velocity)
+	if !ok {
+		return false, false
+	}
+	if numeratorA != 0 && (numeratorA < 0) != (determinant < 0) {
+		return false, true
+	}
+	numeratorB, ok := hailIntegerCross(delta, a.velocity)
+	if !ok {
+		return false, false
+	}
+	if numeratorB != 0 && (numeratorB < 0) != (determinant < 0) {
+		return false, true
+	}
+	for axis := range 2 {
+		lowerDelta, ok := hailSubtract(lower, a.position[axis])
+		if !ok {
+			return false, false
+		}
+		upperDelta, ok := hailSubtract(upper, a.position[axis])
+		if !ok {
+			return false, false
+		}
+		// lower <= position + velocity*numeratorA/determinant <= upper.
+		// Compare shifted products to avoid both division and a 128-bit sum.
+		high, low := hailProduct(a.velocity[axis], numeratorA)
+		lowerHigh, lowerLow := hailProduct(lowerDelta, determinant)
+		upperHigh, upperLow := hailProduct(upperDelta, determinant)
+		lowerCmp := cmp.Or(cmp.Compare(high, lowerHigh), cmp.Compare(low, lowerLow))
+		upperCmp := cmp.Or(cmp.Compare(high, upperHigh), cmp.Compare(low, upperLow))
+		if determinant > 0 && (lowerCmp < 0 || upperCmp > 0) ||
+			determinant < 0 && (lowerCmp > 0 || upperCmp < 0) {
+			return false, true
+		}
+	}
+	return true, true
 }
 
 func countHailIntersections(stones []hailstone, minBound, maxBound int64) int {
 	lower, upper := matrix.NewRat(minBound, 1), matrix.NewRat(maxBound, 1)
+	// Parsing guarantees signed int64 coordinates. Project XY once so pair
+	// comparisons avoid rational conversions; retain stones for exact fallback.
+	xy := make([]hailXYStone, len(stones))
+	for i, stone := range stones {
+		for axis := range 2 {
+			xy[i].position[axis] = stone.position[axis].Numerator().Int64()
+			xy[i].velocity[axis] = stone.velocity[axis].Numerator().Int64()
+		}
+	}
 	count := 0
-	for i, a := range stones {
-		for _, b := range stones[i+1:] {
-			if hailPathsIntersect(a, b, lower, upper) {
+	for i, a := range xy {
+		for j := i + 1; j < len(xy); j++ {
+			intersects, exact := hailIntegerPathsIntersect(a, xy[j], minBound, maxBound)
+			if !exact {
+				intersects = hailPathsIntersect(stones[i], stones[j], lower, upper)
+			}
+			if intersects {
 				count++
 			}
 		}
@@ -213,26 +319,35 @@ func day24p01(r io.Reader) (string, error) {
 	return strconv.Itoa(countHailIntersections(stones, 200000000000000, 400000000000000)), nil
 }
 
-func hailRockEquations(stones []hailstone) *matrix.Matrix {
-	result := matrix.New(3*(len(stones)-1), 7)
+type hailRockComponent uint8
+
+const (
+	hailRockX hailRockComponent = iota
+	hailRockY
+	hailRockZ
+	hailRockVelocityX
+	hailRockVelocityY
+	hailRockVelocityZ
+)
+
+func hailRockEquations(stones []hailstone, components [6]matrix.Var[hailRockComponent]) *matrix.System[hailRockComponent] {
+	result := matrix.NewSystem(components[:]...)
 	anchor := stones[0]
 	anchorCross := anchor.position.cross(anchor.velocity)
-	for i, stone := range stones[1:] {
+	for _, stone := range stones[1:] {
 		velocity := stone.velocity.sub(anchor.velocity)
 		position := stone.position.sub(anchor.position)
 		rhs := stone.position.cross(stone.velocity).sub(anchorCross)
 		// Let r and u be the rock position and velocity. Subtracting the anchor
 		// collision equation cancels r×u:
 		// r×(vi−v0) + (pi−p0)×u = pi×vi − p0×v0.
-		rows := [3][7]matrix.Rat{
-			{{}, velocity[2], velocity[1].Neg(), {}, position[2].Neg(), position[1], rhs[0]},
-			{velocity[2].Neg(), {}, velocity[0], position[2], {}, position[0].Neg(), rhs[1]},
-			{velocity[1], velocity[0].Neg(), {}, position[1].Neg(), position[0], {}, rhs[2]},
-		}
-		for j, row := range rows {
-			for col, value := range row {
-				result.Set(3*i+j, col, value)
-			}
+		for axis := range 3 {
+			j, k := (axis+1)%3, (axis+2)%3
+			left := components[j].ScaleRat(velocity[k]).
+				Add(components[k].ScaleRat(velocity[j].Neg())).
+				Add(components[3+j].ScaleRat(position[k].Neg())).
+				Add(components[3+k].ScaleRat(position[j]))
+			result.Add(left.EqualRat(rhs[axis]))
 		}
 	}
 	return result
@@ -299,9 +414,16 @@ func hailIntegerRoots(coefficients [3]matrix.Rat) []*big.Int {
 	return roots
 }
 
-func hailRockParameters(solution matrix.ParametricSolution, anchor hailstone) ([]*big.Int, error) {
-	base := solution.Base
-	coefficients := solution.Coeffs[0]
+func hailRockParameters(solution *matrix.Solution[hailRockComponent], components [6]matrix.Var[hailRockComponent], free matrix.Var[hailRockComponent], anchor hailstone) ([]*big.Int, error) {
+	var base, coefficients [6]matrix.Rat
+	for i, component := range components {
+		expression, err := solution.Expression(component)
+		if err != nil {
+			return nil, fmt.Errorf("rock component: %w", err)
+		}
+		base[i] = expression.Constant()
+		coefficients[i] = expression.Coefficient(free)
+	}
 	position := hailVector{base[0], base[1], base[2]}.sub(anchor.position)
 	velocity := hailVector{base[3], base[4], base[5]}.sub(anchor.velocity)
 	positionSlope := hailVector{coefficients[0], coefficients[1], coefficients[2]}
@@ -325,31 +447,50 @@ func findHailRock(stones []hailstone) ([]matrix.Rat, error) {
 	if len(stones) < 3 {
 		return nil, fmt.Errorf("need at least three hailstones to determine a rock")
 	}
-	equations := hailRockEquations(stones)
-	reduced := matrix.RREF(equations)
-	if reduced.Inconsistent {
-		return nil, fmt.Errorf("hailstone collision equations are inconsistent")
+	components := [6]matrix.Var[hailRockComponent]{
+		matrix.Variable(hailRockX), matrix.Variable(hailRockY), matrix.Variable(hailRockZ),
+		matrix.Variable(hailRockVelocityX), matrix.Variable(hailRockVelocityY), matrix.Variable(hailRockVelocityZ),
 	}
-	solution := matrix.ExtractParametricSolution(equations, reduced.PivotCols, 6)
-	if len(solution.FreeCols) == 0 {
-		if !validHailRock(solution.Base, stones) {
+	solution, err := hailRockEquations(stones, components).Solve()
+	if err != nil {
+		if errors.Is(err, matrix.ErrInconsistent) {
+			return nil, fmt.Errorf("hailstone collision equations are inconsistent: %w", err)
+		}
+		return nil, fmt.Errorf("hailstone collision equations: %w", err)
+	}
+	free := solution.Free()
+	if len(free) == 0 {
+		values, err := solution.Bind(nil)
+		if err != nil {
+			return nil, fmt.Errorf("rock candidate: %w", err)
+		}
+		candidate := make([]matrix.Rat, len(components))
+		for i, component := range components {
+			candidate[i] = values[component]
+		}
+		if !validHailRock(candidate, stones) {
 			return nil, fmt.Errorf("rock candidate does not collide with every hailstone at a nonnegative time with integer position and velocity")
 		}
-		return solution.Base, nil
+		return candidate, nil
 	}
-	if len(solution.FreeCols) != 1 {
-		return nil, fmt.Errorf("unsupported rock family with %d free components", len(solution.FreeCols))
+	if len(free) != 1 {
+		return nil, fmt.Errorf("unsupported rock family with %d free components", len(free))
 	}
-	parameters, err := hailRockParameters(solution, stones[0])
+	parameters, err := hailRockParameters(solution, components, free[0], stones[0])
 	if err != nil {
 		return nil, err
 	}
 	var result []matrix.Rat
 	for _, parameter := range parameters {
-		value := matrix.NewInteger(parameter)
-		candidate := make([]matrix.Rat, 6)
-		for i := range candidate {
-			candidate[i] = solution.Base[i].Add(solution.Coeffs[0][i].Mul(value))
+		values, err := solution.Bind(map[matrix.Var[hailRockComponent]]matrix.Rat{
+			free[0]: matrix.NewInteger(parameter),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("rock candidate: %w", err)
+		}
+		candidate := make([]matrix.Rat, len(components))
+		for i, component := range components {
+			candidate[i] = values[component]
 		}
 		if validHailRock(candidate, stones) {
 			if result != nil {
