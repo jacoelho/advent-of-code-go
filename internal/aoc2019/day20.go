@@ -146,7 +146,6 @@ func parseMaze(r io.Reader) (*donutMaze, error) {
 		}
 	}
 
-	// AA and ZZ are always outer portals
 	maze.outerPortals[maze.start] = true
 	maze.outerPortals[maze.end] = true
 
@@ -208,7 +207,6 @@ func (m *donutMaze) recursiveNeighbours(state recursiveState) iter.Seq[recursive
 			return
 		}
 
-		// outer portals go up a level (decrease), inner portals go down (increase)
 		newLevel := state.level
 		if isOuter {
 			newLevel--

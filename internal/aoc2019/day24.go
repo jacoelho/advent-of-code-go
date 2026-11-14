@@ -74,7 +74,7 @@ func countAdjacent(state uint32, x, y int) int {
 	pos := grid.NewPosition2D(x, y)
 	var count int
 	for neighbor := range grid.Neighbours4(pos) {
-		if neighbor.X < 0 || neighbor.X >= gridSize || neighbor.Y < 0 || neighbor.Y >= gridSize {
+		if !neighbor.Within(gridSize, gridSize) {
 			continue
 		}
 		neighborPos := gridPosition(neighbor.X, neighbor.Y)

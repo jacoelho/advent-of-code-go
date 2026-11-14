@@ -8,7 +8,7 @@ import (
 	"math/big"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/matrix"
+	"github.com/jacoelho/advent-of-code-go/pkg/linear"
 )
 
 type clawVector struct {
@@ -186,26 +186,26 @@ func dependentClawPresses(m clawMachine, targetX, targetY, limit *big.Int) (*big
 
 // minimumClawTokens returns zero when no admissible integer solution exists.
 // The offset and optional press limit are integers prepared by clawTokenTotal.
-func minimumClawTokens(m clawMachine, offset matrix.Rat, limit *matrix.Rat) (matrix.Rat, error) {
-	buttonA, buttonB := matrix.Variable(clawButtonA), matrix.Variable(clawButtonB)
+func minimumClawTokens(m clawMachine, offset linear.Rat, limit *linear.Rat) (linear.Rat, error) {
+	buttonA, buttonB := linear.Variable(clawButtonA), linear.Variable(clawButtonB)
 	x := buttonA.Scale(m.a.x).Add(buttonB.Scale(m.b.x))
 	y := buttonA.Scale(m.a.y).Add(buttonB.Scale(m.b.y))
-	targetX, targetY := matrix.NewRat(m.prize.x, 1), matrix.NewRat(m.prize.y, 1)
+	targetX, targetY := linear.NewRat(m.prize.x, 1), linear.NewRat(m.prize.y, 1)
 	if !offset.IsZero() {
 		targetX = targetX.Add(offset)
 		targetY = targetY.Add(offset)
 	}
-	solution, err := matrix.NewSystem(buttonA, buttonB).
-		Add(x.EqualRat(targetX)).
-		Add(y.EqualRat(targetY)).
+	solution, err := linear.NewSystem(buttonA, buttonB).
+		Add(x.EquateRat(targetX)).
+		Add(y.EquateRat(targetY)).
 		Solve()
 	if err != nil {
-		if errors.Is(err, matrix.ErrInconsistent) {
-			return matrix.Rat{}, nil
+		if errors.Is(err, linear.ErrInconsistent) {
+			return linear.Rat{}, nil
 		}
-		return matrix.Rat{}, fmt.Errorf("solve claw equations: %w", err)
+		return linear.Rat{}, fmt.Errorf("solve claw equations: %w", err)
 	}
-	var a, b matrix.Rat
+	var a, b linear.Rat
 	if len(solution.Free()) != 0 {
 		var bound *big.Int
 		if limit != nil {
@@ -213,32 +213,32 @@ func minimumClawTokens(m clawMachine, offset matrix.Rat, limit *matrix.Rat) (mat
 		}
 		pressA, pressB := dependentClawPresses(m, targetX.Numerator(), targetY.Numerator(), bound)
 		if pressA == nil {
-			return matrix.Rat{}, nil
+			return linear.Rat{}, nil
 		}
-		a, b = matrix.NewInteger(pressA), matrix.NewInteger(pressB)
+		a, b = linear.NewInteger(pressA), linear.NewInteger(pressB)
 	} else {
 		expressionA, err := solution.Expression(buttonA)
 		if err != nil {
-			return matrix.Rat{}, fmt.Errorf("extract claw A solution: %w", err)
+			return linear.Rat{}, fmt.Errorf("extract claw A solution: %w", err)
 		}
 		expressionB, err := solution.Expression(buttonB)
 		if err != nil {
-			return matrix.Rat{}, fmt.Errorf("extract claw B solution: %w", err)
+			return linear.Rat{}, fmt.Errorf("extract claw B solution: %w", err)
 		}
 		a, b = expressionA.Constant(), expressionB.Constant()
 		if !a.IsInt() || !b.IsInt() {
-			return matrix.Rat{}, nil
+			return linear.Rat{}, nil
 		}
 	}
 	if a.Sign() < 0 || b.Sign() < 0 {
-		return matrix.Rat{}, nil
+		return linear.Rat{}, nil
 	}
 	if limit != nil {
 		if a.Cmp(*limit) > 0 || b.Cmp(*limit) > 0 {
-			return matrix.Rat{}, nil
+			return linear.Rat{}, nil
 		}
 	}
-	return a.Mul(matrix.NewRat(3, 1)).Add(b), nil
+	return a.Mul(linear.NewRat(3, 1)).Add(b), nil
 }
 
 func clawTokenTotal(r io.Reader, offset int64, limit *big.Int) (string, error) {
@@ -264,13 +264,13 @@ func clawTokenTotal(r io.Reader, offset int64, limit *big.Int) (string, error) {
 		data = data[:write]
 	}
 	input := bytes.TrimSpace(data)
-	offsetRat := matrix.NewRat(offset, 1)
-	var limitRat *matrix.Rat
+	offsetRat := linear.NewRat(offset, 1)
+	var limitRat *linear.Rat
 	if limit != nil {
-		bound := matrix.NewInteger(limit)
+		bound := linear.NewInteger(limit)
 		limitRat = &bound
 	}
-	var total matrix.Rat
+	var total linear.Rat
 	for ordinal := 1; ; ordinal++ {
 		if ordinal > 10_000 {
 			return "", fmt.Errorf("claw input exceeds 10000 machines")

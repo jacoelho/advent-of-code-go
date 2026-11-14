@@ -91,6 +91,7 @@ func Apply[E any](start E, f func(E) E) iter.Seq[E] {
 	}
 }
 
+// Enumerate yields each value of seq paired with its zero-based index.
 func Enumerate[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
 	return func(yield func(int, T) bool) {
 		i := -1

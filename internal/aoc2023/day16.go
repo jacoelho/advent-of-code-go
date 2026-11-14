@@ -43,8 +43,7 @@ func reflect(dir position, mirror rune) position {
 		// right -> up, up -> right, left -> down, down -> left
 		return position{X: -dir.Y, Y: -dir.X}
 	}
-	// mirror == '\\'
-	// right -> down, down -> right, left -> up, up -> left
+	// Mirror '\': right -> down, down -> right, left -> up, up -> left
 	return position{X: dir.Y, Y: dir.X}
 }
 

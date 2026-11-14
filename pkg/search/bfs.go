@@ -23,8 +23,8 @@ func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbour
 		}
 
 		for frontier.Size() > 0 {
-			node, ok := frontier.PopFront()
-			if !ok || !yield(node) {
+			node, _ := frontier.PopFront()
+			if !yield(node) {
 				return
 			}
 
@@ -33,6 +33,7 @@ func BFSWithVisited[T comparable](start T, visited collections.Set[T], neighbour
 	}
 }
 
+// BFS yields each node reachable from start once, in breadth-first order.
 func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		BFSWithVisited(start, collections.NewSet[T](), neighbours)(yield)
@@ -69,6 +70,8 @@ func BFSTree[T any](start T, children func(T) ([]T, error)) iter.Seq2[T, error] 
 	}
 }
 
+// BFSDistanceTo returns the number of edges on a shortest path from start to
+// target, or -1 if target is unreachable.
 func BFSDistanceTo[T comparable](start, target T, neighbours func(T) iter.Seq[T]) int {
 	if start == target {
 		return 0
@@ -84,6 +87,8 @@ func BFSDistanceTo[T comparable](start, target T, neighbours func(T) iter.Seq[T]
 	return distance
 }
 
+// BFSMaxDistance returns the greatest shortest-path distance from start to any
+// reachable node.
 func BFSMaxDistance[T comparable](start T, neighbours func(T) iter.Seq[T]) int {
 	maxDist := 0
 	bfsDistances(start, neighbours, func(_ T, depth int) bool {
@@ -93,6 +98,8 @@ func BFSMaxDistance[T comparable](start T, neighbours func(T) iter.Seq[T]) int {
 	return maxDist
 }
 
+// BFSDistances returns the shortest-path distance from start to every reachable
+// node, including start at distance zero.
 func BFSDistances[T comparable](start T, neighbours func(T) iter.Seq[T]) map[T]int {
 	return bfsDistances(start, neighbours, nil)
 }

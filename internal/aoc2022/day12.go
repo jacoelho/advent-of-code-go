@@ -64,7 +64,7 @@ func hillDistance(r io.Reader, anyStart bool) (string, error) {
 		}
 		position := grid.Position2D[int]{X: at % width, Y: at / width}
 		for next := range grid.Neighbours4(position) {
-			if next.X >= width || next.Y >= height {
+			if !next.Within(width, height) {
 				continue
 			}
 			index := next.Y*width + next.X

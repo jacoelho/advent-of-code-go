@@ -1,5 +1,8 @@
+// Package xstrings provides byte-indexed string splitting helpers.
 package xstrings
 
+// SubSlices returns the splits {s[:i], s[i:]} for i from 1 to min(n, len(s)).
+// Indexes are byte offsets. It panics if n is negative.
 func SubSlices(s string, n int) [][2]string {
 	if n > len(s) {
 		n = len(s)
@@ -11,6 +14,8 @@ func SubSlices(s string, n int) [][2]string {
 	return result
 }
 
+// Pairs returns each overlapping two-byte substring of input as runes, or nil
+// if input is shorter than two bytes.
 func Pairs(input string) [][]rune {
 	n := len(input) - 1
 	if n <= 0 {

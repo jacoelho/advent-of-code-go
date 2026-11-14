@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/matrix"
+	"github.com/jacoelho/advent-of-code-go/pkg/linear"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
@@ -319,23 +319,23 @@ func minButtonPresses(step machineRequirements, remaining *int) (int64, error) {
 }
 
 func solveJoltage(step machineRequirements) (joltageFamily, error) {
-	buttons := make([]matrix.Var[int], len(step.buttonMasks))
+	buttons := make([]linear.Var[int], len(step.buttonMasks))
 	for i := range buttons {
-		buttons[i] = matrix.Variable(i)
+		buttons[i] = linear.Variable(i)
 	}
-	system := matrix.NewSystem(buttons...)
+	system := linear.NewSystem(buttons...)
 	for counter, target := range step.joltage {
-		var sum matrix.Expr[int]
+		var sum linear.Expr[int]
 		for i, mask := range step.buttonMasks {
 			if mask&(uint64(1)<<counter) != 0 {
 				sum = sum.Add(buttons[i].Scale(1))
 			}
 		}
-		system.Add(sum.Equal(target))
+		system.Add(sum.Equate(target))
 	}
 	solution, err := system.Solve()
 	if err != nil {
-		if errors.Is(err, matrix.ErrInconsistent) {
+		if errors.Is(err, linear.ErrInconsistent) {
 			return joltageFamily{}, fmt.Errorf("joltage has inconsistent constraints: %w", err)
 		}
 		return joltageFamily{}, fmt.Errorf("joltage equations: %w", err)
@@ -343,11 +343,11 @@ func solveJoltage(step machineRequirements) (joltageFamily, error) {
 
 	free := solution.Free()
 	family := joltageFamily{freeButtons: make([]int, len(free))}
-	base := make([]matrix.Rat, len(buttons))
-	coefficients := make([][]matrix.Rat, len(free))
+	base := make([]linear.Rat, len(buttons))
+	coefficients := make([][]linear.Rat, len(free))
 	for i, button := range free {
 		family.freeButtons[i] = button.Key()
-		coefficients[i] = make([]matrix.Rat, len(buttons))
+		coefficients[i] = make([]linear.Rat, len(buttons))
 	}
 	for i, button := range buttons {
 		expression, err := solution.Expression(button)
@@ -359,11 +359,57 @@ func solveJoltage(step machineRequirements) (joltageFamily, error) {
 			coefficients[j][i] = expression.Coefficient(parameter)
 		}
 	}
-	family.base, family.coefficients, family.denominator, err = matrix.ScaleToIntegers(base, coefficients)
+	family.base, family.coefficients, family.denominator, err = scaleToIntegers(base, coefficients)
 	if err != nil {
 		return joltageFamily{}, fmt.Errorf("unsupported joltage range: %w", err)
 	}
 	return family, nil
+}
+
+// scaleToIntegers multiplies base and coeffs by their least common positive
+// denominator. It returns the scaled base, scaled coefficients and denominator,
+// or an error if any scaled value or the denominator cannot fit in int64.
+func scaleToIntegers(base []linear.Rat, coeffs [][]linear.Rat) ([]int64, [][]int64, int64, error) {
+	denominator := big.NewInt(1)
+	var divisor big.Int
+	include := func(values []linear.Rat) {
+		for _, value := range values {
+			valueDenominator := value.Denominator()
+			divisor.GCD(nil, nil, denominator, valueDenominator)
+			denominator.Mul(denominator, valueDenominator.Quo(valueDenominator, &divisor))
+		}
+	}
+	include(base)
+	for _, row := range coeffs {
+		include(row)
+	}
+	if !denominator.IsInt64() {
+		return nil, nil, 0, fmt.Errorf("common denominator exceeds int64")
+	}
+	scale := func(values []linear.Rat) ([]int64, error) {
+		result := make([]int64, len(values))
+		for i, value := range values {
+			factor := new(big.Int).Quo(denominator, value.Denominator())
+			scaled := factor.Mul(factor, value.Numerator())
+			if !scaled.IsInt64() {
+				return nil, fmt.Errorf("scaled value %d exceeds int64", i)
+			}
+			result[i] = scaled.Int64()
+		}
+		return result, nil
+	}
+	scaledBase, err := scale(base)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("scale base: %w", err)
+	}
+	scaledCoeffs := make([][]int64, len(coeffs))
+	for i, row := range coeffs {
+		scaledCoeffs[i], err = scale(row)
+		if err != nil {
+			return nil, nil, 0, fmt.Errorf("scale coefficient row %d: %w", i, err)
+		}
+	}
+	return scaledBase, scaledCoeffs, denominator.Int64(), nil
 }
 
 func minButtonPressesForJoltage(step machineRequirements, remaining *int) (int64, error) {

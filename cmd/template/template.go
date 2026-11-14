@@ -1,3 +1,11 @@
+// Template creates empty solution and test files for one puzzle under
+// internal/aocYEAR. It refuses to overwrite existing files.
+//
+// Usage:
+//
+//	template [-year YEAR] [-day DD]
+//
+// Year and day default to today's date.
 package main
 
 import (

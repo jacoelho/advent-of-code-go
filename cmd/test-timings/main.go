@@ -1,3 +1,10 @@
+// Test-timings runs the puzzle tests and reports how long each part takes.
+//
+// Usage:
+//
+//	test-timings [-year YEAR]
+//
+// Without -year it runs every year found under internal.
 package main
 
 import (

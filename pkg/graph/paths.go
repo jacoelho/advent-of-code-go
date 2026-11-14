@@ -1,3 +1,5 @@
+// Package graph provides algorithms on graphs: maximal cliques, unique perfect
+// matching, path counting in directed acyclic graphs, and topological ordering.
 package graph
 
 import (

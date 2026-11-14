@@ -11,7 +11,7 @@ import (
 	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/pkg/matrix"
+	"github.com/jacoelho/advent-of-code-go/pkg/linear"
 )
 
 func Test_day24p01(t *testing.T) {
@@ -242,16 +242,16 @@ func TestHailInputErrors(t *testing.T) {
 func TestHailIntegerRoots(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
-		coefficients [3]matrix.Rat
+		coefficients [3]linear.Rat
 		want         map[string]bool
 	}{
-		{"constant", [3]matrix.Rat{{}, {}, matrix.NewRat(1, 1)}, nil},
-		{"linear integer", [3]matrix.Rat{{}, matrix.NewRat(2, 1), matrix.NewRat(-4, 1)}, map[string]bool{"2": true}},
-		{"linear fraction", [3]matrix.Rat{{}, matrix.NewRat(2, 1), matrix.NewRat(-1, 1)}, nil},
-		{"negative discriminant", [3]matrix.Rat{matrix.NewRat(1, 1), {}, matrix.NewRat(1, 1)}, nil},
-		{"nonsquare discriminant", [3]matrix.Rat{matrix.NewRat(1, 1), {}, matrix.NewRat(-2, 1)}, nil},
-		{"repeated root", [3]matrix.Rat{matrix.NewRat(1, 1), matrix.NewRat(-6, 1), matrix.NewRat(9, 1)}, map[string]bool{"3": true}},
-		{"rational coefficients", [3]matrix.Rat{matrix.NewRat(1, 2), matrix.NewRat(-3, 2), matrix.NewRat(1, 1)}, map[string]bool{"1": true, "2": true}},
+		{"constant", [3]linear.Rat{{}, {}, linear.NewRat(1, 1)}, nil},
+		{"linear integer", [3]linear.Rat{{}, linear.NewRat(2, 1), linear.NewRat(-4, 1)}, map[string]bool{"2": true}},
+		{"linear fraction", [3]linear.Rat{{}, linear.NewRat(2, 1), linear.NewRat(-1, 1)}, nil},
+		{"negative discriminant", [3]linear.Rat{linear.NewRat(1, 1), {}, linear.NewRat(1, 1)}, nil},
+		{"nonsquare discriminant", [3]linear.Rat{linear.NewRat(1, 1), {}, linear.NewRat(-2, 1)}, nil},
+		{"repeated root", [3]linear.Rat{linear.NewRat(1, 1), linear.NewRat(-6, 1), linear.NewRat(9, 1)}, map[string]bool{"3": true}},
+		{"rational coefficients", [3]linear.Rat{linear.NewRat(1, 2), linear.NewRat(-3, 2), linear.NewRat(1, 1)}, map[string]bool{"1": true, "2": true}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			roots := hailIntegerRoots(tt.coefficients)

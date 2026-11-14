@@ -1,4 +1,4 @@
-package matrix
+package linear
 
 import (
 	"cmp"
@@ -12,12 +12,13 @@ import (
 type Rat struct {
 	_           [0]func()
 	numerator   int64
-	denominator int64    // Zero denotes 1; otherwise >1 with a nonintegral, possibly unreduced quotient.
+	denominator int64    // Zero denotes 1; otherwise >1 and coprime with numerator.
 	value       *big.Rat // Used only when a reduced numerator or denominator does not fit int64.
 }
 
 func integerRat(value int64) Rat { return Rat{numerator: value} }
 
+// NewRat returns num/den. It panics if den is zero.
 func NewRat(num, den int64) Rat {
 	if den == 1 {
 		return integerRat(num)
@@ -55,24 +56,6 @@ func newFraction(num, den int64) Rat {
 	return Rat{numerator: integer, denominator: int64(denominator)}
 }
 
-// terminalRat defers reduction for solver results that may only be tested for
-// integrality. The determinant is nonzero; integral quotients stay canonical.
-func terminalRat(num, den int64) Rat {
-	if num == 0 {
-		return Rat{}
-	}
-	if num == math.MinInt64 || den == math.MinInt64 {
-		return NewRat(num, den)
-	}
-	if den < 0 {
-		num, den = -num, -den
-	}
-	if num%den == 0 {
-		return integerRat(num / den)
-	}
-	return Rat{numerator: num, denominator: den}
-}
-
 func magnitude(value int64) uint64 {
 	if value < 0 {
 		return uint64(-(value + 1)) + 1
@@ -87,7 +70,7 @@ func gcdMagnitudes(a, b uint64) uint64 {
 	return a
 }
 
-// NewInteger snapshots value; later mutations cannot change the rational.
+// NewInteger returns value as a Rat. It snapshots value; later mutations cannot change the rational.
 func NewInteger(value *big.Int) Rat {
 	if value.IsInt64() {
 		return integerRat(value.Int64())
@@ -124,16 +107,6 @@ func (r Rat) compactDenominator() int64 {
 	return r.denominator
 }
 
-// reducedCompact gives canonical observations of a compact value without
-// changing an immutable terminal result whose reduction was deferred.
-func (r Rat) reducedCompact() (numerator, denominator int64) {
-	if r.denominator == 0 {
-		return r.numerator, 1
-	}
-	divisor := int64(gcdMagnitudes(magnitude(r.numerator), uint64(r.denominator)))
-	return r.numerator / divisor, r.denominator / divisor
-}
-
 // commonNumerators requires two compact values and checks intermediate products.
 func (r Rat) commonNumerators(other Rat) (left, right, denominator int64, ok bool) {
 	a, b := r.compactDenominator(), other.compactDenominator()
@@ -153,6 +126,7 @@ func (r Rat) commonNumerators(other Rat) (left, right, denominator int64, ok boo
 	return left, right, denominator, ok
 }
 
+// Add returns r + other.
 func (r Rat) Add(other Rat) Rat {
 	if r.value == nil && other.value == nil && r.denominator == 0 && other.denominator == 0 {
 		if result, ok := addIntegers(r.numerator, other.numerator); ok {
@@ -176,6 +150,7 @@ func (r Rat) Add(other Rat) Rat {
 	return ratFromOwned(new(big.Rat).Add(r.rational(&left), other.rational(&right)))
 }
 
+// Sub returns r - other.
 func (r Rat) Sub(other Rat) Rat {
 	if r.value == nil && other.value == nil && r.denominator == 0 && other.denominator == 0 {
 		if result, ok := subtractIntegers(r.numerator, other.numerator); ok {
@@ -199,6 +174,7 @@ func (r Rat) Sub(other Rat) Rat {
 	return ratFromOwned(new(big.Rat).Sub(r.rational(&left), other.rational(&right)))
 }
 
+// Mul returns r × other.
 func (r Rat) Mul(other Rat) Rat {
 	if r.value == nil && other.value == nil && r.denominator == 0 && other.denominator == 0 {
 		if numerator, ok := multiplyIntegers(r.numerator, other.numerator); ok {
@@ -244,6 +220,7 @@ func addIntegers(a, b int64) (int64, bool) {
 	return result, !(b > 0 && result < a || b < 0 && result > a)
 }
 
+// Div returns r / other. It panics if other is zero.
 func (r Rat) Div(other Rat) Rat {
 	if other.IsZero() {
 		panic("division by zero")
@@ -268,6 +245,7 @@ func (r Rat) Div(other Rat) Rat {
 	return ratFromOwned(new(big.Rat).Quo(r.rational(&left), other.rational(&right)))
 }
 
+// Neg returns -r.
 func (r Rat) Neg() Rat {
 	if r.value == nil && r.numerator != math.MinInt64 {
 		return Rat{numerator: -r.numerator, denominator: r.denominator}
@@ -276,10 +254,12 @@ func (r Rat) Neg() Rat {
 	return ratFromOwned(new(big.Rat).Neg(r.rational(&scratch)))
 }
 
+// IsZero reports whether r is zero.
 func (r Rat) IsZero() bool {
 	return r.value == nil && r.numerator == 0
 }
 
+// IsInt reports whether r is an integer.
 func (r Rat) IsInt() bool {
 	if r.value == nil {
 		return r.denominator == 0
@@ -287,6 +267,7 @@ func (r Rat) IsInt() bool {
 	return r.value.IsInt()
 }
 
+// Sign returns -1, 0 or +1 as r is negative, zero or positive.
 func (r Rat) Sign() int {
 	if r.value == nil {
 		return cmp.Compare(r.numerator, 0)
@@ -294,6 +275,7 @@ func (r Rat) Sign() int {
 	return r.value.Sign()
 }
 
+// Cmp returns -1, 0 or +1 as r is less than, equal to or greater than other.
 func (r Rat) Cmp(other Rat) int {
 	if r.value == nil && other.value == nil {
 		if r.denominator == other.denominator {
@@ -312,8 +294,7 @@ func (r Rat) Cmp(other Rat) int {
 // Numerator returns an independent copy of the reduced numerator.
 func (r Rat) Numerator() *big.Int {
 	if r.value == nil {
-		numerator, _ := r.reducedCompact()
-		return big.NewInt(numerator)
+		return big.NewInt(r.numerator)
 	}
 	return new(big.Int).Set(r.value.Num())
 }
@@ -321,8 +302,7 @@ func (r Rat) Numerator() *big.Int {
 // Denominator returns an independent copy of the positive reduced denominator.
 func (r Rat) Denominator() *big.Int {
 	if r.value == nil {
-		_, denominator := r.reducedCompact()
-		return big.NewInt(denominator)
+		return big.NewInt(r.compactDenominator())
 	}
 	return new(big.Int).Set(r.value.Denom())
 }
