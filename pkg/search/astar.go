@@ -1,3 +1,5 @@
+// Package search provides graph traversals, shortest-path searches, and binary
+// search over monotone predicates.
 package search
 
 import (
@@ -148,12 +150,12 @@ func weightedSearch[T comparable](start T, goal func(T) bool, edges Edges[T], he
 			}
 			return true
 		}
-		heuristic, err := estimate(next)
+		remaining, err := estimate(next)
 		if err != nil {
 			edgeErr = err
 			return false
 		}
-		if distance > math.MaxInt-heuristic {
+		if distance > math.MaxInt-remaining {
 			edgeErr = fmt.Errorf("search priority overflows int")
 			return false
 		}
@@ -166,7 +168,7 @@ func weightedSearch[T comparable](start T, goal func(T) bool, edges Edges[T], he
 			return false
 		}
 		distances[next] = distance
-		frontier.Push(weightedEntry[T]{state: next, cost: distance, score: distance + heuristic})
+		frontier.Push(weightedEntry[T]{state: next, cost: distance, score: distance + remaining})
 		switch keep {
 		case onePath:
 			result.previous[next] = current.state

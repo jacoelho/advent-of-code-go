@@ -11,11 +11,11 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/matrix"
+	"github.com/jacoelho/advent-of-code-go/pkg/linear"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-type hailVector [3]matrix.Rat
+type hailVector [3]linear.Rat
 
 func (v hailVector) sub(other hailVector) (result hailVector) {
 	for i := range result {
@@ -47,7 +47,7 @@ func parseHailVector(data []byte) (hailVector, error) {
 		if err != nil {
 			return result, fmt.Errorf("hail coordinate %d: %w", i+1, err)
 		}
-		result[i] = matrix.NewRat(value, 1)
+		result[i] = linear.NewRat(value, 1)
 	}
 	return result, nil
 }
@@ -91,12 +91,12 @@ func parseHailstones(r io.Reader) ([]hailstone, error) {
 	return stones, nil
 }
 
-func hailXYCross(a, b hailVector) matrix.Rat {
+func hailXYCross(a, b hailVector) linear.Rat {
 	return a[0].Mul(b[1]).Sub(a[1].Mul(b[0]))
 }
 
 func hailHasFutureTime(delta, velocity hailVector, axes int) bool {
-	var time matrix.Rat
+	var time linear.Rat
 	known := false
 	for i := range axes {
 		if velocity[i].IsZero() {
@@ -114,12 +114,12 @@ func hailHasFutureTime(delta, velocity hailVector, axes int) bool {
 	return true
 }
 
-func hailPointInBounds(point hailVector, lower, upper matrix.Rat) bool {
+func hailPointInBounds(point hailVector, lower, upper linear.Rat) bool {
 	return point[0].Cmp(lower) >= 0 && point[0].Cmp(upper) <= 0 &&
 		point[1].Cmp(lower) >= 0 && point[1].Cmp(upper) <= 0
 }
 
-func parallelHailPathsIntersect(a, b hailstone, lower, upper matrix.Rat) bool {
+func parallelHailPathsIntersect(a, b hailstone, lower, upper linear.Rat) bool {
 	if a.velocity[0].IsZero() && a.velocity[1].IsZero() {
 		return hailPointInBounds(a.position, lower, upper) &&
 			hailHasFutureTime(a.position.sub(b.position), b.velocity, 2)
@@ -143,7 +143,7 @@ func parallelHailPathsIntersect(a, b hailstone, lower, upper matrix.Rat) bool {
 		start, end = end, start
 	}
 	if start.Sign() < 0 {
-		start = matrix.Rat{}
+		start = linear.Rat{}
 	}
 
 	other := 1 - axis
@@ -177,7 +177,7 @@ func parallelHailPathsIntersect(a, b hailstone, lower, upper matrix.Rat) bool {
 	return start.Cmp(end) <= 0
 }
 
-func hailPathsIntersect(a, b hailstone, lower, upper matrix.Rat) bool {
+func hailPathsIntersect(a, b hailstone, lower, upper linear.Rat) bool {
 	determinant := hailXYCross(a.velocity, b.velocity)
 	if determinant.IsZero() {
 		return parallelHailPathsIntersect(a, b, lower, upper)
@@ -286,7 +286,7 @@ func hailIntegerPathsIntersect(a, b hailXYStone, lower, upper int64) (intersects
 }
 
 func countHailIntersections(stones []hailstone, minBound, maxBound int64) int {
-	lower, upper := matrix.NewRat(minBound, 1), matrix.NewRat(maxBound, 1)
+	lower, upper := linear.NewRat(minBound, 1), linear.NewRat(maxBound, 1)
 	// Parsing guarantees signed int64 coordinates. Project XY once so pair
 	// comparisons avoid rational conversions; retain stones for exact fallback.
 	xy := make([]hailXYStone, len(stones))
@@ -330,8 +330,8 @@ const (
 	hailRockVelocityZ
 )
 
-func hailRockEquations(stones []hailstone, components [6]matrix.Var[hailRockComponent]) *matrix.System[hailRockComponent] {
-	result := matrix.NewSystem(components[:]...)
+func hailRockEquations(stones []hailstone, components [6]linear.Var[hailRockComponent]) *linear.System[hailRockComponent] {
+	result := linear.NewSystem(components[:]...)
 	anchor := stones[0]
 	anchorCross := anchor.position.cross(anchor.velocity)
 	for _, stone := range stones[1:] {
@@ -347,13 +347,13 @@ func hailRockEquations(stones []hailstone, components [6]matrix.Var[hailRockComp
 				Add(components[k].ScaleRat(velocity[j].Neg())).
 				Add(components[3+j].ScaleRat(position[k].Neg())).
 				Add(components[3+k].ScaleRat(position[j]))
-			result.Add(left.EqualRat(rhs[axis]))
+			result.Add(left.EquateRat(rhs[axis]))
 		}
 	}
 	return result
 }
 
-func validHailRock(values []matrix.Rat, stones []hailstone) bool {
+func validHailRock(values []linear.Rat, stones []hailstone) bool {
 	for _, value := range values {
 		if !value.IsInt() {
 			return false
@@ -369,7 +369,7 @@ func validHailRock(values []matrix.Rat, stones []hailstone) bool {
 	return true
 }
 
-func hailIntegerRoots(coefficients [3]matrix.Rat) []*big.Int {
+func hailIntegerRoots(coefficients [3]linear.Rat) []*big.Int {
 	scale := big.NewInt(1)
 	for _, coefficient := range coefficients {
 		scale.Mul(scale, coefficient.Denominator())
@@ -414,8 +414,8 @@ func hailIntegerRoots(coefficients [3]matrix.Rat) []*big.Int {
 	return roots
 }
 
-func hailRockParameters(solution *matrix.Solution[hailRockComponent], components [6]matrix.Var[hailRockComponent], free matrix.Var[hailRockComponent], anchor hailstone) ([]*big.Int, error) {
-	var base, coefficients [6]matrix.Rat
+func hailRockParameters(solution *linear.Solution[hailRockComponent], components [6]linear.Var[hailRockComponent], free linear.Var[hailRockComponent], anchor hailstone) ([]*big.Int, error) {
+	var base, coefficients [6]linear.Rat
 	for i, component := range components {
 		expression, err := solution.Expression(component)
 		if err != nil {
@@ -429,31 +429,31 @@ func hailRockParameters(solution *matrix.Solution[hailRockComponent], components
 	positionSlope := hailVector{coefficients[0], coefficients[1], coefficients[2]}
 	velocitySlope := hailVector{coefficients[3], coefficients[4], coefficients[5]}
 	quadratic := positionSlope.cross(velocitySlope)
-	linear := positionSlope.cross(velocity)
+	linearCoefficient := positionSlope.cross(velocity)
 	otherLinear := position.cross(velocitySlope)
 	constant := position.cross(velocity)
 	for axis := range 3 {
-		linear[axis] = linear[axis].Add(otherLinear[axis])
-		if quadratic[axis].IsZero() && linear[axis].IsZero() && constant[axis].IsZero() {
+		linearCoefficient[axis] = linearCoefficient[axis].Add(otherLinear[axis])
+		if quadratic[axis].IsZero() && linearCoefficient[axis].IsZero() && constant[axis].IsZero() {
 			continue
 		}
 		// The free variable is a rock component, so integer roots are necessary.
-		return hailIntegerRoots([3]matrix.Rat{quadratic[axis], linear[axis], constant[axis]}), nil
+		return hailIntegerRoots([3]linear.Rat{quadratic[axis], linearCoefficient[axis], constant[axis]}), nil
 	}
 	return nil, fmt.Errorf("unsupported rock family: collision polynomial vanishes identically")
 }
 
-func findHailRock(stones []hailstone) ([]matrix.Rat, error) {
+func findHailRock(stones []hailstone) ([]linear.Rat, error) {
 	if len(stones) < 3 {
 		return nil, fmt.Errorf("need at least three hailstones to determine a rock")
 	}
-	components := [6]matrix.Var[hailRockComponent]{
-		matrix.Variable(hailRockX), matrix.Variable(hailRockY), matrix.Variable(hailRockZ),
-		matrix.Variable(hailRockVelocityX), matrix.Variable(hailRockVelocityY), matrix.Variable(hailRockVelocityZ),
+	components := [6]linear.Var[hailRockComponent]{
+		linear.Variable(hailRockX), linear.Variable(hailRockY), linear.Variable(hailRockZ),
+		linear.Variable(hailRockVelocityX), linear.Variable(hailRockVelocityY), linear.Variable(hailRockVelocityZ),
 	}
 	solution, err := hailRockEquations(stones, components).Solve()
 	if err != nil {
-		if errors.Is(err, matrix.ErrInconsistent) {
+		if errors.Is(err, linear.ErrInconsistent) {
 			return nil, fmt.Errorf("hailstone collision equations are inconsistent: %w", err)
 		}
 		return nil, fmt.Errorf("hailstone collision equations: %w", err)
@@ -464,7 +464,7 @@ func findHailRock(stones []hailstone) ([]matrix.Rat, error) {
 		if err != nil {
 			return nil, fmt.Errorf("rock candidate: %w", err)
 		}
-		candidate := make([]matrix.Rat, len(components))
+		candidate := make([]linear.Rat, len(components))
 		for i, component := range components {
 			candidate[i] = values[component]
 		}
@@ -480,15 +480,15 @@ func findHailRock(stones []hailstone) ([]matrix.Rat, error) {
 	if err != nil {
 		return nil, err
 	}
-	var result []matrix.Rat
+	var result []linear.Rat
 	for _, parameter := range parameters {
-		values, err := solution.Bind(map[matrix.Var[hailRockComponent]]matrix.Rat{
-			free[0]: matrix.NewInteger(parameter),
+		values, err := solution.Bind(map[linear.Var[hailRockComponent]]linear.Rat{
+			free[0]: linear.NewInteger(parameter),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("rock candidate: %w", err)
 		}
-		candidate := make([]matrix.Rat, len(components))
+		candidate := make([]linear.Rat, len(components))
 		for i, component := range components {
 			candidate[i] = values[component]
 		}

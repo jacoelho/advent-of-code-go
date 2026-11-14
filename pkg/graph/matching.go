@@ -6,7 +6,9 @@ import (
 )
 
 var (
+	// ErrNoPerfectMatching reports that no perfect matching exists.
 	ErrNoPerfectMatching = errors.New("graph has no perfect matching")
+	// ErrAmbiguousMatching reports that more than one perfect matching exists.
 	ErrAmbiguousMatching = errors.New("graph has multiple perfect matchings")
 )
 

@@ -21,7 +21,7 @@ func octopusStep(energy digitGrid) int {
 		energy.values[index] = 0
 		point := grid.Position2D[int]{X: index % energy.width, Y: index / energy.width}
 		for neighbour := range grid.Neighbours8(point) {
-			if neighbour.X >= energy.width || neighbour.Y >= energy.height {
+			if !neighbour.Within(energy.width, energy.height) {
 				continue
 			}
 			next := neighbour.Y*energy.width + neighbour.X

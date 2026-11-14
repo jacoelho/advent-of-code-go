@@ -26,7 +26,6 @@ func parseJunctionBoxes(r io.Reader) ([]grid.Position3D[int], error) {
 	return slices.Collect(s.Values()), s.Err()
 }
 
-// unionFind is a union-find (disjoint set) data structure.
 type unionFind struct {
 	parent, size []int
 	distinct     int

@@ -155,6 +155,9 @@ func day22p02(r io.Reader) (string, error) {
 			}
 		}
 		for pos := range grid.Neighbours4(current.pos) {
+			if pos.X < 0 || pos.Y < 0 {
+				continue
+			}
 			region, err := cave.region(pos)
 			if err != nil {
 				return err

@@ -189,7 +189,6 @@ func day10p02(r io.Reader) (string, error) {
 				case 'F', 'L':
 					entryBend = ch
 				case '7', 'J':
-					// end of a horizontal segment
 					// F---7: both point down, doesn't cross (same side)
 					// L---J: both point up, doesn't cross (same side)
 					// F---J: F points down, J points up, crosses

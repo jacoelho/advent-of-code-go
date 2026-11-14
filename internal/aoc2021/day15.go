@@ -44,7 +44,7 @@ func lowestRisk(r io.Reader, factor int) (int, error) {
 		}
 		point := grid.Position2D[int]{X: current.index % width, Y: current.index / width}
 		for next := range grid.Neighbours4(point) {
-			if next.X >= width || next.Y >= height {
+			if !next.Within(width, height) {
 				continue
 			}
 			index := next.Y*width + next.X

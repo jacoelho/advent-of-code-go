@@ -53,7 +53,7 @@ func parseFallingBytes(r io.Reader, dimensions, steps int) ([]grid.Position2D[in
 func memoryEdges(memory map[grid.Position2D[int]]bool, dimensions int) search.Edges[grid.Position2D[int]] {
 	return func(p grid.Position2D[int], yield func(grid.Position2D[int], int) bool) error {
 		for next := range grid.Neighbours4(p) {
-			if next.X <= dimensions && next.Y <= dimensions && !memory[next] && !yield(next, 1) {
+			if next.Within(dimensions+1, dimensions+1) && !memory[next] && !yield(next, 1) {
 				return nil
 			}
 		}

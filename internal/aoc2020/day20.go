@@ -254,7 +254,6 @@ func removeBorder(g grid.Grid2D[int, rune]) grid.Grid2D[int, rune] {
 	for y := minY + 1; y < maxY; y++ {
 		for x := minX + 1; x < maxX; x++ {
 			if val, exists := g[grid.Position2D[int]{X: x, Y: y}]; exists {
-				// normalize to start at 0,0
 				newPos := grid.Position2D[int]{X: x - minX - 1, Y: y - minY - 1}
 				result[newPos] = val
 			}

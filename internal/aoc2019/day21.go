@@ -38,7 +38,6 @@ func day21p01(r io.Reader) (string, error) {
 	}
 
 	// jump if there's a hole in A, B, or C AND there's ground at D
-	// logic: (!A OR !B OR !C) AND D
 	springscript := []string{
 		"NOT A J",
 		"NOT B T",
@@ -60,7 +59,6 @@ func day21p02(r io.Reader) (string, error) {
 
 	// jump if there's a hole in A, B, or C AND there's ground at D
 	// AND we have a safe continuation (ground at E OR ground at H)
-	// logic: (!A OR !B OR !C) AND D AND (E OR H)
 	springscript := []string{
 		"NOT A J",
 		"NOT B T",

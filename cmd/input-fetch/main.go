@@ -1,3 +1,11 @@
+// Input-fetch downloads a puzzle input to inputs/YEAR/DD.txt, using the
+// session cookie in AOC_SESSION_COOKIE. An existing file is left unchanged.
+//
+// Usage:
+//
+//	input-fetch [-year YEAR] [-day DAY]
+//
+// Year and day default to today's date.
 package main
 
 import (

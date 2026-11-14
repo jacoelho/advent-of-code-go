@@ -279,3 +279,74 @@ func gridToString[T constraints.Signed](g Grid2D[T, rune]) string {
 
 	return result
 }
+
+func TestGrid2D_FlipsAndEdgesOfOffsetGrid(t *testing.T) {
+	g := Grid2D[int, rune]{}
+	for y, row := range []string{"ab", "cd", "ef"} {
+		for x, ch := range row {
+			g[Position2D[int]{X: x - 3, Y: y + 5}] = ch
+		}
+	}
+	for _, tt := range []struct {
+		name string
+		got  Grid2D[int, rune]
+		want [][]rune
+	}{
+		{"horizontal", g.FlipHorizontal(), [][]rune{[]rune("ba"), []rune("dc"), []rune("fe")}},
+		{"vertical", g.FlipVertical(), [][]rune{[]rune("ef"), []rune("cd"), []rune("ab")}},
+		{"right", g.TurnRight(), [][]rune{[]rune("eca"), []rune("fdb")}},
+		{"left", g.TurnLeft(), [][]rune{[]rune("bdf"), []rune("ace")}},
+	} {
+		if want := NewGrid2D[int](tt.want); !gridsEqual(tt.got, want) {
+			t.Errorf("%s:\ngot\n%swant\n%s", tt.name, gridToString(tt.got), gridToString(want))
+		}
+	}
+	for _, tt := range []struct {
+		name string
+		got  []rune
+		want string
+	}{
+		{"top", g.Top(), "ab"},
+		{"bottom", g.Bottom(), "ef"},
+		{"left", g.Left(), "ace"},
+		{"right", g.Right(), "bdf"},
+	} {
+		if string(tt.got) != tt.want {
+			t.Errorf("%s = %q; want %q", tt.name, string(tt.got), tt.want)
+		}
+	}
+}
+
+func TestNeighboursIncludeNegativeCoordinates(t *testing.T) {
+	var got []Position2D[int]
+	for n := range Neighbours4(Position2D[int]{}) {
+		got = append(got, n)
+	}
+	want := []Position2D[int]{{X: 1}, {X: -1}, {Y: -1}, {Y: 1}}
+	if len(got) != len(want) {
+		t.Fatalf("Neighbours4 = %v; want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Neighbours4 = %v; want %v", got, want)
+		}
+	}
+}
+
+func TestPosition2DWithin(t *testing.T) {
+	for _, tt := range []struct {
+		p    Position2D[int]
+		want bool
+	}{
+		{Position2D[int]{X: 0, Y: 0}, true},
+		{Position2D[int]{X: 2, Y: 1}, true},
+		{Position2D[int]{X: -1, Y: 0}, false},
+		{Position2D[int]{X: 0, Y: -1}, false},
+		{Position2D[int]{X: 3, Y: 0}, false},
+		{Position2D[int]{X: 0, Y: 2}, false},
+	} {
+		if got := tt.p.Within(3, 2); got != tt.want {
+			t.Errorf("%v.Within(3, 2) = %v; want %v", tt.p, got, tt.want)
+		}
+	}
+}

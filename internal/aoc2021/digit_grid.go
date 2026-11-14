@@ -50,7 +50,7 @@ func (digits digitGrid) neighbours(index int) iter.Seq[int] {
 	return func(yield func(int) bool) {
 		point := grid.Position2D[int]{X: index % digits.width, Y: index / digits.width}
 		for neighbour := range grid.Neighbours4(point) {
-			if neighbour.X < digits.width && neighbour.Y < digits.height && !yield(neighbour.Y*digits.width+neighbour.X) {
+			if neighbour.Within(digits.width, digits.height) && !yield(neighbour.Y*digits.width+neighbour.X) {
 				return
 			}
 		}

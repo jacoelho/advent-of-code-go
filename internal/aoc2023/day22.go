@@ -204,8 +204,6 @@ func buildSupportGraph(bricks []brick) (map[int]collections.Set[int], map[int]co
 }
 
 func canSafelyDisintegrate(brickID int, supports, supportedBy map[int]collections.Set[int]) bool {
-	// a brick can be safely disintegrated if every brick it supports
-	// has at least 2 supporters (including this brick)
 	for supportedBrickID := range supports[brickID].Iter() {
 		if supportedBy[supportedBrickID].Len() < 2 {
 			return false

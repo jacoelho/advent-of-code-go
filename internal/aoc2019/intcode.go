@@ -17,6 +17,8 @@ const (
 	maxIntcodeSteps  = 10_000_000
 )
 
+// Opcode is the operation encoded in the two lowest decimal digits of an
+// instruction.
 type Opcode int
 
 const (
@@ -32,14 +34,19 @@ const (
 	OpHalt         Opcode = 99
 )
 
+// Mode is how an instruction interprets a parameter.
 type Mode uint8
 
+// Parameter modes: a memory address, a literal value, or an address relative
+// to the relative base.
 const (
 	ModePosition  Mode = 0
 	ModeImmediate Mode = 1
 	ModeRelative  Mode = 2
 )
 
+// IntcodeComputer runs an Intcode program with buffered input and output.
+// Memory grows on write up to a fixed word limit.
 type IntcodeComputer struct {
 	memory       []int
 	ip           int
@@ -57,6 +64,9 @@ func New(program []int) *IntcodeComputer {
 	}
 }
 
+// ParseIntcodeInput parses a comma-separated Intcode program, trimming space
+// around each word. Empty or invalid words and input beyond the size limits
+// return an error.
 func ParseIntcodeInput(r io.Reader) ([]int, error) {
 	data, err := io.ReadAll(io.LimitReader(r, maxIntcodeInput+1))
 	if err != nil {
@@ -171,6 +181,7 @@ func (c *IntcodeComputer) SetInput(values ...int) {
 	c.waiting = false
 }
 
+// AddInput appends values to the pending input and clears the waiting state.
 func (c *IntcodeComputer) AddInput(values ...int) {
 	c.input = append(c.input, values...)
 	c.waiting = false
@@ -192,10 +203,13 @@ func (c *IntcodeComputer) LastOutput() (int, error) {
 	return output[len(output)-1], nil
 }
 
+// IsHalted reports whether the program has executed its halt instruction.
 func (c *IntcodeComputer) IsHalted() bool {
 	return c.halted
 }
 
+// IsWaiting reports whether Run stopped at an input instruction with no pending
+// input. SetInput and AddInput clear it.
 func (c *IntcodeComputer) IsWaiting() bool {
 	return c.waiting
 }
@@ -390,6 +404,8 @@ func (c *IntcodeComputer) Memory() []int {
 	return slices.Clone(c.memory)
 }
 
+// SetMemory writes value at addr, growing memory as needed. A negative address
+// or one beyond the memory limit returns an error.
 func (c *IntcodeComputer) SetMemory(addr, value int) error {
 	return c.writeMemory(addr, value)
 }

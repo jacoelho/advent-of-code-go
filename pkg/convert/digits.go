@@ -1,3 +1,5 @@
+// Package convert converts between integers, their digits, and their decimal
+// text.
 package convert
 
 import (
@@ -6,6 +8,8 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// ToDigits returns the decimal digits of v, most significant first. It returns
+// [0] for zero and nil for negative values.
 func ToDigits[T constraints.Signed](v T) []T {
 	if v == 0 {
 		return []T{0}
@@ -25,6 +29,8 @@ func ToDigits[T constraints.Signed](v T) []T {
 	return digits
 }
 
+// FromDigits returns the number whose decimal digits, most significant first,
+// are s. Elements are not checked to be in [0, 9].
 func FromDigits[Slice ~[]T, T constraints.Signed](s Slice) T {
 	var sum T
 	for _, v := range s {
@@ -33,6 +39,10 @@ func FromDigits[Slice ~[]T, T constraints.Signed](s Slice) T {
 	return sum
 }
 
+// ExtractDigits returns the decimal integers in line, in order of appearance.
+// A '-' makes a number negative only when it directly precedes the number and
+// does not follow a digit, so "5 -3" yields [5 -3] but "5-3" yields [5 3].
+// Values that overflow T wrap.
 func ExtractDigits[T constraints.Signed](line string) []T {
 	var (
 		digits   []T
@@ -81,6 +91,8 @@ func scanSmallDecimal(line []byte) (int64, bool) {
 	return n, true
 }
 
+// ScanNumber parses line as a base-10 integer of type T. Invalid syntax or a
+// value outside T's range returns a *strconv.NumError.
 func ScanNumber[T constraints.Signed](line []byte) (T, error) {
 	n, ok := scanSmallDecimal(line)
 	if !ok {
@@ -97,6 +109,8 @@ func ScanNumber[T constraints.Signed](line []byte) (T, error) {
 	return value, nil
 }
 
+// FromBinaryToBase10 returns the number whose binary digits, most significant
+// first, are digits. Elements are not checked to be 0 or 1.
 func FromBinaryToBase10(digits []int) int {
 	var result int
 	for _, digit := range digits {

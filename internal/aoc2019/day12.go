@@ -13,6 +13,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
+// Moon is a moon's position and velocity.
 type Moon struct {
 	x, y, z    int
 	vx, vy, vz int

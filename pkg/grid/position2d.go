@@ -7,70 +7,92 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// Position2D is a point or offset on a two-dimensional integer grid, with Y
+// increasing downward.
 type Position2D[T constraints.Signed] struct {
 	X, Y T
 }
 
+// GetX returns p.X.
 func (p Position2D[T]) GetX() T { return p.X }
+
+// GetY returns p.Y.
 func (p Position2D[T]) GetY() T { return p.Y }
 
+// NewPosition2D returns the position (x, y).
 func NewPosition2D[T constraints.Signed](x, y T) Position2D[T] {
 	return Position2D[T]{X: x, Y: y}
 }
 
-func (p *Position2D[T]) Add(other Position2D[T]) Position2D[T] {
+// Add returns the component-wise sum of p and other.
+func (p Position2D[T]) Add(other Position2D[T]) Position2D[T] {
 	return Position2D[T]{
 		X: p.X + other.X,
 		Y: p.Y + other.Y,
 	}
 }
 
-func (p *Position2D[T]) Sub(other Position2D[T]) Position2D[T] {
+// Sub returns the component-wise difference p - other.
+func (p Position2D[T]) Sub(other Position2D[T]) Position2D[T] {
 	return Position2D[T]{
 		X: p.X - other.X,
 		Y: p.Y - other.Y,
 	}
 }
 
-func (p *Position2D[T]) Distance(other Position2D[T]) T {
+// Distance returns the Manhattan distance between p and other.
+func (p Position2D[T]) Distance(other Position2D[T]) T {
 	return xmath.Abs(p.X-other.X) + xmath.Abs(p.Y-other.Y)
 }
 
-func (p *Position2D[T]) TurnRight() Position2D[T] {
+// TurnRight returns p rotated 90 degrees clockwise about the origin, with Y
+// increasing downward.
+func (p Position2D[T]) TurnRight() Position2D[T] {
 	return Position2D[T]{
 		X: -p.Y,
 		Y: p.X,
 	}
 }
 
-func (p *Position2D[T]) TurnLeft() Position2D[T] {
+// TurnLeft returns p rotated 90 degrees counterclockwise about the origin,
+// with Y increasing downward.
+func (p Position2D[T]) TurnLeft() Position2D[T] {
 	return Position2D[T]{
 		X: p.Y,
 		Y: -p.X,
 	}
 }
 
-func (p *Position2D[T]) generateNeighbours(offsets []Position2D[T]) iter.Seq[Position2D[T]] {
+// Within reports whether p lies in the rectangle [0, width) × [0, height).
+func (p Position2D[T]) Within(width, height T) bool {
+	return 0 <= p.X && p.X < width && 0 <= p.Y && p.Y < height
+}
+
+func (p Position2D[T]) generateNeighbours(offsets []Position2D[T]) iter.Seq[Position2D[T]] {
 	return func(yield func(Position2D[T]) bool) {
 		for _, offset := range offsets {
-			newP := p.Add(offset)
-			if newP.X >= 0 && newP.Y >= 0 && !yield(newP) {
+			if !yield(p.Add(offset)) {
 				return
 			}
 		}
 	}
 }
 
+// OffsetsNeighbours4 returns the four orthogonal unit offsets. Each call
+// returns a fresh slice.
 func OffsetsNeighbours4[T constraints.Signed]() []Position2D[T] {
 	return []Position2D[T]{
 		{X: 1, Y: 0}, {X: -1, Y: 0}, {X: 0, Y: -1}, {X: 0, Y: 1},
 	}
 }
 
+// Neighbours4 returns an iterator over the orthogonal neighbours of p.
 func Neighbours4[T constraints.Signed](p Position2D[T]) iter.Seq[Position2D[T]] {
 	return p.generateNeighbours(OffsetsNeighbours4[T]())
 }
 
+// OffsetsNeighbours8 returns the eight orthogonal and diagonal unit offsets in
+// row-major order. Each call returns a fresh slice.
 func OffsetsNeighbours8[T constraints.Signed]() []Position2D[T] {
 	return []Position2D[T]{
 		{X: -1, Y: -1}, {X: 0, Y: -1}, {X: 1, Y: -1},
@@ -79,6 +101,8 @@ func OffsetsNeighbours8[T constraints.Signed]() []Position2D[T] {
 	}
 }
 
+// Neighbours8 returns an iterator over the orthogonal and diagonal neighbours
+// of p.
 func Neighbours8[T constraints.Signed](p Position2D[T]) iter.Seq[Position2D[T]] {
 	return p.generateNeighbours(OffsetsNeighbours8[T]())
 }

@@ -1,3 +1,5 @@
+// Package xiter provides iterator adapters and Seq, a chainable wrapper around
+// iter.Seq.
 package xiter
 
 import (

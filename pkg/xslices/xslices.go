@@ -1,3 +1,4 @@
+// Package xslices provides slice helpers that complement the slices package.
 package xslices
 
 import (
@@ -29,6 +30,7 @@ func Window[Slice ~[]E, E any](n int, s Slice) iter.Seq[Slice] {
 	}
 }
 
+// Pair holds two values.
 type Pair[E, T any] struct {
 	V1 E
 	V2 T
@@ -48,6 +50,8 @@ func Pairwise[Slice ~[]E, E any](s Slice) iter.Seq[Pair[E, E]] {
 	}
 }
 
+// LastIndexFunc returns the index of the last element satisfying f, or -1 if
+// none does.
 func LastIndexFunc[Slice ~[]E, E any](f func(E) bool, s Slice) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if f(s[i]) {
@@ -57,6 +61,7 @@ func LastIndexFunc[Slice ~[]E, E any](f func(E) bool, s Slice) int {
 	return -1
 }
 
+// HasDuplicates reports whether any value occurs more than once in slice.
 func HasDuplicates[Slice ~[]E, E comparable](slice Slice) bool {
 	seen := make(map[E]struct{}, len(slice))
 	for _, v := range slice {
@@ -68,6 +73,8 @@ func HasDuplicates[Slice ~[]E, E comparable](slice Slice) bool {
 	return false
 }
 
+// HasSuffixFunc reports whether slice ends with suffix, comparing each element
+// of slice with the corresponding element of suffix using compare.
 func HasSuffixFunc[Slice ~[]E, E any](slice Slice, suffix Slice, compare func(E, E) bool) bool {
 	if len(suffix) > len(slice) {
 		return false
@@ -81,6 +88,7 @@ func HasSuffixFunc[Slice ~[]E, E any](slice Slice, suffix Slice, compare func(E,
 	return true
 }
 
+// HasSuffix reports whether slice ends with suffix.
 func HasSuffix[Slice ~[]E, E comparable](slice Slice, suffix Slice) bool {
 	return HasSuffixFunc(slice, suffix, func(a, b E) bool { return a == b })
 }

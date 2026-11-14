@@ -6,13 +6,12 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 )
 
-// DFSWithVisited marks nodes when pushed, using the caller's visited set. The
-// start is always yielded, even if already visited. Stopping skips expansion of
-// the last yielded node but leaves stacked nodes marked in visited.
-func DFSWithVisited[T comparable](start T, visited collections.Set[T], neighbours func(T) iter.Seq[T]) iter.Seq[T] {
+// DFS yields each node reachable from start once, expanding the most recently
+// discovered node first.
+func DFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
-		visited.Add(start)
-		frontier := collections.NewStack[T](start)
+		visited := collections.NewSet(start)
+		frontier := collections.NewStack(start)
 		push := func(node T) bool {
 			if !visited.Contains(node) {
 				visited.Add(node)
@@ -20,21 +19,13 @@ func DFSWithVisited[T comparable](start T, visited collections.Set[T], neighbour
 			}
 			return true
 		}
-
 		for frontier.Len() > 0 {
-			node, ok := frontier.Pop()
-			if !ok || !yield(node) {
+			node, _ := frontier.Pop()
+			if !yield(node) {
 				return
 			}
-
 			neighbours(node)(push)
 		}
-	}
-}
-
-func DFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		DFSWithVisited(start, collections.NewSet[T](), neighbours)(yield)
 	}
 }
 

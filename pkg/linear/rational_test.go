@@ -1,4 +1,4 @@
-package matrix
+package linear
 
 import (
 	"math"
@@ -176,7 +176,7 @@ func TestRatFractionArithmetic(t *testing.T) {
 func solveDiagonalRats(t *testing.T, ax, cx, by, cy int64) (Rat, Rat) {
 	t.Helper()
 	x, y := Variable("x"), Variable("y")
-	solution, err := NewSystem(x, y).Add(x.Scale(ax).Equal(cx)).Add(y.Scale(by).Equal(cy)).Solve()
+	solution, err := NewSystem(x, y).Add(x.Scale(ax).Equate(cx)).Add(y.Scale(by).Equate(cy)).Solve()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestSolvedFractionsRemainReusable(t *testing.T) {
 		t.Fatal("fraction arithmetic changed integer or zero classification")
 	}
 	a := Variable("a")
-	solution, err := NewSystem(a).Add(a.ScaleRat(half).Add(a.ScaleRat(third)).Equal(5)).Solve()
+	solution, err := NewSystem(a).Add(a.ScaleRat(half).Add(a.ScaleRat(third)).Equate(5)).Solve()
 	if err != nil {
 		t.Fatal(err)
 	}
