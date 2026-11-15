@@ -1,5 +1,5 @@
-// Package grid provides integer positions in two and three dimensions and a
-// sparse two-dimensional grid keyed by position.
+// Package grid provides integer positions in two and three dimensions, a
+// sparse two-dimensional grid keyed by position, and a dense grid of bytes.
 package grid
 
 import (
