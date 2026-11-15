@@ -43,3 +43,21 @@ func TestDay05ReadErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestDay05MalformedInput(t *testing.T) {
+	tests := []struct {
+		name, input string
+		solve       func(io.Reader) (string, error)
+	}{
+		{"uppercase letter", "abcD", day05p01},
+		{"digit", "ab1", day05p02},
+		{"empty word", "abc\n\nxyz", day05p01},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
+	}
+}

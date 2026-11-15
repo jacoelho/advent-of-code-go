@@ -13,6 +13,18 @@ type circuitGate struct {
 	left, right string
 }
 
+func circuitWire(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, letter := range []byte(name) {
+		if letter < 'a' || letter > 'z' {
+			return false
+		}
+	}
+	return true
+}
+
 func parseCircuit(r io.Reader) (map[string]circuitGate, error) {
 	circuit := make(map[string]circuitGate)
 	s := bufio.NewScanner(r)
@@ -37,6 +49,17 @@ func parseCircuit(r io.Reader) (map[string]circuitGate, error) {
 			}
 		default:
 			return nil, fmt.Errorf("invalid circuit expression %q", expression)
+		}
+		if !circuitWire(wire) {
+			return nil, fmt.Errorf("invalid wire %q", wire)
+		}
+		for _, operand := range []string{gate.left, gate.right} {
+			if operand == "" || circuitWire(operand) {
+				continue
+			}
+			if _, err := strconv.ParseUint(operand, 10, 16); err != nil {
+				return nil, fmt.Errorf("invalid circuit operand %q: %w", operand, err)
+			}
 		}
 		if _, exists := circuit[wire]; exists {
 			return nil, fmt.Errorf("duplicate signal for wire %q", wire)

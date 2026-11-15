@@ -4,12 +4,14 @@ import (
 	"cmp"
 	"fmt"
 	"io"
-	"math/big"
+	"math"
 	"math/bits"
 	"slices"
+	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func balancePackages(r io.Reader, groups int) (string, error) {
@@ -23,10 +25,11 @@ func balancePackages(r io.Reader, groups int) (string, error) {
 	}
 	total := 0
 	for _, weight := range weights {
-		if weight <= 0 || weight > int(^uint(0)>>1)-total {
+		sum, ok := xmath.CheckedAdd(total, weight)
+		if weight <= 0 || !ok {
 			return "", fmt.Errorf("invalid package weight %d", weight)
 		}
-		total += weight
+		total = sum
 	}
 	if total%groups != 0 {
 		return "", fmt.Errorf("total weight is not divisible by %d", groups)
@@ -69,13 +72,19 @@ func balancePackages(r io.Reader, groups int) (string, error) {
 		failed[remaining] = true
 		return false
 	}
+	saturatingProduct := func(product, weight int) int {
+		if next, ok := xmath.CheckedMul(product, weight); ok {
+			return next
+		}
+		return math.MaxInt
+	}
 	for size := 1; size <= len(weights)/groups; size++ {
-		var best *big.Int
-		var choose func(int, int, int, uint64, *big.Int)
-		choose = func(start, count, needed int, chosen uint64, product *big.Int) {
+		best, found := math.MaxInt, false
+		var choose func(int, int, int, uint64, int)
+		choose = func(start, count, needed int, chosen uint64, product int) {
 			if count == 0 {
-				if needed == 0 && (best == nil || product.Cmp(best) < 0) && partition(all&^chosen, groups-1) {
-					best = new(big.Int).Set(product)
+				if needed == 0 && (!found || product < best) && partition(all&^chosen, groups-1) {
+					best, found = product, true
 				}
 				return
 			}
@@ -86,17 +95,21 @@ func balancePackages(r io.Reader, groups int) (string, error) {
 				if weights[i] > needed {
 					continue
 				}
-				next := new(big.Int).Mul(product, big.NewInt(int64(weights[i])))
-				if best != nil && next.Cmp(best) >= 0 {
+				next := saturatingProduct(product, weights[i])
+				if found && next >= best {
 					continue
 				}
 				choose(i+1, count-1, needed-weights[i], chosen|1<<i, next)
 			}
 		}
-		choose(0, size, target, 0, big.NewInt(1))
-		if best != nil {
-			return best.String(), nil
+		choose(0, size, target, 0, 1)
+		if !found {
+			continue
 		}
+		if best == math.MaxInt {
+			return "", fmt.Errorf("quantum entanglement overflows int64")
+		}
+		return strconv.Itoa(best), nil
 	}
 	return "", fmt.Errorf("packages cannot form %d equal groups", groups)
 }

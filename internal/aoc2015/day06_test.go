@@ -52,6 +52,9 @@ func TestDay06MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"light bounds", "turn on 0,0 through 1000,0", day06p01},
+		{"trailing text", "turn on 0,0 through 1,1 please", day06p01},
+		{"unknown operation", "flip 0,0 through 1,1", day06p02},
+		{"inverted rectangle", "toggle 5,5 through 1,1", day06p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

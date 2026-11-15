@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"strings"
 )
 
 func routeDistances(r io.Reader) (shortest, longest int, err error) {
@@ -15,13 +16,25 @@ func routeDistances(r io.Reader) (shortest, longest int, err error) {
 	}
 	locations := make(map[string]int)
 	var routes []route
+	seen := make(map[[2]string]bool)
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		var route route
-		n, err := fmt.Sscanf(s.Text(), "%s to %s = %d", &route.from, &route.to, &route.distance)
-		if err != nil || n != 3 || route.distance <= 0 {
+		fields := strings.Fields(s.Text())
+		if len(fields) != 5 || fields[1] != "to" || fields[3] != "=" {
 			return 0, 0, fmt.Errorf("invalid route %q", s.Text())
 		}
+		route := route{from: fields[0], to: fields[2]}
+		route.distance, err = strconv.Atoi(fields[4])
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid route distance %q: %w", s.Text(), err)
+		}
+		if route.distance <= 0 || route.from == route.to {
+			return 0, 0, fmt.Errorf("invalid route %q", s.Text())
+		}
+		if seen[[2]string{route.from, route.to}] || seen[[2]string{route.to, route.from}] {
+			return 0, 0, fmt.Errorf("duplicate route between %s and %s", route.from, route.to)
+		}
+		seen[[2]string{route.from, route.to}] = true
 		for _, location := range []string{route.from, route.to} {
 			if _, ok := locations[location]; !ok {
 				locations[location] = len(locations)

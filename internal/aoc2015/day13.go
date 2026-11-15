@@ -44,9 +44,6 @@ func seatingHappiness(r io.Reader, extraGuests int) (string, error) {
 		return "", fmt.Errorf("incomplete happiness statements")
 	}
 	n := len(guests) + extraGuests
-	if n > 20 {
-		return "", fmt.Errorf("seating search supports at most 20 guests")
-	}
 	weights := make([][]int64, n)
 	for i := range n {
 		weights[i] = make([]int64, n)
