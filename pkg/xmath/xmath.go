@@ -1,5 +1,5 @@
-// Package xmath provides integer arithmetic and geometry helpers for signed
-// integer types.
+// Package xmath provides integer arithmetic, including overflow-checked and
+// modular operations, and geometry helpers.
 package xmath
 
 import (
@@ -23,9 +23,13 @@ func Modulo[T constraints.Signed](a, b T) T {
 
 // GCD returns the non-negative greatest common divisor of a and b. GCD(0, 0)
 // is 0.
-func GCD[T constraints.Signed](a, b T) T {
-	a = Abs(a)
-	b = Abs(b)
+func GCD[T constraints.Integer](a, b T) T {
+	if a < 0 {
+		a = -a
+	}
+	if b < 0 {
+		b = -b
+	}
 	for b != 0 {
 		a, b = b, a%b
 	}
@@ -35,7 +39,7 @@ func GCD[T constraints.Signed](a, b T) T {
 // LCM returns the least common multiple of value and values. The result is
 // not normalised to be non-negative, and it panics if the running result and
 // the next value are both zero.
-func LCM[T constraints.Signed](value T, values ...T) T {
+func LCM[T constraints.Integer](value T, values ...T) T {
 	result := value
 	for _, v := range values {
 		result = result * v / GCD(result, v)

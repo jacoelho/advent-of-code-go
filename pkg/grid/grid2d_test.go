@@ -350,3 +350,17 @@ func TestPosition2DWithin(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePosition2D(t *testing.T) {
+	if p, err := ParsePosition2D[int]("-3,14"); err != nil || p != NewPosition2D(-3, 14) {
+		t.Fatalf("got %v, %v", p, err)
+	}
+	if p, err := ParsePosition2D[int8]("127,-128"); err != nil || p != NewPosition2D[int8](127, -128) {
+		t.Fatalf("int8 limits: got %v, %v", p, err)
+	}
+	for _, s := range []string{"", "1", "1,", ",1", "1,2,3", " 1,2", "1, 2", "a,1", "128,0"} {
+		if _, err := ParsePosition2D[int8](s); err == nil {
+			t.Fatalf("%q accepted", s)
+		}
+	}
+}

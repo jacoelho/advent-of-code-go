@@ -1,7 +1,11 @@
 package grid
 
 import (
+	"errors"
+	"fmt"
 	"iter"
+	"strconv"
+	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 	"golang.org/x/exp/constraints"
@@ -105,4 +109,27 @@ func OffsetsNeighbours8[T constraints.Signed]() []Position2D[T] {
 // of p.
 func Neighbours8[T constraints.Signed](p Position2D[T]) iter.Seq[Position2D[T]] {
 	return p.generateNeighbours(OffsetsNeighbours8[T]())
+}
+
+// ParsePosition2D parses "x,y", two base-10 integers that fit in T separated
+// by a single comma, with no surrounding space.
+func ParsePosition2D[T constraints.Signed](s string) (Position2D[T], error) {
+	xs, ys, ok := strings.Cut(s, ",")
+	if !ok {
+		return Position2D[T]{}, fmt.Errorf("position %q is not x,y", s)
+	}
+	x, errX := parseCoordinate[T](xs)
+	y, errY := parseCoordinate[T](ys)
+	if err := errors.Join(errX, errY); err != nil {
+		return Position2D[T]{}, fmt.Errorf("position %q: %w", s, err)
+	}
+	return Position2D[T]{X: x, Y: y}, nil
+}
+
+func parseCoordinate[T constraints.Signed](s string) (T, error) {
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err == nil && int64(T(v)) != v {
+		err = fmt.Errorf("coordinate %s out of range", s)
+	}
+	return T(v), err
 }

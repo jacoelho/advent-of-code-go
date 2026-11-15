@@ -4,7 +4,8 @@ import (
 	"cmp"
 	"math"
 	"math/big"
-	"math/bits"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 // Rat is an immutable arbitrary-precision rational. Its zero value is zero.
@@ -114,22 +115,22 @@ func (r Rat) commonNumerators(other Rat) (left, right, denominator int64, ok boo
 		return r.numerator, other.numerator, a, true
 	}
 	divisor := int64(gcdMagnitudes(uint64(a), uint64(b)))
-	left, ok = multiplyIntegers(r.numerator, b/divisor)
+	left, ok = xmath.CheckedMul(r.numerator, b/divisor)
 	if !ok {
 		return 0, 0, 0, false
 	}
-	right, ok = multiplyIntegers(other.numerator, a/divisor)
+	right, ok = xmath.CheckedMul(other.numerator, a/divisor)
 	if !ok {
 		return 0, 0, 0, false
 	}
-	denominator, ok = multiplyIntegers(a, b/divisor)
+	denominator, ok = xmath.CheckedMul(a, b/divisor)
 	return left, right, denominator, ok
 }
 
 // Add returns r + other.
 func (r Rat) Add(other Rat) Rat {
 	if r.value == nil && other.value == nil && r.denominator == 0 && other.denominator == 0 {
-		if result, ok := addIntegers(r.numerator, other.numerator); ok {
+		if result, ok := xmath.CheckedAdd(r.numerator, other.numerator); ok {
 			return integerRat(result)
 		}
 	}
@@ -141,7 +142,7 @@ func (r Rat) Add(other Rat) Rat {
 	}
 	if r.value == nil && other.value == nil && (r.denominator != 0 || other.denominator != 0) {
 		if left, right, denominator, ok := r.commonNumerators(other); ok {
-			if result, ok := addIntegers(left, right); ok {
+			if result, ok := xmath.CheckedAdd(left, right); ok {
 				return NewRat(result, denominator)
 			}
 		}
@@ -153,7 +154,7 @@ func (r Rat) Add(other Rat) Rat {
 // Sub returns r - other.
 func (r Rat) Sub(other Rat) Rat {
 	if r.value == nil && other.value == nil && r.denominator == 0 && other.denominator == 0 {
-		if result, ok := subtractIntegers(r.numerator, other.numerator); ok {
+		if result, ok := xmath.CheckedSub(r.numerator, other.numerator); ok {
 			return integerRat(result)
 		}
 	}
@@ -165,7 +166,7 @@ func (r Rat) Sub(other Rat) Rat {
 	}
 	if r.value == nil && other.value == nil && (r.denominator != 0 || other.denominator != 0) {
 		if left, right, denominator, ok := r.commonNumerators(other); ok {
-			if result, ok := subtractIntegers(left, right); ok {
+			if result, ok := xmath.CheckedSub(left, right); ok {
 				return NewRat(result, denominator)
 			}
 		}
@@ -177,7 +178,7 @@ func (r Rat) Sub(other Rat) Rat {
 // Mul returns r × other.
 func (r Rat) Mul(other Rat) Rat {
 	if r.value == nil && other.value == nil && r.denominator == 0 && other.denominator == 0 {
-		if numerator, ok := multiplyIntegers(r.numerator, other.numerator); ok {
+		if numerator, ok := xmath.CheckedMul(r.numerator, other.numerator); ok {
 			return integerRat(numerator)
 		}
 	}
@@ -191,33 +192,14 @@ func (r Rat) Mul(other Rat) Rat {
 		return r
 	}
 	if r.value == nil && other.value == nil && (r.denominator != 0 || other.denominator != 0) {
-		if numerator, ok := multiplyIntegers(r.numerator, other.numerator); ok {
-			if denominator, ok := multiplyIntegers(r.compactDenominator(), other.compactDenominator()); ok {
+		if numerator, ok := xmath.CheckedMul(r.numerator, other.numerator); ok {
+			if denominator, ok := xmath.CheckedMul(r.compactDenominator(), other.compactDenominator()); ok {
 				return NewRat(numerator, denominator)
 			}
 		}
 	}
 	var left, right big.Rat
 	return ratFromOwned(new(big.Rat).Mul(r.rational(&left), other.rational(&right)))
-}
-
-func multiplyIntegers(a, b int64) (int64, bool) {
-	high, low := bits.Mul64(uint64(a), uint64(b))
-	// Correct the unsigned high word for sign extension of each operand.
-	high -= uint64(a>>63) & uint64(b)
-	high -= uint64(b>>63) & uint64(a)
-	result := int64(low)
-	return result, high == uint64(result>>63)
-}
-
-func subtractIntegers(a, b int64) (int64, bool) {
-	result := a - b
-	return result, !(b > 0 && result > a || b < 0 && result < a)
-}
-
-func addIntegers(a, b int64) (int64, bool) {
-	result := a + b
-	return result, !(b > 0 && result < a || b < 0 && result > a)
 }
 
 // Div returns r / other. It panics if other is zero.
@@ -235,8 +217,8 @@ func (r Rat) Div(other Rat) Rat {
 		return r
 	}
 	if r.value == nil && other.value == nil {
-		if numerator, ok := multiplyIntegers(r.numerator, other.compactDenominator()); ok {
-			if denominator, ok := multiplyIntegers(r.compactDenominator(), other.numerator); ok {
+		if numerator, ok := xmath.CheckedMul(r.numerator, other.compactDenominator()); ok {
+			if denominator, ok := xmath.CheckedMul(r.compactDenominator(), other.numerator); ok {
 				return NewRat(numerator, denominator)
 			}
 		}
@@ -281,8 +263,8 @@ func (r Rat) Cmp(other Rat) int {
 		if r.denominator == other.denominator {
 			return cmp.Compare(r.numerator, other.numerator)
 		}
-		if left, ok := multiplyIntegers(r.numerator, other.compactDenominator()); ok {
-			if right, ok := multiplyIntegers(other.numerator, r.compactDenominator()); ok {
+		if left, ok := xmath.CheckedMul(r.numerator, other.compactDenominator()); ok {
+			if right, ok := xmath.CheckedMul(other.numerator, r.compactDenominator()); ok {
 				return cmp.Compare(left, right)
 			}
 		}
