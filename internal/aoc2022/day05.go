@@ -7,21 +7,18 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 func rearrangeCrates(r io.Reader, preserve bool) (string, error) {
-	input, err := puzzleInput(r)
+	sections, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return "", err
 	}
-	drawing, procedure, ok := strings.Cut(input, "\n\n")
-	if !ok {
-		return "", fmt.Errorf("missing crate procedure")
+	if len(sections) != 2 || len(sections[0]) == 0 || len(sections[1]) == 0 {
+		return "", fmt.Errorf("expected a crate drawing and a crate procedure separated by a blank line")
 	}
-	rows := strings.Split(drawing, "\n")
-	if len(rows) > 10_000 {
-		return "", fmt.Errorf("crate drawing exceeds ten thousand rows")
-	}
+	rows, procedure := sections[0], sections[1]
 	labels := rows[len(rows)-1]
 	var columns []int
 	indices := make(map[int]int)
@@ -46,9 +43,6 @@ func rearrangeCrates(r io.Reader, preserve bool) (string, error) {
 		}
 		indices[label] = len(columns)
 		columns = append(columns, i-1)
-		if len(columns) > 128 {
-			return "", fmt.Errorf("too many crate stacks")
-		}
 	}
 	if len(columns) == 0 {
 		return "", fmt.Errorf("no stacks")
@@ -78,11 +72,7 @@ func rearrangeCrates(r io.Reader, preserve bool) (string, error) {
 			}
 		}
 	}
-	moved := 0
-	for line := range strings.SplitSeq(procedure, "\n") {
-		if line == "" {
-			continue
-		}
+	for _, line := range procedure {
 		fields := strings.Fields(line)
 		if len(fields) != 6 || fields[0] != "move" || fields[2] != "from" || fields[4] != "to" {
 			return "", fmt.Errorf("invalid move %q", line)
@@ -104,10 +94,6 @@ func rearrangeCrates(r io.Reader, preserve bool) (string, error) {
 		if from == to || count == 0 {
 			continue
 		}
-		if count > 10_000_000-moved {
-			return "", fmt.Errorf("crate move work limit exceeded")
-		}
-		moved += count
 		cut := len(stacks[from]) - count
 		block := stacks[from][cut:]
 		if !preserve {

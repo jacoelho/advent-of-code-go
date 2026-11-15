@@ -8,6 +8,7 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
@@ -25,15 +26,15 @@ type monkeyMap struct {
 
 func parseMonkeyMap(r io.Reader) (monkeyMap, error) {
 	var board monkeyMap
-	input, err := puzzleInput(r)
+	sections, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return board, err
 	}
-	drawing, path, ok := strings.Cut(input, "\n\n")
-	if !ok || len(drawing) == 0 || len(drawing) > 1_000_000 {
-		return board, fmt.Errorf("map requires a drawing of at most one million characters and a path")
+	if len(sections) != 2 || len(sections[0]) == 0 || len(sections[1]) != 1 {
+		return board, fmt.Errorf("map requires a drawing and a one-line path separated by a blank line")
 	}
-	board.rows = strings.Split(drawing, "\n")
+	board.rows = sections[0]
+	path := sections[1][0]
 	for _, row := range board.rows {
 		board.width = max(board.width, len(row))
 		for _, cell := range row {
@@ -45,10 +46,6 @@ func parseMonkeyMap(r io.Reader) (monkeyMap, error) {
 	board.start.X = strings.IndexByte(board.rows[0], '.')
 	if board.start.X < 0 {
 		return board, fmt.Errorf("map top row has no open starting tile")
-	}
-	path = strings.TrimSpace(path)
-	if len(path) == 0 {
-		return board, fmt.Errorf("empty map path")
 	}
 	for i := 0; i < len(path); {
 		start := i
@@ -86,13 +83,11 @@ func mapDirection(facing int) grid.Position2D[int] {
 	return [...]grid.Position2D[int]{{X: 1}, {Y: 1}, {X: -1}, {Y: -1}}[facing]
 }
 
-func (board monkeyMap) flatWrap(position grid.Position2D[int], facing int, work *int) (grid.Position2D[int], int, error) {
+// flatWrap always finds a tile because the walk starts from one and cycles
+// through its whole row or column.
+func (board monkeyMap) flatWrap(position grid.Position2D[int], facing int) (grid.Position2D[int], int, error) {
 	direction := mapDirection(facing)
 	for {
-		*work--
-		if *work < 0 {
-			return position, facing, fmt.Errorf("map traversal exceeds ten million steps and void checks")
-		}
 		position.X = xmath.Modulo(position.X+direction.X, board.width)
 		position.Y = xmath.Modulo(position.Y+direction.Y, len(board.rows))
 		if board.tile(position) != ' ' {
@@ -101,19 +96,14 @@ func (board monkeyMap) flatWrap(position grid.Position2D[int], facing int, work 
 	}
 }
 
-func (board monkeyMap) password(wrap func(grid.Position2D[int], int, *int) (grid.Position2D[int], int, error)) (string, error) {
+func (board monkeyMap) password(wrap func(grid.Position2D[int], int) (grid.Position2D[int], int, error)) (string, error) {
 	position, facing := board.start, 0
-	work := 10_000_000
 	for _, instruction := range board.instructions {
 		for range instruction.steps {
-			work--
-			if work < 0 {
-				return "", fmt.Errorf("map traversal exceeds ten million steps and void checks")
-			}
 			next, nextFacing := position.Add(mapDirection(facing)), facing
 			if board.tile(next) == ' ' {
 				var err error
-				next, nextFacing, err = wrap(position, facing, &work)
+				next, nextFacing, err = wrap(position, facing)
 				if err != nil {
 					return "", err
 				}
@@ -260,7 +250,7 @@ func foldCube(board monkeyMap) (cubeNet, error) {
 	return cube, nil
 }
 
-func (cube cubeNet) wrap(position grid.Position2D[int], facing int, _ *int) (grid.Position2D[int], int, error) {
+func (cube cubeNet) wrap(position grid.Position2D[int], facing int) (grid.Position2D[int], int, error) {
 	var source cubeFace
 	found := false
 	for _, face := range cube.faces {

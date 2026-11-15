@@ -227,3 +227,11 @@ func TestDay10ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestCPUInvalidInstruction(t *testing.T) {
+	for _, input := range []string{"addx 2147483648", "addx", "jump 1"} {
+		if _, _, err := registerCycles(strings.NewReader(input)); err == nil {
+			t.Errorf("expected instruction error for %q", input)
+		}
+	}
+}

@@ -105,3 +105,25 @@ func TestDay11ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestMonkeyRelievedWorryOverflow(t *testing.T) {
+	input := strings.Replace(reversedMonkeys,
+		"Starting items: 9\n  Operation: new = old + 0",
+		"Starting items: 9223372036854775807\n  Operation: new = old * old", 1)
+	if _, err := day11p01(strings.NewReader(input)); err == nil {
+		t.Fatal("expected worry overflow error")
+	}
+}
+
+func TestMonkeyDivisorLCMOverflow(t *testing.T) {
+	input := strings.NewReplacer(
+		"divisible by 1\n    If true: throw to monkey 0", "divisible by 9223372036854775807\n    If true: throw to monkey 0",
+		"divisible by 1\n    If true: throw to monkey 1", "divisible by 9223372036854775806\n    If true: throw to monkey 1",
+	).Replace(reversedMonkeys)
+	if _, err := day11p01(strings.NewReader(input)); err != nil {
+		t.Fatalf("part 1 does not reduce worry levels: %v", err)
+	}
+	if _, err := day11p02(strings.NewReader(input)); err == nil {
+		t.Fatal("expected divisor LCM overflow error")
+	}
+}

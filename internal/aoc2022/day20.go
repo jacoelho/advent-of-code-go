@@ -3,7 +3,6 @@ package aoc2022
 import (
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
@@ -16,10 +15,8 @@ func groveCoordinates(r io.Reader, key int64, rounds int) (string, error) {
 	var values []int64
 	zero := -1
 	for value := range s.Values() {
-		if len(values) == 20_000 {
-			return "", fmt.Errorf("mixing input exceeds 20000 values")
-		}
-		if value > math.MaxInt64/key || value < math.MinInt64/key {
+		decrypted, ok := xmath.CheckedMul(value, key)
+		if !ok {
 			return "", fmt.Errorf("decryption key multiplication overflows int64")
 		}
 		if value == 0 {
@@ -28,7 +25,7 @@ func groveCoordinates(r io.Reader, key int64, rounds int) (string, error) {
 			}
 			zero = len(values)
 		}
-		values = append(values, value*key)
+		values = append(values, decrypted)
 	}
 	if err := s.Err(); err != nil {
 		return "", err
@@ -42,16 +39,12 @@ func groveCoordinates(r io.Reader, key int64, rounds int) (string, error) {
 		previous[i] = (i + len(values) - 1) % len(values)
 		next[i] = (i + 1) % len(values)
 	}
-	work, size := 0, int64(len(values)-1)
+	size := int64(len(values) - 1)
 	for range rounds {
 		for id, value := range values {
 			steps := int(xmath.Modulo(value, size))
 			if steps > int(size)/2 {
 				steps -= int(size)
-			}
-			work += xmath.Abs(steps)
-			if work > 100_000_000 {
-				return "", fmt.Errorf("mixing exceeds 100000000 ring steps")
 			}
 			from := previous[id]
 			next[previous[id]], previous[next[id]] = next[id], previous[id]
@@ -74,11 +67,11 @@ func groveCoordinates(r io.Reader, key int64, rounds int) (string, error) {
 		for range 1000 % len(values) {
 			current = next[current]
 		}
-		value := values[current]
-		if value > 0 && total > math.MaxInt64-value || value < 0 && total < math.MinInt64-value {
+		sum, ok := xmath.CheckedAdd(total, values[current])
+		if !ok {
 			return "", fmt.Errorf("grove coordinate sum overflows int64")
 		}
-		total += value
+		total = sum
 	}
 	return strconv.FormatInt(total, 10), nil
 }

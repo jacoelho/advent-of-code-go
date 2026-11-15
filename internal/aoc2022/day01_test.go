@@ -42,8 +42,10 @@ func Test_day01p02(t *testing.T) {
 }
 
 func TestCaloriesInvalidInput(t *testing.T) {
-	if _, err := day01p01(strings.NewReader("-1")); err == nil {
-		t.Fatal("expected negative calorie error")
+	for _, input := range []string{"-1", "1\n\n\n2", "1\nx"} {
+		if _, err := day01p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected calorie error for %q", input)
+		}
 	}
 }
 

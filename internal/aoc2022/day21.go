@@ -4,15 +4,18 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math/big"
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
+// monkeyJob is a number job when operation is zero.
 type monkeyJob struct {
-	number      *big.Int
+	number      int64
 	left, right string
 	operation   byte
 }
@@ -27,8 +30,8 @@ func monkeyJobs(r io.Reader) (map[string]monkeyJob, []string, error) {
 		if !found || !namePattern.MatchString(name) {
 			return nil, nil, fmt.Errorf("invalid monkey definition %q", s.Text())
 		}
-		if _, exists := jobs[name]; exists || len(jobs) == 10_000 {
-			return nil, nil, fmt.Errorf("duplicate monkey or more than 10000 definitions")
+		if _, exists := jobs[name]; exists {
+			return nil, nil, fmt.Errorf("duplicate monkey %s", name)
 		}
 		fields := strings.Fields(text)
 		var job monkeyJob
@@ -38,7 +41,7 @@ func monkeyJobs(r io.Reader) (map[string]monkeyJob, []string, error) {
 			if err != nil {
 				return nil, nil, fmt.Errorf("monkey %s: %w", name, err)
 			}
-			job.number = big.NewInt(number)
+			job.number = number
 		case 3:
 			if !namePattern.MatchString(fields[0]) || !namePattern.MatchString(fields[2]) || len(fields[1]) != 1 || !strings.ContainsAny(fields[1], "+-*/") {
 				return nil, nil, fmt.Errorf("invalid monkey operation %q", text)
@@ -57,13 +60,10 @@ func monkeyJobs(r io.Reader) (map[string]monkeyJob, []string, error) {
 		return nil, nil, fmt.Errorf("missing root monkey")
 	}
 
-	marks, heights := make(map[string]byte), make(map[string]int)
+	marks := make(map[string]byte)
 	var order []string
-	var visit func(string, int) error
-	visit = func(name string, depth int) error {
-		if depth > 1024 {
-			return fmt.Errorf("monkey expression exceeds 1024 levels")
-		}
+	var visit func(string) error
+	visit = func(name string) error {
 		if marks[name] == 1 {
 			return fmt.Errorf("cycle at monkey %s", name)
 		}
@@ -74,17 +74,13 @@ func monkeyJobs(r io.Reader) (map[string]monkeyJob, []string, error) {
 		if !exists {
 			return fmt.Errorf("missing referenced monkey %s", name)
 		}
-		marks[name], heights[name] = 1, 1
-		if job.number == nil {
-			if err := visit(job.left, depth+1); err != nil {
+		marks[name] = 1
+		if job.operation != 0 {
+			if err := visit(job.left); err != nil {
 				return err
 			}
-			if err := visit(job.right, depth+1); err != nil {
+			if err := visit(job.right); err != nil {
 				return err
-			}
-			heights[name] += max(heights[job.left], heights[job.right])
-			if heights[name] > 1024 {
-				return fmt.Errorf("monkey expression exceeds 1024 levels")
 			}
 		}
 		marks[name] = 2
@@ -92,66 +88,66 @@ func monkeyJobs(r io.Reader) (map[string]monkeyJob, []string, error) {
 		return nil
 	}
 	for _, name := range names {
-		if err := visit(name, 1); err != nil {
+		if err := visit(name); err != nil {
 			return nil, nil, err
 		}
 	}
 	return jobs, order, nil
 }
 
-func monkeyArithmetic(operation byte, left, right *big.Int) (*big.Int, error) {
-	result := new(big.Int)
+func monkeyArithmetic(operation byte, left, right int64) (int64, error) {
+	var result int64
+	ok := true
 	switch operation {
 	case '+':
-		result.Add(left, right)
+		result, ok = xmath.CheckedAdd(left, right)
 	case '-':
-		result.Sub(left, right)
+		result, ok = xmath.CheckedSub(left, right)
 	case '*':
-		result.Mul(left, right)
+		result, ok = xmath.CheckedMul(left, right)
 	case '/':
-		if right.Sign() == 0 {
-			return nil, fmt.Errorf("monkey division by zero")
+		if right == 0 {
+			return 0, fmt.Errorf("monkey division by zero")
 		}
-		remainder := new(big.Int)
-		result.QuoRem(left, right, remainder)
-		if remainder.Sign() != 0 {
-			return nil, fmt.Errorf("monkey division is not exact")
+		if left == math.MinInt64 && right == -1 {
+			ok = false
+			break
 		}
+		if left%right != 0 {
+			return 0, fmt.Errorf("monkey division %d / %d is not exact", left, right)
+		}
+		result = left / right
 	}
-	if result.BitLen() > 4096 {
-		return nil, fmt.Errorf("monkey arithmetic exceeds 4096 bits")
+	if !ok {
+		return 0, fmt.Errorf("monkey arithmetic %d %c %d overflows int64", left, operation, right)
 	}
 	return result, nil
 }
 
 type monkeyEvaluation struct {
 	jobs   map[string]monkeyJob
-	values map[string]*big.Int
-	human  *big.Int
+	values map[string]int64
 }
 
-func (e *monkeyEvaluation) value(name string) (*big.Int, error) {
-	if name == "humn" && e.human != nil {
-		return e.human, nil
-	}
+func (e *monkeyEvaluation) value(name string) (int64, error) {
 	if value, exists := e.values[name]; exists {
 		return value, nil
 	}
 	job := e.jobs[name]
-	if job.number != nil {
+	if job.operation == 0 {
 		return job.number, nil
 	}
 	left, err := e.value(job.left)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	right, err := e.value(job.right)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	value, err := monkeyArithmetic(job.operation, left, right)
 	if err != nil {
-		return nil, fmt.Errorf("monkey %s: %w", name, err)
+		return 0, fmt.Errorf("monkey %s: %w", name, err)
 	}
 	e.values[name] = value
 	return value, nil
@@ -162,12 +158,12 @@ func day21p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	evaluation := monkeyEvaluation{jobs: jobs, values: make(map[string]*big.Int)}
+	evaluation := monkeyEvaluation{jobs: jobs, values: make(map[string]int64)}
 	value, err := evaluation.value("root")
 	if err != nil {
 		return "", err
 	}
-	return value.String(), nil
+	return strconv.FormatInt(value, 10), nil
 }
 
 func day21p02(r io.Reader) (string, error) {
@@ -176,13 +172,13 @@ func day21p02(r io.Reader) (string, error) {
 		return "", err
 	}
 	human, exists := jobs["humn"]
-	if !exists || human.number == nil || jobs["root"].number != nil {
+	if !exists || human.operation != 0 || jobs["root"].operation == 0 {
 		return "", fmt.Errorf("equation requires a human number and a root operation")
 	}
 	dependent := make(map[string]bool)
 	for _, name := range order {
 		job := jobs[name]
-		dependent[name] = name == "humn" || job.number == nil && (dependent[job.left] || dependent[job.right])
+		dependent[name] = name == "humn" || job.operation != 0 && (dependent[job.left] || dependent[job.right])
 	}
 	root := jobs["root"]
 	if dependent[root.left] == dependent[root.right] {
@@ -192,7 +188,7 @@ func day21p02(r io.Reader) (string, error) {
 	if dependent[root.right] {
 		name, known = root.right, root.left
 	}
-	evaluation := monkeyEvaluation{jobs: jobs, values: make(map[string]*big.Int)}
+	evaluation := monkeyEvaluation{jobs: jobs, values: make(map[string]int64)}
 	target, err := evaluation.value(known)
 	if err != nil {
 		return "", err
@@ -221,8 +217,8 @@ func day21p02(r io.Reader) (string, error) {
 				target, err = monkeyArithmetic('-', constant, target)
 			}
 		case '*':
-			if constant.Sign() == 0 {
-				if target.Sign() == 0 {
+			if constant == 0 {
+				if target == 0 {
 					return "", fmt.Errorf("unsupported noninvertible monkey equation: multiplication by zero")
 				}
 				return "", fmt.Errorf("monkey multiplication by zero has no solution")
@@ -230,13 +226,13 @@ func day21p02(r io.Reader) (string, error) {
 			target, err = monkeyArithmetic('/', target, constant)
 		case '/':
 			if left {
-				if constant.Sign() == 0 {
+				if constant == 0 {
 					return "", fmt.Errorf("monkey division by zero")
 				}
 				target, err = monkeyArithmetic('*', target, constant)
 			} else {
-				if target.Sign() == 0 {
-					if constant.Sign() == 0 {
+				if target == 0 {
+					if constant == 0 {
 						return "", fmt.Errorf("unsupported noninvertible monkey equation: zero numerator and zero quotient")
 					}
 					return "", fmt.Errorf("nonzero numerator cannot give an exact zero quotient")
@@ -250,7 +246,7 @@ func day21p02(r io.Reader) (string, error) {
 		name = next
 	}
 
-	check := monkeyEvaluation{jobs: jobs, values: make(map[string]*big.Int), human: target}
+	check := monkeyEvaluation{jobs: jobs, values: map[string]int64{"humn": target}}
 	left, err := check.value(root.left)
 	if err != nil {
 		return "", err
@@ -259,8 +255,8 @@ func day21p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if left.Cmp(right) != 0 {
+	if left != right {
 		return "", fmt.Errorf("human candidate does not satisfy root equality")
 	}
-	return target.String(), nil
+	return strconv.FormatInt(target, 10), nil
 }

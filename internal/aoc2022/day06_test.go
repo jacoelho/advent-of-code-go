@@ -29,7 +29,7 @@ func Test_day06p02(t *testing.T) {
 }
 
 func TestDatastreamMarkers(t *testing.T) {
-	aoc.AOCTest(t, day06p01, []aoc.TestInput{{Input: strings.NewReader("aAbB\r\n"), Want: "4"}})
+	aoc.AOCTest(t, day06p01, []aoc.TestInput{{Input: strings.NewReader("abcd\r\n"), Want: "4"}})
 	inputs := []string{"bvwbjplbgvbhsrlpgdmjqwftvncz\n", "nppdvjthqldpwncqszvftbrmjlhg", "nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg", "zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"}
 	first := []string{"5", "6", "10", "11"}
 	second := []string{"23", "23", "29", "26"}
@@ -37,7 +37,7 @@ func TestDatastreamMarkers(t *testing.T) {
 		aoc.AOCTest(t, day06p01, []aoc.TestInput{{Input: strings.NewReader(input), Want: first[i]}})
 		aoc.AOCTest(t, day06p02, []aoc.TestInput{{Input: strings.NewReader(input), Want: second[i]}})
 	}
-	for _, input := range []string{"aaaa\n", "abc\n", "abcd\nefgh"} {
+	for _, input := range []string{"aaaa\n", "abc\n", "abcd\nefgh", "aAbB", "ab1d"} {
 		if _, err := day06p01(strings.NewReader(input)); err == nil {
 			t.Errorf("expected datastream error for %q", input)
 		}

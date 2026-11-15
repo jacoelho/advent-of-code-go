@@ -72,11 +72,11 @@ func TestCubeEdgesReverse(t *testing.T) {
 						{X: offset, Y: 0},
 					}[facing]
 					start := face.origin.Add(local)
-					next, direction, err := cube.wrap(start, facing, nil)
+					next, direction, err := cube.wrap(start, facing)
 					if err != nil {
 						t.Fatal(err)
 					}
-					back, reverse, err := cube.wrap(next, (direction+2)%4, nil)
+					back, reverse, err := cube.wrap(next, (direction+2)%4)
 					if err != nil || back != start || reverse != (facing+2)%4 {
 						t.Fatalf("edge %v/%d: reverse returned %v/%d, %v", start, facing, back, reverse, err)
 					}
@@ -100,7 +100,7 @@ func TestCubeInvalidNets(t *testing.T) {
 }
 
 func TestMapInvalidInput(t *testing.T) {
-	for _, input := range []string{"", ".\n\n", "#\n\n1", ".\n\n1R", ".\n\n1X2", ".\n\nR1", "x\n\n1"} {
+	for _, input := range []string{"", ".\n\n", "#\n\n1", ".\n\n1R", ".\n\n1X2", ".\n\nR1", "x\n\n1", ".\n\n1 "} {
 		if _, err := day22p01(strings.NewReader(input)); err == nil {
 			t.Fatalf("expected map input error for %q", input)
 		}

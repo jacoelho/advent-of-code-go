@@ -41,6 +41,7 @@ func TestCratesInvalidInput(t *testing.T) {
 		"[A] [B]\n 1   1 \n\nmove 0 from 1 to 1",
 		"[A] [B]\n 1   2 \n\nmove 2 from 1 to 2",
 		"[A] [B]\n 1   2 \n\nmove 1 from 1 to 2",
+		"[A] [B]\n 1   2 \n\nmove 1 from 1 to 2\n\nmove 1 from 2 to 1",
 	} {
 		if _, err := day05p02(strings.NewReader(input)); err == nil {
 			t.Errorf("expected crate error for %q", input)

@@ -65,6 +65,7 @@ func TestBeaconSquareEdges(t *testing.T) {
 		{"Sensor at x=0, y=0: closest beacon is at x=0, y=0\nSensor at x=1, y=0: closest beacon is at x=1, y=0\nSensor at x=0, y=1: closest beacon is at x=0, y=1", 1, "4000001"},
 		{"Sensor at x=1, y=1: closest beacon is at x=1, y=1\nSensor at x=1, y=0: closest beacon is at x=1, y=0\nSensor at x=0, y=1: closest beacon is at x=0, y=1", 1, "0"},
 		{"Sensor at x=1, y=1: closest beacon is at x=1, y=1", 0, "0"},
+		{"Sensor at x=0, y=0: closest beacon is at x=2, y=0\nSensor at x=4, y=4: closest beacon is at x=8, y=4\nSensor at x=-1, y=4: closest beacon is at x=1, y=4\nSensor at x=4, y=-1: closest beacon is at x=8, y=-1", 3, "4000002"},
 	}
 	for _, tt := range tests {
 		got, err := distressBeacon(strings.NewReader(tt.input), tt.limit)
@@ -97,5 +98,19 @@ func TestDay15ReaderErrors(t *testing.T) {
 				t.Fatalf("got %v; want input read failure", err)
 			}
 		})
+	}
+}
+
+func TestSensorInvalidInput(t *testing.T) {
+	for _, input := range []string{
+		"Sensor at x=2147483648, y=0: closest beacon is at x=0, y=0",
+		"Sensor at x=0, y=0: closest beacon at x=0, y=0",
+	} {
+		if _, err := excludedBeacons(strings.NewReader(input), 0); err == nil {
+			t.Errorf("expected sensor error for %q", input)
+		}
+	}
+	if _, err := distressBeacon(strings.NewReader("Sensor at x=0, y=0: closest beacon is at x=0, y=0"), -1); err == nil {
+		t.Error("expected negative limit error")
 	}
 }

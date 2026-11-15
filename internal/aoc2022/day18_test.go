@@ -49,7 +49,7 @@ func TestLavaEnclosedAir(t *testing.T) {
 }
 
 func TestLavaErrors(t *testing.T) {
-	for _, input := range []string{"", "1,2", "1,2,x", "-2147483648,0,0\n2147483647,0,0"} {
+	for _, input := range []string{"", "1,2", "1,2,x", "1,1,1\n1,1,1", "-2147483648,-2147483648,-2147483648\n2147483647,2147483647,2147483647"} {
 		if _, err := day18p02(strings.NewReader(input)); err == nil {
 			t.Errorf("expected lava input or bounds error for %q", input)
 		}

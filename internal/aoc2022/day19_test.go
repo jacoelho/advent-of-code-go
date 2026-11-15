@@ -32,12 +32,7 @@ func Test_day19p02(t *testing.T) {
 func TestRobotBuildTiming(t *testing.T) {
 	blueprint := robotBlueprint{costs: [4][3]int{{1, 0, 0}, {1, 0, 0}, {1, 1, 0}, {1, 0, 1}}}
 	for _, test := range []struct{ minutes, want int }{{6, 0}, {7, 1}} {
-		work := 0
-		got, err := blueprintGeodes(blueprint, test.minutes, &work)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != test.want {
+		if got := blueprintGeodes(blueprint, test.minutes); got != test.want {
 			t.Errorf("%d minutes = %d geodes, want %d", test.minutes, got, test.want)
 		}
 	}

@@ -1,146 +1,171 @@
 package aoc2022
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
-func parseElves(r io.Reader) (collections.Set[grid.Position2D[int]], error) {
-	elves := collections.NewSet[grid.Position2D[int]]()
-	s := bufio.NewScanner(r)
-	width, height := 0, 0
-	for s.Scan() {
-		row := s.Bytes()
-		if height == 0 {
-			width = len(row)
-		}
-		if len(row) == 0 || len(row) != width {
-			return nil, fmt.Errorf("elf grove must be a nonempty rectangle")
-		}
-		if height >= 1_000_000/width {
-			return nil, fmt.Errorf("elf grove exceeds one million cells")
-		}
-		for x, c := range row {
-			switch c {
-			case '#':
-				elves.Add(grid.Position2D[int]{X: x, Y: height})
-			case '.':
-			default:
-				return nil, fmt.Errorf("invalid elf grove cell %q", c)
-			}
-		}
-		height++
-		if len(elves) > 100_000 {
-			return nil, fmt.Errorf("elf grove exceeds one hundred thousand elves")
-		}
-	}
-	if err := s.Err(); err != nil {
-		return nil, err
-	}
-	if height == 0 {
-		return nil, fmt.Errorf("empty elf grove")
-	}
-	return elves, nil
+// elfGrove keeps elves on a flat occupancy grid whose border is always at
+// least one cell away from every elf, so neighbour indices stay in bounds.
+type elfGrove struct {
+	width, height int
+	origin        grid.Position2D[int]
+	occupied      []bool
+	elves         []int
+	proposals     []uint8
+	destinations  []int
 }
 
-func elfRound(elves collections.Set[grid.Position2D[int]], round int) bool {
-	type proposal struct {
-		from  grid.Position2D[int]
-		count int
+func parseElves(r io.Reader) (*elfGrove, error) {
+	input, err := puzzleInput(r)
+	if err != nil {
+		return nil, err
 	}
-	proposals := make(map[grid.Position2D[int]]proposal)
-	directions := [4][3]grid.Position2D[int]{
-		{{X: 0, Y: -1}, {X: -1, Y: -1}, {X: 1, Y: -1}},
-		{{X: 0, Y: 1}, {X: -1, Y: 1}, {X: 1, Y: 1}},
-		{{X: -1, Y: 0}, {X: -1, Y: -1}, {X: -1, Y: 1}},
-		{{X: 1, Y: 0}, {X: 1, Y: -1}, {X: 1, Y: 1}},
+	rows := strings.Split(input, "\n")
+	var positions []grid.Position2D[int]
+	for y, row := range rows {
+		if len(row) == 0 || len(row) != len(rows[0]) {
+			return nil, fmt.Errorf("elf grove must be a nonempty rectangle")
+		}
+		for x := range len(row) {
+			switch row[x] {
+			case '#':
+				positions = append(positions, grid.Position2D[int]{X: x, Y: y})
+			case '.':
+			default:
+				return nil, fmt.Errorf("invalid elf grove cell %q", row[x])
+			}
+		}
 	}
-	for elf := range elves {
-		isolated := true
-		for _, offset := range grid.OffsetsNeighbours8[int]() {
-			if elves.Contains(elf.Add(offset)) {
-				isolated = false
+	if len(positions) == 0 {
+		return nil, fmt.Errorf("elf grove has no elves")
+	}
+	grove := &elfGrove{}
+	grove.place(positions)
+	return grove, nil
+}
+
+func elfBounds(positions []grid.Position2D[int]) (low, high grid.Position2D[int]) {
+	low, high = positions[0], positions[0]
+	for _, p := range positions {
+		low.X, low.Y = min(low.X, p.X), min(low.Y, p.Y)
+		high.X, high.Y = max(high.X, p.X), max(high.Y, p.Y)
+	}
+	return low, high
+}
+
+func (g *elfGrove) place(positions []grid.Position2D[int]) {
+	low, high := elfBounds(positions)
+	margin := max(8, (high.X-low.X)/2, (high.Y-low.Y)/2)
+	g.width = high.X - low.X + 1 + 2*margin
+	g.height = high.Y - low.Y + 1 + 2*margin
+	g.origin = grid.Position2D[int]{X: low.X - margin, Y: low.Y - margin}
+	g.occupied = make([]bool, g.width*g.height)
+	g.proposals = make([]uint8, g.width*g.height)
+	g.elves = g.elves[:0]
+	for _, p := range positions {
+		index := (p.Y-g.origin.Y)*g.width + p.X - g.origin.X
+		g.occupied[index] = true
+		g.elves = append(g.elves, index)
+	}
+	g.destinations = make([]int, len(g.elves))
+}
+
+func (g *elfGrove) positions() []grid.Position2D[int] {
+	positions := make([]grid.Position2D[int], len(g.elves))
+	for i, index := range g.elves {
+		positions[i] = grid.Position2D[int]{X: g.origin.X + index%g.width, Y: g.origin.Y + index/g.width}
+	}
+	return positions
+}
+
+func (g *elfGrove) touchesBorder() bool {
+	for _, index := range g.elves {
+		x, y := index%g.width, index/g.width
+		if x == 0 || y == 0 || x == g.width-1 || y == g.height-1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *elfGrove) round(round int) bool {
+	if g.touchesBorder() {
+		g.place(g.positions())
+	}
+	w := g.width
+	// Each direction lists the cell moved into followed by its two diagonal flanks.
+	directions := [4][3]int{
+		{-w, -w - 1, -w + 1},
+		{w, w - 1, w + 1},
+		{-1, -w - 1, w - 1},
+		{1, -w + 1, w + 1},
+	}
+	neighbours := [8]int{-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1}
+	for i, elf := range g.elves {
+		g.destinations[i] = -1
+		crowded := false
+		for _, offset := range neighbours {
+			if g.occupied[elf+offset] {
+				crowded = true
 				break
 			}
 		}
-		if isolated {
+		if !crowded {
 			continue
 		}
-		for i := range 4 {
-			direction := directions[(round+i)%4]
-			clear := true
-			for _, offset := range direction {
-				if elves.Contains(elf.Add(offset)) {
-					clear = false
-					break
-				}
-			}
-			if clear {
-				destination := elf.Add(direction[0])
-				candidate := proposals[destination]
-				candidate.from = elf
-				candidate.count++
-				proposals[destination] = candidate
+		for k := range 4 {
+			direction := directions[(round+k)%4]
+			if !g.occupied[elf+direction[0]] && !g.occupied[elf+direction[1]] && !g.occupied[elf+direction[2]] {
+				destination := elf + direction[0]
+				g.destinations[i] = destination
+				g.proposals[destination]++
 				break
 			}
 		}
 	}
 	moved := false
-	for destination, candidate := range proposals {
-		if candidate.count == 1 {
-			// Every destination was empty in the old grove, so these updates cannot block each other.
-			elves.Remove(candidate.from)
-			elves.Add(destination)
+	for i, destination := range g.destinations {
+		if destination < 0 {
+			continue
+		}
+		// Every destination was empty at the start of the round, so moves cannot block each other.
+		if g.proposals[destination] == 1 {
+			g.occupied[g.elves[i]] = false
+			g.occupied[destination] = true
+			g.elves[i] = destination
 			moved = true
 		}
+		g.proposals[destination] = 0
 	}
 	return moved
 }
 
 func day23p01(r io.Reader) (string, error) {
-	elves, err := parseElves(r)
+	grove, err := parseElves(r)
 	if err != nil {
 		return "", err
 	}
 	for round := range 10 {
-		elfRound(elves, round)
+		grove.round(round)
 	}
-	if len(elves) == 0 {
-		return "0", nil
-	}
-	var left, right, top, bottom int
-	first := true
-	for elf := range elves {
-		if first {
-			left, right, top, bottom = elf.X, elf.X, elf.Y, elf.Y
-			first = false
-		}
-		left, right = min(left, elf.X), max(right, elf.X)
-		top, bottom = min(top, elf.Y), max(bottom, elf.Y)
-	}
-	empty := int64(right-left+1)*int64(bottom-top+1) - int64(len(elves))
-	return strconv.FormatInt(empty, 10), nil
+	positions := grove.positions()
+	low, high := elfBounds(positions)
+	return strconv.Itoa((high.X-low.X+1)*(high.Y-low.Y+1) - len(positions)), nil
 }
 
 func day23p02(r io.Reader) (string, error) {
-	elves, err := parseElves(r)
+	grove, err := parseElves(r)
 	if err != nil {
 		return "", err
 	}
-	work := 100_000_000
-	for round := range 100_000 {
-		work -= len(elves)
-		if work < 0 {
-			return "", fmt.Errorf("elf diffusion exceeds one hundred million elf visits")
-		}
-		if !elfRound(elves, round) {
-			return strconv.Itoa(round + 1), nil
-		}
+	round := 0
+	for grove.round(round) {
+		round++
 	}
-	return "", fmt.Errorf("elf diffusion exceeds one hundred thousand rounds")
+	return strconv.Itoa(round + 1), nil
 }

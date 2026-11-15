@@ -54,3 +54,11 @@ func TestDay14ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRockInvalidInput(t *testing.T) {
+	for _, input := range []string{"-1,5 -> 2,5", "1,5 -> 1", "1,5 -> x,5", "0,2147483647 -> 0,2147483647"} {
+		if _, err := day14p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected rock error for %q", input)
+		}
+	}
+}
