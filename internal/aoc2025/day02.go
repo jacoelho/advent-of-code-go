@@ -3,7 +3,6 @@ package aoc2025
 import (
 	"fmt"
 	"io"
-	"iter"
 	"slices"
 	"strconv"
 
@@ -11,19 +10,11 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
+const maxProductIDDigits = 18
+
 type productRange struct {
 	start int
 	end   int
-}
-
-func (p productRange) Iter() iter.Seq[int] {
-	return func(yield func(int) bool) {
-		for i := p.start; i <= p.end; i++ {
-			if !yield(i) {
-				return
-			}
-		}
-	}
 }
 
 func parseProductRanges(r io.Reader) ([]productRange, error) {
@@ -37,62 +28,68 @@ func parseProductRanges(r io.Reader) ([]productRange, error) {
 	return slices.Collect(s.Values()), s.Err()
 }
 
-func day02(r io.Reader, filter func(int) bool) (string, error) {
+// repeatedBlockSum sums the IDs in p whose digits are one block repeated a
+// number of times accepted by repeats. An ID of d digits made of a k-digit
+// block h is h × (10^d − 1) / (10^k − 1), so the matching blocks for each (d, k)
+// form a range. Numbers such as 1111 arise from several block lengths and are
+// counted once.
+func repeatedBlockSum(p productRange, repeats func(int) bool) (int, error) {
+	if p.end >= pow10(maxProductIDDigits) {
+		return 0, fmt.Errorf("product ID exceeds %d digits", maxProductIDDigits)
+	}
+	ids := make(map[int]struct{})
+	for digits := 2; digits <= maxProductIDDigits; digits++ {
+		low, high := max(p.start, pow10(digits-1)), min(p.end, pow10(digits)-1)
+		if low > high {
+			continue
+		}
+		for block := 1; block <= digits/2; block++ {
+			if digits%block != 0 || !repeats(digits/block) {
+				continue
+			}
+			multiplier := (pow10(digits) - 1) / (pow10(block) - 1)
+			first := max(pow10(block-1), (low+multiplier-1)/multiplier)
+			last := min(pow10(block)-1, high/multiplier)
+			for h := first; h <= last; h++ {
+				ids[h*multiplier] = struct{}{}
+			}
+		}
+	}
+	sum := 0
+	for id := range ids {
+		sum += id
+	}
+	return sum, nil
+}
+
+func pow10(n int) int {
+	result := 1
+	for range n {
+		result *= 10
+	}
+	return result
+}
+
+func day02(r io.Reader, repeats func(int) bool) (string, error) {
 	productRanges, err := parseProductRanges(r)
 	if err != nil {
 		return "", err
 	}
-
 	var sum int
 	for _, pr := range productRanges {
-		for id := range pr.Iter() {
-			if filter(id) {
-				sum += id
-			}
+		rangeSum, err := repeatedBlockSum(pr, repeats)
+		if err != nil {
+			return "", err
 		}
+		sum += rangeSum
 	}
 	return strconv.Itoa(sum), nil
 }
 
-// hasRepeatedHalves returns true if the first half of the digits equals the second half.
-func hasRepeatedHalves(n int) bool {
-	digits := convert.ToDigits(n)
-	d := len(digits)
-	if d%2 != 0 {
-		return false
-	}
-	half := d / 2
-	return slices.Equal(digits[:half], digits[half:])
-}
-
 func day02p01(r io.Reader) (string, error) {
-	return day02(r, hasRepeatedHalves)
-}
-
-// hasRepeatingPattern reports whether n's digits form a repeating pattern.
-// A pattern repeats if the digit sequence can be split into identical blocks.
-func hasRepeatingPattern(n int) bool {
-	digits := convert.ToDigits(n)
-	d := len(digits)
-	if d < 2 {
-		return false
-	}
-
-outer:
-	for k := d / 2; k >= 1; k-- {
-		if d%k != 0 {
-			continue
-		}
-		for i := k; i < d; i++ {
-			if digits[i] != digits[i%k] {
-				continue outer
-			}
-		}
-		return true
-	}
-	return false
+	return day02(r, func(times int) bool { return times == 2 })
 }
 
 func day02p02(r io.Reader) (string, error) {
-	return day02(r, hasRepeatingPattern)
+	return day02(r, func(times int) bool { return times >= 2 })
 }

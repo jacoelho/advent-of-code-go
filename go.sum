@@ -1,2 +1,4 @@
+github.com/jacoelho/decimal v0.4.0 h1:Bpu76g2umWDWUBlsoj4BSjt10FAOEGTTi7W30W34Ac4=
+github.com/jacoelho/decimal v0.4.0/go.mod h1:LsN8VUP6Kx77ZH7GtZGQVLNkPhw669Cu2pxxZwNBeTg=
 golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b h1:18qgiDvlvH7kk8Ioa8Ov+K6xCi0GMvmGfGW0sgd/SYA=
 golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b/go.mod h1:j/pmGrbnkbPtQfxEe5D0VQhZC6qKbfKifgD0oM7sR70=

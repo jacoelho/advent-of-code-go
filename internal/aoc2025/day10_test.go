@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/pkg/linear"
 )
 
 func Test_day10p01(t *testing.T) {
@@ -91,21 +89,18 @@ func TestMachineArithmeticLimits(t *testing.T) {
 	if got, err := day10p02(strings.NewReader(maximum + "\n" + maximum)); err == nil || !strings.Contains(err.Error(), "machine 2: total presses") {
 		t.Fatalf("got %q, %v; want aggregate-overflow error", got, err)
 	}
-	if got, err := day10p02(strings.NewReader("[.] (0) (0) {9223372036854775807}")); err == nil || !strings.Contains(err.Error(), "unsupported joltage range") {
-		t.Fatalf("got %q, %v; want unsupported arithmetic-range error", got, err)
+	if got, err := day10p02(strings.NewReader("[.] (0) (0) {9223372036854775807}")); err != nil || got != strconv.FormatInt(math.MaxInt64, 10) {
+		t.Fatalf("duplicate buttons: got %q, %v; want MaxInt64", got, err)
 	}
 }
 
-func TestMachineWorkLimit(t *testing.T) {
+func TestJoltageStateLimit(t *testing.T) {
 	step, err := parseMachine([]byte("[.] (0) (0) {2}"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, solve := range []func(machineRequirements, *int) (int64, error){minButtonPresses, minButtonPressesForJoltage} {
-		remaining := 0
-		if got, err := solve(step, &remaining); err == nil || !strings.Contains(err.Error(), "work limit") {
-			t.Fatalf("got %d, %v; want exhausted-work error", got, err)
-		}
+	if got, err := minJoltagePresses(step, subsetsByParity(step), 0); err == nil || !strings.Contains(err.Error(), "exceeds 0 states") {
+		t.Fatalf("got %d, %v; want state-limit error", got, err)
 	}
 }
 
@@ -132,7 +127,7 @@ func TestMachineParsing(t *testing.T) {
 		"[..] (0) {0}",
 		"[" + wideLights + "] (64) {" + wideJoltage + "}",
 		"[." + wideLights + "] (64) {0," + wideJoltage + "}",
-		"[.] " + strings.Repeat("(0) ", 25) + "{0}",
+		"[.] " + strings.Repeat("(0) ", 17) + "{0}",
 	}
 	for i, input := range invalid {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -236,60 +231,6 @@ func TestDay10ReaderErrors(t *testing.T) {
 				if _, err := tt.solve(input); !errors.Is(err, failure) {
 					t.Fatalf("got %v; want reader failure", err)
 				}
-			}
-		})
-	}
-}
-
-func TestScaleToIntegers(t *testing.T) {
-	base, coefficients, denominator, err := scaleToIntegers(
-		[]linear.Rat{linear.NewRat(1, 2), linear.NewRat(1, 3)},
-		[][]linear.Rat{{linear.NewRat(-1, 6), linear.NewRat(1, 1)}},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(base, []int64{3, 2}) || len(coefficients) != 1 || !slices.Equal(coefficients[0], []int64{-1, 6}) || denominator != 6 {
-		t.Fatalf("scaled solution = %v, %v, %d", base, coefficients, denominator)
-	}
-}
-
-func TestScaleToIntegersBoundaries(t *testing.T) {
-	for _, tt := range []struct {
-		name        string
-		values      []linear.Rat
-		want        []int64
-		denominator int64
-	}{
-		{"LCM avoids product overflow", []linear.Rat{linear.NewRat(1, 4_000_000_000), linear.NewRat(1, 6_000_000_000)}, []int64{3, 2}, 12_000_000_000},
-		{"minimum numerator", []linear.Rat{linear.NewRat(math.MinInt64, 3), linear.NewRat(1, 3)}, []int64{math.MinInt64, 1}, 3},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got, _, denominator, err := scaleToIntegers(tt.values, nil)
-			if err != nil || !slices.Equal(got, tt.want) || denominator != tt.denominator {
-				t.Fatalf("scaled values = %v, denominator %d, error %v; want %v, %d", got, denominator, err, tt.want, tt.denominator)
-			}
-		})
-	}
-}
-
-func TestScaleToIntegersOverflow(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		base         []linear.Rat
-		coefficients [][]linear.Rat
-		context      string
-	}{
-		{"common denominator", []linear.Rat{linear.NewRat(1, math.MaxInt64), linear.NewRat(1, 2)}, nil, "common denominator exceeds int64"},
-		{"denominator exceeds positive range", []linear.Rat{linear.NewRat(1, math.MinInt64)}, nil, "common denominator exceeds int64"},
-		{"scaled coefficient", []linear.Rat{linear.NewRat(1, 2)}, [][]linear.Rat{{linear.NewRat(math.MaxInt64, 1)}}, "scale coefficient row 0: scaled value 0 exceeds int64"},
-		{"scaled numerator underflow", []linear.Rat{linear.NewRat(math.MinInt64, 3), linear.NewRat(1, 6)}, nil, "scale base: scaled value 0 exceeds int64"},
-		{"numerator exceeds positive range", []linear.Rat{linear.NewRat(math.MinInt64, -1)}, nil, "scale base: scaled value 0 exceeds int64"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			base, coefficients, denominator, err := scaleToIntegers(tt.base, tt.coefficients)
-			if err == nil || !strings.Contains(err.Error(), tt.context) || base != nil || coefficients != nil || denominator != 0 {
-				t.Fatalf("got %v, %v, %d, %v; want error containing %q without partial values", base, coefficients, denominator, err, tt.context)
 			}
 		})
 	}

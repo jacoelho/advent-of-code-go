@@ -8,6 +8,7 @@ import (
 	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+	"github.com/jacoelho/decimal"
 )
 
 func Test_day07p01(t *testing.T) {
@@ -115,5 +116,12 @@ func TestDay07ReaderErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestManifoldTimelineOverflow(t *testing.T) {
+	input := ".S.\n" + strings.Repeat(".^.\n^.^\n", 100)
+	if got, err := day07p02(strings.NewReader(input)); !errors.Is(err, decimal.ErrOverflow) {
+		t.Fatalf("got %q, %v; want decimal overflow", got, err)
 	}
 }

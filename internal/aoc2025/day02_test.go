@@ -1,6 +1,8 @@
 package aoc2025
 
 import (
+	"math/rand/v2"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,4 +35,36 @@ func Test_day02p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day02p02, tests)
+}
+
+func TestRepeatedBlockSumMatchesDigitComparison(t *testing.T) {
+	isRepeated := func(id int, repeats func(int) bool) bool {
+		digits := strconv.Itoa(id)
+		for block := 1; block <= len(digits)/2; block++ {
+			if len(digits)%block == 0 && repeats(len(digits)/block) &&
+				strings.Repeat(digits[:block], len(digits)/block) == digits {
+				return true
+			}
+		}
+		return false
+	}
+	random := rand.New(rand.NewPCG(7, 8))
+	for _, repeats := range []func(int) bool{
+		func(times int) bool { return times == 2 },
+		func(times int) bool { return times >= 2 },
+	} {
+		for range 300 {
+			start := random.IntN(2_000_000)
+			p := productRange{start: start, end: start + random.IntN(5_000)}
+			want := 0
+			for id := p.start; id <= p.end; id++ {
+				if isRepeated(id, repeats) {
+					want += id
+				}
+			}
+			if got, err := repeatedBlockSum(p, repeats); err != nil || got != want {
+				t.Fatalf("range %v: got %d, %v; want %d", p, got, err, want)
+			}
+		}
+	}
 }

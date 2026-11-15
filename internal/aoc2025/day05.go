@@ -1,53 +1,45 @@
 package aoc2025
 
 import (
+	"cmp"
+	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseInventory(r io.Reader) ([][2]int, []int, error) {
-	s := scanner.NewScannerWithSplit(r, scanner.SplitBySeparator([]byte{'\n', '\n'}), func(b []byte) (string, error) {
-		return string(b), nil
-	})
-
-	sections := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
+	sections, err := scanner.ReadBlocks(r)
+	if err != nil {
 		return nil, nil, err
 	}
-	if len(sections) < 2 {
-		return nil, nil, nil
+	if len(sections) != 2 || len(sections[0]) == 0 {
+		return nil, nil, fmt.Errorf("inventory must be ranges, a blank line, then ingredient IDs")
 	}
-
-	var ranges [][2]int
-	for line := range strings.SplitSeq(sections[0], "\n") {
-		if line == "" {
-			continue
+	ranges := make([][2]int, len(sections[0]))
+	for i, line := range sections[0] {
+		low, high, ok := strings.Cut(line, "-")
+		start, startErr := strconv.Atoi(low)
+		end, endErr := strconv.Atoi(high)
+		if !ok || startErr != nil || endErr != nil || start < 0 || start > end || end == math.MaxInt {
+			return nil, nil, fmt.Errorf("invalid ingredient range %q", line)
 		}
-		nums := convert.ExtractDigits[int](line)
-		if len(nums) != 2 {
-			continue
-		}
-		ranges = append(ranges, [2]int{nums[0], nums[1]})
+		ranges[i] = [2]int{start, end}
 	}
-
-	var integers []int
-	for line := range strings.SplitSeq(sections[1], "\n") {
-		if line == "" {
-			continue
+	ids := make([]int, len(sections[1]))
+	for i, line := range sections[1] {
+		id, err := strconv.Atoi(line)
+		if err != nil || id < 0 {
+			return nil, nil, fmt.Errorf("invalid ingredient ID %q", line)
 		}
-		nums := convert.ExtractDigits[int](line)
-		if len(nums) > 0 {
-			integers = append(integers, nums[0])
-		}
+		ids[i] = id
 	}
-
-	return ranges, integers, nil
+	return ranges, ids, nil
 }
 
 func mergeRanges(ranges [][2]int) [][2]int {
@@ -56,7 +48,7 @@ func mergeRanges(ranges [][2]int) [][2]int {
 	}
 
 	slices.SortFunc(ranges, func(a, b [2]int) int {
-		return a[0] - b[0]
+		return cmp.Compare(a[0], b[0])
 	})
 
 	var merged [][2]int

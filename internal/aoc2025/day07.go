@@ -3,128 +3,101 @@ package aoc2025
 import (
 	"fmt"
 	"io"
-	"iter"
-	"math/big"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/funcs"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
+	"github.com/jacoelho/decimal"
 )
 
-func parseTachyonManifoldDiagram(r io.Reader) (
-	grid.Grid2D[int, rune],
-	grid.Position2D[int],
-	error,
-) {
-	s := scanner.NewScanner(r, func(b []byte) (string, error) {
-		return string(b), nil
-	})
-	g := make(grid.Grid2D[int, rune])
-	var start grid.Position2D[int]
-	found := false
-	width, y := 0, 0
-	for row := range s.Values() {
-		if y == 0 {
-			width = len(row)
-		}
-		if len(row) == 0 || len(row) != width {
-			return nil, start, fmt.Errorf("manifold rows must be nonempty and have equal width")
-		}
-		if len(g)+len(row) > 100_000 || y == 4096 {
-			return nil, start, fmt.Errorf("manifold exceeds 100000 cells or 4096 rows")
-		}
-		for x, tile := range row {
-			if tile != '.' && tile != '^' && tile != 'S' {
-				return nil, start, fmt.Errorf("invalid manifold tile %q", tile)
-			}
-			pos := grid.NewPosition2D(x, y)
-			g[pos] = tile
-			if tile == 'S' {
-				if found {
-					return nil, start, fmt.Errorf("manifold has multiple starting positions")
-				}
-				start, found = pos, true
-			}
-		}
-		y++
-	}
-	if err := s.Err(); err != nil {
-		return nil, grid.Position2D[int]{}, err
-	}
-	if !found {
-		return nil, grid.Position2D[int]{}, fmt.Errorf("start position 'S' not found")
-	}
-
-	return g, start, nil
+type tachyonManifold struct {
+	rows  [][]byte
+	start grid.Position2D[int]
 }
 
-func traceTachyonBeam(
-	g grid.Grid2D[int, rune],
-	pos grid.Position2D[int],
-) (grid.Position2D[int], bool) {
-	for {
-		next := grid.NewPosition2D(pos.X, pos.Y+1)
-		v, exists := g[next]
-		if !exists {
-			return grid.Position2D[int]{}, false
+func parseTachyonManifoldDiagram(r io.Reader) (tachyonManifold, error) {
+	g, err := grid.ReadBytes(r, ".^S")
+	if err != nil {
+		return tachyonManifold{}, fmt.Errorf("manifold: %w", err)
+	}
+	start, err := g.Find('S')
+	if err != nil {
+		return tachyonManifold{}, fmt.Errorf("manifold: %w", err)
+	}
+	return tachyonManifold{rows: g.Rows(), start: start}, nil
+}
+
+// trace sends the beam down from the start one row at a time. A splitter
+// replaces each arriving beam with one in each neighbouring column, which
+// continue from the next row; a beam leaving the sides or the bottom ends its
+// timeline. It returns how many splitters are hit and how many timelines end,
+// or an error if the timeline count exceeds the Decimal range.
+func (m tachyonManifold) trace() (int, decimal.Decimal, error) {
+	width := len(m.rows[0])
+	beams, next := make([]decimal.Decimal, width), make([]decimal.Decimal, width)
+	beams[m.start.X] = decimal.FromInt64(1)
+	splits := 0
+	var timelines decimal.Decimal
+	add := func(total *decimal.Decimal, count decimal.Decimal) error {
+		sum, err := total.Add(count)
+		if err != nil {
+			return fmt.Errorf("tachyon timelines: %w", err)
 		}
-		switch v {
-		case '.':
-			pos = next
-		case '^':
-			return next, true
+		*total = sum
+		return nil
+	}
+	for _, row := range m.rows[m.start.Y+1:] {
+		clear(next)
+		for x, count := range beams {
+			if count.IsZero() {
+				continue
+			}
+			if row[x] != '^' {
+				if err := add(&next[x], count); err != nil {
+					return 0, decimal.Decimal{}, err
+				}
+				continue
+			}
+			splits++
+			for _, side := range [2]int{x - 1, x + 1} {
+				total := &timelines
+				if 0 <= side && side < width {
+					total = &next[side]
+				}
+				if err := add(total, count); err != nil {
+					return 0, decimal.Decimal{}, err
+				}
+			}
+		}
+		beams, next = next, beams
+	}
+	for _, count := range beams {
+		if err := add(&timelines, count); err != nil {
+			return 0, decimal.Decimal{}, err
 		}
 	}
+	return splits, timelines, nil
 }
 
 func day07p01(r io.Reader) (string, error) {
-	diagram, start, err := parseTachyonManifoldDiagram(r)
+	manifold, err := parseTachyonManifoldDiagram(r)
 	if err != nil {
 		return "", err
 	}
-
-	first, found := traceTachyonBeam(diagram, start)
-	if !found {
-		return "0", nil
+	splits, _, err := manifold.trace()
+	if err != nil {
+		return "", err
 	}
-	children := func(splitter grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-		return func(yield func(grid.Position2D[int]) bool) {
-			for _, dx := range [...]int{-1, 1} {
-				position := grid.NewPosition2D(splitter.X+dx, splitter.Y)
-				if !diagram.Contains(position) {
-					continue
-				}
-				if next, found := traceTachyonBeam(diagram, position); found && !yield(next) {
-					return
-				}
-			}
-		}
-	}
-	count := 0
-	for range search.DFS(first, children) {
-		count++
-	}
-	return strconv.Itoa(count), nil
+	return strconv.Itoa(splits), nil
 }
 
 func day07p02(r io.Reader) (string, error) {
-	diagram, start, err := parseTachyonManifoldDiagram(r)
+	manifold, err := parseTachyonManifoldDiagram(r)
 	if err != nil {
 		return "", err
 	}
-
-	var countTimelines func(pos grid.Position2D[int]) *big.Int
-	countTimelines = funcs.Memoize(func(pos grid.Position2D[int]) *big.Int {
-		splitter, found := traceTachyonBeam(diagram, pos)
-		if !found {
-			return big.NewInt(1)
-		}
-		leftTimelines := countTimelines(grid.NewPosition2D(splitter.X-1, splitter.Y))
-		rightTimelines := countTimelines(grid.NewPosition2D(splitter.X+1, splitter.Y))
-		return new(big.Int).Add(leftTimelines, rightTimelines)
-	})
-
-	return countTimelines(start).String(), nil
+	_, timelines, err := manifold.trace()
+	if err != nil {
+		return "", err
+	}
+	return timelines.String(), nil
 }
