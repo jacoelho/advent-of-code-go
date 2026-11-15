@@ -2,13 +2,15 @@ package aoc2024
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func Test_day14p01_example(t *testing.T) {
@@ -52,36 +54,38 @@ func Test_day14p02(t *testing.T) {
 	aoc.AOCTest(t, day14p02, tests)
 }
 
-func TestRobotFrames(t *testing.T) {
-	var robots []robot
-	for y := range 3 {
-		for x := range 2 {
-			if x != 0 || y != 0 {
-				robots = append(robots, robot{position: grid.NewPosition2D(x, y)})
-			}
-		}
+func TestBathroomTreeIsFrameWhereRobotsConverge(t *testing.T) {
+	const width, height, tree = 101, 103, 7777
+	var input strings.Builder
+	for v := 1; v <= 20; v++ {
+		x := xmath.Modulo(50-v*tree, width)
+		y := xmath.Modulo(40-2*v*tree, height)
+		fmt.Fprintf(&input, "p=%d,%d v=%d,%d\n", x, y, v, 2*v)
 	}
-	robots = append(robots, robot{velocity: grid.NewPosition2D(1, 1)})
-	got, err := uniqueRobotFrame(robots, 2, 3)
-	if err != nil || got != 0 {
-		t.Fatalf("unique frame = %d, %v; want 0", got, err)
-	}
-	for _, input := range [][]robot{{{}, {}}, {{}}, append(robots, robot{})} {
-		if _, err := uniqueRobotFrame(input, 2, 3); err == nil {
-			t.Fatal("expected non-unique or absent frame error")
-		}
+	got, err := day14p02(strings.NewReader(input.String()))
+	if err != nil || got != strconv.Itoa(tree) {
+		t.Fatalf("got %q, %v; want %d", got, err, tree)
 	}
 }
 
 func TestRobotInputErrors(t *testing.T) {
-	for _, input := range []string{"p=0,0", "p=0,0 v=1", "p=0,x v=0,0", "p=0,0 v=9223372036854775808,0"} {
+	for _, input := range []string{
+		"",
+		"p=0,0",
+		"p=0,0 v=1",
+		"p=0,x v=0,0",
+		"p=0,0 v=9223372036854775808,0",
+		"p=-1,0 v=0,0",
+		"p=101,0 v=0,0",
+		"p=0,103 v=0,0",
+	} {
 		for _, solve := range []func(io.Reader) (string, error){day14p01(101, 103), day14p02} {
 			if _, err := solve(strings.NewReader(input)); err == nil {
 				t.Fatalf("input %q: expected error", input)
 			}
 		}
 	}
-	for _, size := range [][2]int{{0, 103}, {101, 0}, {1_000_001, 103}} {
+	for _, size := range [][2]int{{0, 103}, {101, 0}} {
 		if _, err := day14p01(size[0], size[1])(strings.NewReader("p=0,0 v=0,0")); err == nil {
 			t.Fatalf("dimensions %v: expected error", size)
 		}

@@ -1,44 +1,29 @@
 package aoc2024
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
 func parseFallingBytes(r io.Reader, dimensions, steps int) ([]grid.Position2D[int], error) {
-	if dimensions < 0 || dimensions > 1024 {
-		return nil, fmt.Errorf("memory dimensions must be between 0 and 1024")
+	if dimensions < 0 {
+		return nil, fmt.Errorf("memory dimensions %d must be nonnegative", dimensions)
 	}
-	count := 0
 	s := scanner.NewScanner(r, func(line []byte) (grid.Position2D[int], error) {
-		count++
-		if count > 100_000 {
-			return grid.Position2D[int]{}, fmt.Errorf("memory input exceeds 100000 falling bytes")
-		}
-		xText, yText, ok := bytes.Cut(line, []byte(","))
-		if !ok {
-			return grid.Position2D[int]{}, fmt.Errorf("falling byte needs x,y coordinates")
-		}
-		x, err := convert.ScanNumber[int](xText)
+		p, err := grid.ParsePosition2D[int](string(line))
 		if err != nil {
-			return grid.Position2D[int]{}, fmt.Errorf("falling byte x: %w", err)
+			return grid.Position2D[int]{}, fmt.Errorf("falling byte: %w", err)
 		}
-		y, err := convert.ScanNumber[int](yText)
-		if err != nil {
-			return grid.Position2D[int]{}, fmt.Errorf("falling byte y: %w", err)
+		if !p.Within(dimensions+1, dimensions+1) {
+			return grid.Position2D[int]{}, fmt.Errorf("falling byte %d,%d is outside memory", p.X, p.Y)
 		}
-		if x < 0 || x > dimensions || y < 0 || y > dimensions {
-			return grid.Position2D[int]{}, fmt.Errorf("falling byte %d,%d is outside memory", x, y)
-		}
-		return grid.NewPosition2D(x, y), nil
+		return p, nil
 	})
 	corrupted := slices.Collect(s.Values())
 	if err := s.Err(); err != nil {

@@ -1,45 +1,73 @@
 package aoc2024
 
 import (
-	"bytes"
+	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-func parseSchematic(b []byte) (collections.Set[grid.Position2D[int]], error) {
-	result := collections.NewSet[grid.Position2D[int]]()
-	for y, line := range bytes.Split(b, []byte("\n")) {
-		for x, v := range line {
-			if v == '#' {
-				result.Add(grid.NewPosition2D(x, y))
+const (
+	day25Width  = 5
+	day25Height = 7
+	day25Row    = 1<<day25Width - 1
+)
+
+// parseSchematics returns each 5×7 schematic as a bitmask with bit y*5+x set
+// for every '#'.
+func parseSchematics(r io.Reader) (locks, keys []uint64, err error) {
+	blocks, err := scanner.ReadBlocks(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(blocks) == 0 {
+		return nil, nil, fmt.Errorf("no schematics")
+	}
+	for n, rows := range blocks {
+		if len(rows) != day25Height {
+			return nil, nil, fmt.Errorf("schematic %d has %d rows, want %d", n+1, len(rows), day25Height)
+		}
+		var mask uint64
+		for y, row := range rows {
+			if len(row) != day25Width {
+				return nil, nil, fmt.Errorf("schematic %d row %d has %d cells, want %d", n+1, y+1, len(row), day25Width)
+			}
+			for x, c := range row {
+				switch c {
+				case '#':
+					mask |= 1 << (y*day25Width + x)
+				case '.':
+				default:
+					return nil, nil, fmt.Errorf("schematic %d row %d has invalid character %q", n+1, y+1, c)
+				}
 			}
 		}
+		top := mask & day25Row
+		bottom := mask >> ((day25Height - 1) * day25Width) & day25Row
+		switch {
+		case top == day25Row && bottom == 0:
+			locks = append(locks, mask)
+		case top == 0 && bottom == day25Row:
+			keys = append(keys, mask)
+		default:
+			return nil, nil, fmt.Errorf("schematic %d is neither a lock nor a key", n+1)
+		}
 	}
-	return result, nil
-}
-
-func parseSchematics(r io.Reader) ([]collections.Set[grid.Position2D[int]], error) {
-	s := scanner.NewScannerWithSplit(r, scanner.SplitBySeparator([]byte{'\n', '\n'}), parseSchematic)
-	return slices.Collect(s.Values()), s.Err()
+	return locks, keys, nil
 }
 
 func day25p01(r io.Reader) (string, error) {
-	schematics, err := parseSchematics(r)
+	locks, keys, err := parseSchematics(r)
 	if err != nil {
 		return "", err
 	}
-
 	var total int
-	for pair := range xslices.Pairwise(schematics) {
-		if !xiter.From(pair.V1.Iter()).Any(pair.V2.Contains) {
-			total++
+	for _, lock := range locks {
+		for _, key := range keys {
+			if lock&key == 0 {
+				total++
+			}
 		}
 	}
 	return strconv.Itoa(total), nil

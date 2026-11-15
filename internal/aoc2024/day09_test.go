@@ -68,7 +68,7 @@ func TestDiskMapInput(t *testing.T) {
 				t.Errorf("input %q: got %q, %v; want 12", input, got, err)
 			}
 		}
-		for _, input := range []string{"12x3", "12\n3"} {
+		for _, input := range []string{"12x3", "12\n3", "", "\n"} {
 			if got, err := solve(strings.NewReader(input)); err == nil {
 				t.Errorf("input %q: got %q, want error", input, got)
 			}

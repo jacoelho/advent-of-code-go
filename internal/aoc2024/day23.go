@@ -26,13 +26,17 @@ func parseNetworkMap(r io.Reader) (map[string]collections.Set[string], error) {
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		a, b, ok := strings.Cut(s.Text(), "-")
-		if !ok || a == "" || b == "" || a == b || strings.Contains(b, "-") {
-			return nil, fmt.Errorf("invalid network connection %q", s.Text())
+		if !ok || !day23ValidComputer(a) || !day23ValidComputer(b) || a == b {
+			return nil, fmt.Errorf("invalid network connection %q: want two distinct computers as aa-bb", s.Text())
 		}
 		addEdge(a, b)
 		addEdge(b, a)
 	}
 	return result, s.Err()
+}
+
+func day23ValidComputer(name string) bool {
+	return len(name) == 2 && name[0] >= 'a' && name[0] <= 'z' && name[1] >= 'a' && name[1] <= 'z'
 }
 
 func day23p01(r io.Reader) (string, error) {

@@ -58,6 +58,21 @@ MXMXAXMASX`),
 	aoc.AOCTest(t, day04p02, tests)
 }
 
+func TestWordSearchCountsAtEdges(t *testing.T) {
+	aoc.AOCTest(t, day04p01, []aoc.TestInput{{Input: strings.NewReader("XMAS\nMMMM\nAAAA\nSAMX"), Want: "3"}})
+	aoc.AOCTest(t, day04p02, []aoc.TestInput{{Input: strings.NewReader("MXS\nXAX\nMXS"), Want: "1"}})
+}
+
+func TestWordSearchInputErrors(t *testing.T) {
+	for _, input := range []string{"XMAS\nXMA", "XMAS\n\nXMAS", "XMAX\nXMAx", "XM.S"} {
+		for _, solve := range []func(io.Reader) (string, error){day04p01, day04p02} {
+			if got, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("input %q: got %q; want error", input, got)
+			}
+		}
+	}
+}
+
 func TestDay04ReaderErrors(t *testing.T) {
 	want := errors.New("input read failure")
 	for _, tt := range []struct {

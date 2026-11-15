@@ -91,7 +91,7 @@ func TestCalibrationAgainstForwardEvaluation(t *testing.T) {
 				values[i] = int64(n % 4)
 				n /= 4
 			}
-			for _, operators := range []calibrationOperators{calibrationBasic, calibrationWithConcat} {
+			for _, concat := range []bool{false, true} {
 				reachable := make(map[string]bool)
 				var evaluate func(int, *big.Int)
 				evaluate = func(index int, value *big.Int) {
@@ -102,7 +102,7 @@ func TestCalibrationAgainstForwardEvaluation(t *testing.T) {
 					next := big.NewInt(values[index])
 					evaluate(index+1, new(big.Int).Add(value, next))
 					evaluate(index+1, new(big.Int).Mul(value, next))
-					if operators == calibrationWithConcat {
+					if concat {
 						joined, ok := new(big.Int).SetString(value.String()+next.String(), 10)
 						if !ok {
 							t.Fatal("invalid decimal concatenation")
@@ -112,11 +112,10 @@ func TestCalibrationAgainstForwardEvaluation(t *testing.T) {
 				}
 				evaluate(1, big.NewInt(values[0]))
 				for target := int64(0); target <= 50; target++ {
-					equation := calibrationEquation{target: target, values: values}
-					got, err := calibrationReachable(equation, operators, new(10_000))
+					got := calibrationReachable(values, target, concat)
 					want := reachable[strconv.FormatInt(target, 10)]
-					if err != nil || got != want {
-						t.Fatalf("values %v, target %d, operators %d: got %v, %v; want %v", values, target, operators, got, err, want)
+					if got != want {
+						t.Fatalf("values %v, target %d, concat %v: got %v; want %v", values, target, concat, got, want)
 					}
 				}
 			}

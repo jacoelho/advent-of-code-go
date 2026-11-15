@@ -8,15 +8,14 @@ import (
 )
 
 func parseDiskMap(r io.Reader) ([]byte, error) {
-	const digitLimit = 100_000
-	data, err := io.ReadAll(io.LimitReader(r, digitLimit+3))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 	data = bytes.TrimSuffix(data, []byte("\n"))
 	data = bytes.TrimSuffix(data, []byte("\r"))
-	if len(data) == 0 || len(data) > digitLimit {
-		return nil, fmt.Errorf("disk map must contain 1 to 100000 digits")
+	if len(data) == 0 {
+		return nil, fmt.Errorf("disk map is empty")
 	}
 	for _, digit := range data {
 		if digit < '0' || digit > '9' {
@@ -95,30 +94,28 @@ func day09p02(r io.Reader) (string, error) {
 		return "", err
 	}
 	files, free := diskSpans(digits)
-	remaining := 100_000_000
+	// Free spans only shrink from the left and files move right to left, so a
+	// span too small for a size, or not left of the current file, stays unusable
+	// for that size: the first fit for each size never moves left.
+	var firstFit [10]int
 	for fileID := len(files) - 1; fileID > 0; fileID-- {
 		file := files[fileID]
 		if file.size == 0 {
 			continue
 		}
-		for i, span := range free {
-			if remaining == 0 {
-				return "", fmt.Errorf("disk compaction exceeds one hundred million free span checks")
-			}
-			remaining--
-			if span.index >= file.index {
-				free = free[:i]
-				break
-			}
-			if span.size < file.size {
-				continue
-			}
-			files[fileID].index = span.index
-			free[i].index += file.size
-			free[i].size -= file.size
-			// Vacated space is to the right of every file still to be considered.
-			break
+		i := firstFit[file.size]
+		for i < len(free) && free[i].index < file.index && free[i].size < file.size {
+			i++
 		}
+		firstFit[file.size] = i
+		if i == len(free) || free[i].index >= file.index {
+			continue
+		}
+		// The vacated span lies right of every file still to be moved, so it is
+		// never added to the free list.
+		files[fileID].index = free[i].index
+		free[i].index += file.size
+		free[i].size -= file.size
 	}
 
 	var total int64

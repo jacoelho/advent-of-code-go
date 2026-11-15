@@ -3,38 +3,35 @@ package aoc2024
 import (
 	"fmt"
 	"io"
-	"iter"
-	"maps"
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/conc"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseSecretNumbers(r io.Reader) ([]int, error) {
-	s := scanner.NewScanner[int](r, convert.ScanNumber)
+	s := scanner.NewScanner(r, func(line []byte) (int, error) {
+		n, err := convert.ScanNumber[int](line)
+		if err != nil {
+			return 0, fmt.Errorf("secret number: %w", err)
+		}
+		if n < 0 {
+			return 0, fmt.Errorf("secret number %d is negative", n)
+		}
+		return n, nil
+	})
 	return slices.Collect(s.Values()), s.Err()
 }
 
-func secretNumberIter(n int) iter.Seq[int] {
-	return xiter.Apply(n, func(n int) int {
-		n = (n ^ (n << 6)) & 16777215
-		n = (n ^ (n >> 5)) & 16777215
-		n = (n ^ (n << 11)) & 16777215
-		return n
-	})
+func day22NextSecret(n int) int {
+	n = (n ^ (n << 6)) & 16777215
+	n = (n ^ (n >> 5)) & 16777215
+	n = (n ^ (n << 11)) & 16777215
+	return n
 }
 
-func secretNumberIterationN(n int) int {
-	v, ok := xiter.From(secretNumberIter(n)).Skip(2000).First()
-	if !ok {
-		panic("next not found")
-	}
-	return v
-}
+const day22Changes = 2000
 
 func day22p01(r io.Reader) (string, error) {
 	secretNumbers, err := parseSecretNumbers(r)
@@ -43,31 +40,40 @@ func day22p01(r io.Reader) (string, error) {
 	}
 
 	var total int
-	for _, secretNumber := range secretNumbers {
-		total += secretNumberIterationN(secretNumber)
+	for _, n := range secretNumbers {
+		for range day22Changes {
+			n = day22NextSecret(n)
+		}
+		total += n
 	}
 	return strconv.Itoa(total), nil
 }
 
-func sellSequences(n int) map[[4]int]int {
-	prices := xiter.From(secretNumberIter(n)).Take(2001).Map(func(v int) int { return v % 10 })
-	total := make(map[[4]int]int)
-	var changes [4]int
-	previous := n % 10
-	for i, price := range xiter.Enumerate(prices.All()) {
-		if i == 0 {
-			continue
-		}
-		changes = [4]int{changes[1], changes[2], changes[3], price - previous}
-		previous = price
-		if i < len(changes) {
-			continue
-		}
-		if _, seen := total[changes]; !seen {
-			total[changes] = price
+// day22Sequences is the number of four-change sequences; each change is a
+// price difference in -9..9, so a sequence is a four-digit base-19 key.
+const day22Sequences = 19 * 19 * 19 * 19
+
+// day22BananaTotals returns, for each four-change sequence key, the bananas
+// bought when every buyer sells at the first occurrence of that sequence.
+func day22BananaTotals(secretNumbers []int) *[day22Sequences]int32 {
+	totals := new([day22Sequences]int32)
+	seen := new([day22Sequences]int32)
+	for buyer, n := range secretNumbers {
+		stamp := int32(buyer + 1)
+		previous := n % 10
+		key := 0
+		for i := range day22Changes {
+			n = day22NextSecret(n)
+			price := n % 10
+			key = key%(19*19*19)*19 + price - previous + 9
+			previous = price
+			if i >= 3 && seen[key] != stamp {
+				seen[key] = stamp
+				totals[key] += int32(price)
+			}
 		}
 	}
-	return total
+	return totals
 }
 
 func day22p02(r io.Reader) (string, error) {
@@ -75,16 +81,9 @@ func day22p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	total := make(map[[4]int]int)
-	for _, m := range conc.Map(sellSequences, secretNumbers) {
-		for k, v := range m {
-			total[k] += v
-		}
-	}
-	maxBananas, ok := xiter.Max(maps.Values(total))
-	if !ok {
+	if len(secretNumbers) == 0 {
 		return "", fmt.Errorf("no secret numbers")
 	}
-	return strconv.Itoa(maxBananas), nil
+	totals := day22BananaTotals(secretNumbers)
+	return strconv.Itoa(int(slices.Max(totals[:]))), nil
 }

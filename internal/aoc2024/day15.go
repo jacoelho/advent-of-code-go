@@ -3,11 +3,11 @@ package aoc2024
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
-	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 func convertDirection(r rune) (grid.Position2D[int], error) {
@@ -25,234 +25,141 @@ func convertDirection(r rune) (grid.Position2D[int], error) {
 	}
 }
 
-func warehouseIdentityTile(r rune) []rune {
-	return []rune{r}
+func warehouseIdentityTile(tile byte) []byte {
+	return []byte{tile}
 }
 
-func warehouseScaleUpTile(r rune) []rune {
-	switch r {
+func warehouseScaleUpTile(tile byte) []byte {
+	switch tile {
 	case 'O':
-		return []rune{'[', ']'}
+		return []byte{'[', ']'}
 	case '@':
-		return []rune{'@', '.'}
+		return []byte{'@', '.'}
 	}
-	return []rune{r, r}
+	return []byte{tile, tile}
 }
 
-func parseWarehouse(
-	r io.Reader,
-	transform func(r rune) []rune,
-) (grid.Grid2D[int, rune], []grid.Position2D[int], error) {
-	const inputLimit = 128 << 10
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+type day15Warehouse struct {
+	tiles [][]byte
+	robot grid.Position2D[int]
+}
+
+func parseWarehouse(r io.Reader, transform func(byte) []byte) (day15Warehouse, []grid.Position2D[int], error) {
+	blocks, err := scanner.ReadBlocks(r)
 	if err != nil {
-		return nil, nil, err
+		return day15Warehouse{}, nil, err
 	}
-	if len(data) > inputLimit {
-		return nil, nil, fmt.Errorf("warehouse input exceeds 128 KiB")
-	}
-	text := strings.ReplaceAll(string(data), "\r\n", "\n")
-	mapString, movementString, ok := strings.Cut(text, "\n\n")
-	if !ok {
-		return nil, nil, fmt.Errorf("warehouse needs a map and movement section")
+	if len(blocks) < 2 {
+		return day15Warehouse{}, nil, fmt.Errorf("warehouse needs a map and movement section")
 	}
 
-	rows := strings.Split(mapString, "\n")
-	width := len(rows[0])
-	if width < 3 || len(rows) < 3 {
-		return nil, nil, fmt.Errorf("warehouse needs an enclosed map")
+	rows := blocks[0]
+	if len(rows) < 3 || len(rows[0]) < 3 {
+		return day15Warehouse{}, nil, fmt.Errorf("warehouse needs an enclosed map")
 	}
-	mapLines := make([][]rune, len(rows))
+	width := len(rows[0])
+	var w day15Warehouse
+	robots := 0
+	w.tiles = make([][]byte, len(rows))
 	for y, row := range rows {
 		if len(row) != width {
-			return nil, nil, fmt.Errorf("warehouse row %d has inconsistent width", y+1)
+			return day15Warehouse{}, nil, fmt.Errorf("warehouse row %d has width %d, want %d", y+1, len(row), width)
 		}
-		for x, tile := range row {
+		for x := range len(row) {
+			tile := row[x]
 			if tile != '#' && tile != '.' && tile != 'O' && tile != '@' {
-				return nil, nil, fmt.Errorf("invalid warehouse tile %q", tile)
+				return day15Warehouse{}, nil, fmt.Errorf("warehouse row %d has invalid tile %q", y+1, tile)
 			}
 			if (x == 0 || x == width-1 || y == 0 || y == len(rows)-1) && tile != '#' {
-				return nil, nil, fmt.Errorf("warehouse boundary must be walls")
+				return day15Warehouse{}, nil, fmt.Errorf("warehouse boundary must be walls")
 			}
-			mapLines[y] = append(mapLines[y], transform(tile)...)
+			if tile == '@' {
+				robots++
+				w.robot = grid.Position2D[int]{X: len(w.tiles[y]), Y: y}
+			}
+			w.tiles[y] = append(w.tiles[y], transform(tile)...)
 		}
+	}
+	if robots != 1 {
+		return day15Warehouse{}, nil, fmt.Errorf("warehouse has %d robots, want 1", robots)
 	}
 
 	var movements []grid.Position2D[int]
-	for _, ch := range movementString {
-		if ch == '\n' {
-			continue
+	for _, line := range slices.Concat(blocks[1:]...) {
+		for _, ch := range line {
+			direction, err := convertDirection(ch)
+			if err != nil {
+				return day15Warehouse{}, nil, err
+			}
+			movements = append(movements, direction)
 		}
-		direction, err := convertDirection(ch)
-		if err != nil {
-			return nil, nil, err
-		}
-		movements = append(movements, direction)
 	}
-	return grid.NewGrid2D[int](mapLines), movements, nil
+	return w, movements, nil
 }
 
-func robotStartPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
-	var position grid.Position2D[int]
-	found := false
-	for p, tile := range g {
-		if tile != '@' {
-			continue
-		}
-		if found {
-			return position, fmt.Errorf("warehouse has multiple robots")
-		}
-		position, found = p, true
-	}
-	if !found {
-		return position, fmt.Errorf("warehouse robot not found")
-	}
-	return position, nil
+func (w *day15Warehouse) tile(p grid.Position2D[int]) byte {
+	return w.tiles[p.Y][p.X]
 }
 
-func move(
-	g grid.Grid2D[int, rune],
-	robot grid.Position2D[int],
-	direction grid.Position2D[int],
-) grid.Position2D[int] {
-	var boxesToMove []grid.Position2D[int]
-
-LOOP:
-	for currentPosition := robot.Add(direction); ; currentPosition = currentPosition.Add(direction) {
-		switch g[currentPosition] {
-		case '.':
-			break LOOP
+// push moves the robot one step in direction, shifting every box in the way,
+// unless any of them is blocked by a wall. The walled boundary keeps every
+// visited cell inside the map.
+func (w *day15Warehouse) push(direction grid.Position2D[int]) {
+	right := grid.Position2D[int]{X: 1}
+	cells := []grid.Position2D[int]{w.robot}
+	enqueue := func(p grid.Position2D[int]) {
+		if !slices.Contains(cells, p) {
+			cells = append(cells, p)
+		}
+	}
+	for i := 0; i < len(cells); i++ {
+		next := cells[i].Add(direction)
+		switch w.tile(next) {
 		case '#':
-			return robot
+			return
 		case 'O':
-			boxesToMove = append(boxesToMove, currentPosition)
+			enqueue(next)
+		case '[':
+			enqueue(next)
+			enqueue(next.Add(right))
+		case ']':
+			enqueue(next)
+			enqueue(next.Sub(right))
 		}
 	}
-
-	g[robot] = '.'
-	g[robot.Add(direction)] = '@'
-
-	for i := len(boxesToMove) - 1; i >= 0; i-- {
-		box := boxesToMove[i]
-		g[box.Add(direction)] = '.'
-		g[box.Add(direction)] = 'O'
+	// Cells are discovered in order of distance along direction, so moving
+	// them in reverse empties each destination before it is filled.
+	for _, cell := range slices.Backward(cells) {
+		to := cell.Add(direction)
+		w.tiles[to.Y][to.X] = w.tile(cell)
+		w.tiles[cell.Y][cell.X] = '.'
 	}
+	w.robot = w.robot.Add(direction)
+}
 
-	return robot.Add(direction)
+func day15GPSSum(r io.Reader, transform func(byte) []byte) (string, error) {
+	warehouse, movements, err := parseWarehouse(r, transform)
+	if err != nil {
+		return "", err
+	}
+	for _, direction := range movements {
+		warehouse.push(direction)
+	}
+	var total int
+	for y, row := range warehouse.tiles {
+		for x, tile := range row {
+			if tile == 'O' || tile == '[' {
+				total += 100*y + x
+			}
+		}
+	}
+	return strconv.Itoa(total), nil
 }
 
 func day15p01(r io.Reader) (string, error) {
-	warehouse, movements, err := parseWarehouse(r, warehouseIdentityTile)
-	if err != nil {
-		return "", err
-	}
-	robotPosition, err := robotStartPosition(warehouse)
-	if err != nil {
-		return "", err
-	}
-
-	for _, direction := range movements {
-		robotPosition = move(warehouse, robotPosition, direction)
-	}
-
-	var total int
-	for p, v := range warehouse {
-		if v == 'O' {
-			total += 100*p.Y + p.X
-		}
-	}
-	return strconv.Itoa(total), nil
-}
-
-func moveMultiple(
-	g grid.Grid2D[int, rune],
-	robot grid.Position2D[int],
-	direction grid.Position2D[int],
-) grid.Position2D[int] {
-	visited := collections.NewSet[grid.Position2D[int]]()
-	frontier := collections.NewDeque[grid.Position2D[int]](10)
-	frontier.PushBack(robot)
-
-	type pair struct {
-		position grid.Position2D[int]
-		symbol   rune
-	}
-
-	var boxesToMove []pair
-
-	movePair := func(pos grid.Position2D[int], sym rune) {
-		oppositeBracket := func(bracket rune) rune {
-			if bracket == '[' {
-				return ']'
-			}
-			return '['
-		}
-
-		offsetBracket := func(bracket rune) grid.Position2D[int] {
-			if bracket == '[' {
-				return grid.Position2D[int]{X: 1, Y: 0}
-			}
-			return grid.Position2D[int]{X: -1, Y: 0}
-		}
-
-		p1 := pair{position: pos, symbol: sym}
-		p2 := pair{position: pos.Add(offsetBracket(sym)), symbol: oppositeBracket(sym)}
-
-		boxesToMove = append(boxesToMove, p1, p2)
-
-		for _, p := range []grid.Position2D[int]{p1.position, p2.position} {
-			if !visited.Contains(p) {
-				visited.Add(p)
-				frontier.PushBack(p)
-			}
-		}
-	}
-
-	for frontier.Size() > 0 {
-		node, _ := frontier.PopFront()
-		node = node.Add(direction)
-
-		switch g[node] {
-		case '#':
-			return robot
-		case '[':
-			movePair(node, '[')
-		case ']':
-			movePair(node, ']')
-		}
-	}
-
-	g[robot] = '.'
-	g[robot.Add(direction)] = '@'
-
-	for i := len(boxesToMove) - 1; i >= 0; i-- {
-		box := boxesToMove[i]
-		g[box.position] = '.'
-		g[box.position.Add(direction)] = box.symbol
-	}
-
-	return robot.Add(direction)
+	return day15GPSSum(r, warehouseIdentityTile)
 }
 
 func day15p02(r io.Reader) (string, error) {
-	warehouse, movements, err := parseWarehouse(r, warehouseScaleUpTile)
-	if err != nil {
-		return "", err
-	}
-	robotPosition, err := robotStartPosition(warehouse)
-	if err != nil {
-		return "", err
-	}
-
-	for _, direction := range movements {
-		robotPosition = moveMultiple(warehouse, robotPosition, direction)
-	}
-
-	var total int
-	for p, v := range warehouse {
-		if v == '[' {
-			total += 100*p.Y + p.X
-		}
-	}
-	return strconv.Itoa(total), nil
+	return day15GPSSum(r, warehouseScaleUpTile)
 }

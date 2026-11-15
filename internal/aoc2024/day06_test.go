@@ -59,7 +59,17 @@ func Test_day06p02(t *testing.T) {
 }
 
 func TestGuardMapErrors(t *testing.T) {
-	for _, input := range []string{".", "^^"} {
+	for _, input := range []string{
+		"",
+		".",
+		"^^",
+		"^\n.\n^",
+		".\n.^",
+		".\n\n^",
+		"x\n^",
+		"\x00\n^",
+		"\xc3\xa9\n.^",
+	} {
 		for _, solve := range []func(io.Reader) (string, error){day06p01, day06p02} {
 			if got, err := solve(strings.NewReader(input)); err == nil {
 				t.Fatalf("input %q: got %q; want guard error", input, got)

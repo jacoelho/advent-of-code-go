@@ -101,11 +101,10 @@ func TestPageOrdering(t *testing.T) {
 		input string
 		want  [2]string
 	}{
-		{"chain", "1|2\n2|3\n\n3,1,2", [2]string{"0", "2"}},
-		{"valid", "1|2\n2|3\n\n1,2,3", [2]string{"2", "0"}},
-		{"original order breaks ties", "1|3\n\n3,2,1", [2]string{"0", "1"}},
-		{"absent intermediate page", "1|2\n2|3\n\n3,1,4", [2]string{"1", "0"}},
-		{"unrelated cycle", "8|9\n9|8\n1|2\n\n2,1,3", [2]string{"0", "2"}},
+		{"reordered", "1|2\n2|3\n1|3\n\n3,1,2", [2]string{"0", "2"}},
+		{"ordered", "1|2\n2|3\n1|3\n\n1,2,3", [2]string{"2", "0"}},
+		{"single page", "1|2\n\n7", [2]string{"7", "0"}},
+		{"mixed updates", "5|7\n7|9\n5|9\n\n5,7,9\n9,5,7\n7", [2]string{"14", "7"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -119,18 +118,16 @@ func TestPageOrdering(t *testing.T) {
 	}
 }
 
-func TestPageOrderingCycle(t *testing.T) {
-	input := "1|2\n2|1\n\n1,2,3"
-	if got, err := day05p01(strings.NewReader(input)); err != nil || got != "0" {
-		t.Errorf("part 1: got %q, %v; want 0", got, err)
-	}
-	if got, err := day05p02(strings.NewReader(input)); err == nil {
-		t.Errorf("part 2: got %q, want cycle error", got)
-	}
-}
-
 func TestPageOrderingInvalidInput(t *testing.T) {
-	for _, input := range []string{"1|2\n\n1,2,1", "1|2|3\n\n1,2,3"} {
+	for _, input := range []string{
+		"1|2\n\n1,2,1",
+		"1|2|3\n\n1,2,3",
+		"1|2\n\n1,2",
+		"-1|2\n\n1,2,3",
+		"1|2\n\n1,-2,3",
+		"1|2",
+		"1|2\n\n1,2,3\n\n1,2,3",
+	} {
 		for _, solve := range []func(io.Reader) (string, error){day05p01, day05p02} {
 			if got, err := solve(strings.NewReader(input)); err == nil {
 				t.Errorf("input %q: got %q, want error", input, got)

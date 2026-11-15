@@ -45,17 +45,28 @@ func Test_day22p02(t *testing.T) {
 }
 
 func TestSecretFinalPrice(t *testing.T) {
-	prices := sellSequences(1)
-	if got, ok := prices[[4]int{-6, 3, -1, 7}]; !ok || got != 9 {
-		t.Fatalf("final price = %d, present %t; want 9", got, ok)
+	key := 0
+	for _, change := range []int{-6, 3, -1, 7} {
+		key = key*19 + change + 9
+	}
+	if got := day22BananaTotals([]int{1})[key]; got != 9 {
+		t.Fatalf("final price = %d; want 9", got)
 	}
 }
 
 func TestSecretNumberInputError(t *testing.T) {
-	for _, solve := range []func(io.Reader) (string, error){day22p01, day22p02} {
-		if _, err := solve(strings.NewReader("invalid")); err == nil {
-			t.Fatal("expected invalid secret number error")
+	for _, input := range []string{"invalid", "-1"} {
+		for _, solve := range []func(io.Reader) (string, error){day22p01, day22p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Fatalf("input %q: expected invalid secret number error", input)
+			}
 		}
+	}
+}
+
+func TestSecretNumbersEmptyHasNoBestSequence(t *testing.T) {
+	if got, err := day22p02(strings.NewReader("")); err == nil {
+		t.Fatalf("got %q, want no secret numbers error", got)
 	}
 }
 

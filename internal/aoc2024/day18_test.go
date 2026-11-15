@@ -128,7 +128,7 @@ func TestMemoryRoutes(t *testing.T) {
 
 func TestMemoryInputErrors(t *testing.T) {
 	for _, factory := range []func(int, int) func(io.Reader) (string, error){day18p01, day18p02} {
-		for _, config := range [][2]int{{-1, 0}, {1025, 0}, {1, -1}, {1, 2}} {
+		for _, config := range [][2]int{{-1, 0}, {1, -1}, {1, 2}} {
 			if _, err := factory(config[0], config[1])(strings.NewReader("0,0")); err == nil {
 				t.Fatalf("configuration %v: expected error", config)
 			}

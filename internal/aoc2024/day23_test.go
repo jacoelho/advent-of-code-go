@@ -101,7 +101,7 @@ td-yn`),
 }
 
 func TestNetworkConnectionErrors(t *testing.T) {
-	for _, input := range []string{"aa", "aa-bb-cc", "aa-", "aa-aa"} {
+	for _, input := range []string{"aa", "aa-bb-cc", "aa-", "aa-aa", "a-bb", "aaa-bb", "aA-bb", "a1-bb", " aa-bb"} {
 		for _, solve := range []func(io.Reader) (string, error){day23p01, day23p02} {
 			if got, err := solve(strings.NewReader(input)); err == nil {
 				t.Fatalf("input %q: got %q; want network connection error", input, got)
