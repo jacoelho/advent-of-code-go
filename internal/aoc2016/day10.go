@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math/big"
 	"regexp"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type chipDestination struct {
@@ -66,10 +66,7 @@ func botFactory(r io.Reader, comparison [2]int) (int, map[int][]int, error) {
 	chips := make(map[int]int)
 	outputs := make(map[int][]int)
 	comparer := -1
-	for deliveries := 0; queue.Size() > 0; deliveries++ {
-		if deliveries == 1_000_000 {
-			return -1, nil, fmt.Errorf("bot factory exceeds 1000000 deliveries")
-		}
+	for queue.Size() > 0 {
 		delivery, _ := queue.PopFront()
 		id := delivery.destination.id
 		if delivery.destination.kind == "output" {
@@ -115,12 +112,15 @@ func day10p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	product := big.NewInt(1)
+	product := 1
 	for output := range 3 {
 		if len(outputs[output]) != 1 {
 			return "", fmt.Errorf("output %d must contain exactly one chip", output)
 		}
-		product.Mul(product, big.NewInt(int64(outputs[output][0])))
+		var ok bool
+		if product, ok = xmath.CheckedMul(product, outputs[output][0]); !ok {
+			return "", fmt.Errorf("output chip product overflows int")
+		}
 	}
-	return product.String(), nil
+	return strconv.Itoa(product), nil
 }

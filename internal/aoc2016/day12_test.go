@@ -24,6 +24,12 @@ func Test_day12p02(t *testing.T) {
 	})
 }
 
+func TestAssembunnyRejectsEmptyProgram(t *testing.T) {
+	if _, err := day12p01(strings.NewReader("")); err == nil {
+		t.Fatal("accepted empty program")
+	}
+}
+
 func TestDay12ReaderErrors(t *testing.T) {
 	failure := errors.New("read failed")
 	if _, err := day12p01(iotest.ErrReader(failure)); !errors.Is(err, failure) {

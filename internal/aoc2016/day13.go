@@ -54,9 +54,6 @@ func officeMaze(r io.Reader, destination officePosition, maxDistance int) (int, 
 			if _, seen := distances[next]; seen || !isOpen(next) {
 				continue
 			}
-			if len(distances) == 1_000_000 {
-				return 0, 0, fmt.Errorf("maze search exceeds 1000000 positions")
-			}
 			distances[next] = distance + 1
 			queue.PushBack(next)
 		}

@@ -48,6 +48,7 @@ func TestDay06MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"message width", "abc\nab", day06p01},
+		{"empty input", "", day06p02},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

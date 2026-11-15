@@ -48,6 +48,7 @@ func TestDay07MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"IPv7 brackets", "aba[bab", day07p02},
+		{"empty address", "abba\n\nxyyx", day07p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

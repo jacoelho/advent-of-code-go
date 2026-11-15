@@ -31,30 +31,16 @@ func TestClockNeedsInfiniteAlternation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		remaining := 10_000
-		got, err := isClockSignal(program, 1, &remaining)
+		got, err := isClockSignal(program, 1)
 		if err != nil || got != tc.want {
 			t.Errorf("%q: clock=%v,%v; want%v", tc.program, got, err, tc.want)
 		}
 	}
 }
 
-func TestClockTotalBudget(t *testing.T) {
-	for _, input := range []string{"", "out 1"} {
-		program, err := parseAssembunny(strings.NewReader(input))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got, err := clockSeed(program, 20); err == nil || got != 0 {
-			t.Errorf("unbounded candidate search returned%d,%v", got, err)
-		}
-	}
-	program, err := parseAssembunny(strings.NewReader("cpy a b\ndec b\njnz b 3\ninc c\njnz 1 -1\nout 0\nout 1\njnz 1 -2"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := clockSeed(program, 20); err == nil || !strings.HasSuffix(err.Error(), "candidate 1") {
-		t.Fatalf("skipped undecided first candidate: %v", err)
+func TestClockRejectsProgramWithoutOut(t *testing.T) {
+	if _, err := day25p01(strings.NewReader("inc a\ntgl a")); err == nil {
+		t.Fatal("accepted program that cannot emit")
 	}
 }
 

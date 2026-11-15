@@ -1,14 +1,13 @@
 package search
 
 import (
-	"errors"
 	"iter"
 	"slices"
 	"testing"
 )
 
-func treeTraversals[T any]() map[string]func(T, func(T) ([]T, error)) iter.Seq2[T, error] {
-	return map[string]func(T, func(T) ([]T, error)) iter.Seq2[T, error]{
+func treeTraversals[T any]() map[string]func(T, func(T) []T) iter.Seq[T] {
+	return map[string]func(T, func(T) []T) iter.Seq[T]{
 		"DFS": DFSTree[T],
 		"BFS": BFSTree[T],
 	}
@@ -19,15 +18,15 @@ func TestTreeTraversal(t *testing.T) {
 	for name, traverse := range treeTraversals[node]() {
 		t.Run(name, func(t *testing.T) {
 			expansions := 0
-			children := func(current node) ([]node, error) {
+			children := func(current node) []node {
 				expansions++
 				switch current[0] {
 				case 1:
-					return []node{{2}, {3}}, nil
+					return []node{{2}, {3}}
 				case 2, 3:
-					return []node{{4}}, nil
+					return []node{{4}}
 				default:
-					return nil, nil
+					return nil
 				}
 			}
 			sequence := traverse(node{1}, children)
@@ -37,10 +36,7 @@ func TestTreeTraversal(t *testing.T) {
 			want := map[string][]int{"DFS": {1, 3, 4, 2, 4}, "BFS": {1, 2, 3, 4, 4}}[name]
 			for pass := range 2 {
 				var got []int
-				for current, err := range sequence {
-					if err != nil {
-						t.Fatal(err)
-					}
+				for current := range sequence {
 					got = append(got, current[0])
 				}
 				if !slices.Equal(got, want) {
@@ -55,12 +51,12 @@ func TestTreeEarlyStop(t *testing.T) {
 	for name, traverse := range treeTraversals[int]() {
 		t.Run(name, func(t *testing.T) {
 			visited := false
-			for node, err := range traverse(7, func(int) ([]int, error) {
+			for node := range traverse(7, func(int) []int {
 				t.Fatal("expanded a node after the consumer stopped")
-				return nil, nil
+				return nil
 			}) {
-				if node != 7 || err != nil {
-					t.Fatalf("got %d, %v; want root 7", node, err)
+				if node != 7 {
+					t.Fatalf("got %d; want root 7", node)
 				}
 				visited = true
 				break
@@ -72,56 +68,18 @@ func TestTreeEarlyStop(t *testing.T) {
 	}
 }
 
-func TestTreeExpansionError(t *testing.T) {
-	failure := errors.New("expansion failed")
-	for name, traverse := range treeTraversals[int]() {
-		t.Run(name, func(t *testing.T) {
-			first := map[string]int{"DFS": 2, "BFS": 1}[name]
-			var got []int
-			failures := 0
-			for node, err := range traverse(0, func(node int) ([]int, error) {
-				if node == 0 {
-					return []int{1, 2}, nil
-				}
-				if node != first {
-					t.Errorf("expanded %d after failure", node)
-				}
-				return []int{3}, failure
-			}) {
-				if err != nil {
-					if !errors.Is(err, failure) {
-						t.Fatalf("got error %v, want %v", err, failure)
-					}
-					failures++
-					continue
-				}
-				if failures != 0 {
-					t.Fatalf("yielded node %d after failure", node)
-				}
-				got = append(got, node)
-			}
-			if !slices.Equal(got, []int{0, first}) || failures != 1 {
-				t.Fatalf("nodes %v, errors %d; want [0 %d] and one error", got, failures, first)
-			}
-		})
-	}
-}
-
 func TestTreeCopiesChildValues(t *testing.T) {
 	for name, traverse := range treeTraversals[string]() {
 		t.Run(name, func(t *testing.T) {
 			children := []string{"a", "b"}
 			var got []string
-			for node, err := range traverse("root", func(node string) ([]string, error) {
+			for node := range traverse("root", func(node string) []string {
 				if node == "root" {
-					return children, nil
+					return children
 				}
 				clear(children)
-				return nil, nil
+				return nil
 			}) {
-				if err != nil {
-					t.Fatal(err)
-				}
 				got = append(got, node)
 			}
 			want := map[string][]string{"DFS": {"root", "b", "a"}, "BFS": {"root", "a", "b"}}[name]

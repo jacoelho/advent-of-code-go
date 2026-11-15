@@ -14,6 +14,9 @@ type ipv7Address struct{ supernets, hypernets []string }
 
 func parseIPv7(line []byte) (ipv7Address, error) {
 	var address ipv7Address
+	if len(line) == 0 {
+		return address, fmt.Errorf("empty IPv7 address")
+	}
 	start, inside := 0, false
 	for i, letter := range line {
 		switch letter {

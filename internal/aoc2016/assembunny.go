@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type bunnyOpcode byte
@@ -88,7 +89,13 @@ func parseAssembunny(r io.Reader) ([]bunnyInstruction, error) {
 		}
 		program = append(program, instruction)
 	}
-	return program, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(program) == 0 {
+		return nil, fmt.Errorf("empty assembunny program")
+	}
+	return program, nil
 }
 
 type bunnyMachine struct {
@@ -96,6 +103,7 @@ type bunnyMachine struct {
 	registers [4]int64
 	ip        int64
 	image     string
+	outputs   int
 }
 
 func newBunnyMachine(program []bunnyInstruction, registers [4]int64) bunnyMachine {
@@ -127,7 +135,10 @@ func bunnyAddPattern(code []bunnyInstruction) (int, int, bool) {
 	return a, counter, ok
 }
 
-func (m *bunnyMachine) accelerate() bool {
+// accelerate executes an addition or multiplication loop at the instruction
+// pointer in one step. A loop whose counter starts nonpositive, or whose
+// result exceeds int64, can only end in register overflow, so it fails at once.
+func (m *bunnyMachine) accelerate() (bool, error) {
 	code := m.program[m.ip:]
 	if len(code) >= 6 && code[0].opcode == bunnyCopy {
 		a, inner, ok := bunnyAddPattern(code[1:])
@@ -137,30 +148,35 @@ func (m *bunnyMachine) accelerate() bool {
 			outer != inner && outer != a && code[5].opcode == bunnyJump && code[5].x.register == outer &&
 			bunnyImmediate(code[5].y, -5) && source.register != a && source.register != inner && source.register != outer {
 			x, y := source.value(m.registers), m.registers[outer]
-			if x > 0 && y > 0 && x <= math.MaxInt64/y && m.registers[a] <= math.MaxInt64-x*y {
-				m.registers[a] += x * y
-				m.registers[inner], m.registers[outer] = 0, 0
-				m.ip += 6
-				return true
+			product, productOK := xmath.CheckedMul(x, y)
+			sum, sumOK := xmath.CheckedAdd(m.registers[a], product)
+			if x <= 0 || y <= 0 || !productOK || !sumOK {
+				return false, fmt.Errorf("multiplication loop at %d overflows a register", m.ip)
 			}
+			m.registers[a] = sum
+			m.registers[inner], m.registers[outer] = 0, 0
+			m.ip += 6
+			return true, nil
 		}
 	}
 	if a, counter, ok := bunnyAddPattern(code); ok {
 		count := m.registers[counter]
-		if count > 0 && m.registers[a] <= math.MaxInt64-count {
-			m.registers[a] += count
-			m.registers[counter] = 0
-			m.ip += 3
-			return true
+		sum, ok := xmath.CheckedAdd(m.registers[a], count)
+		if count <= 0 || !ok {
+			return false, fmt.Errorf("addition loop at %d overflows a register", m.ip)
 		}
+		m.registers[a] = sum
+		m.registers[counter] = 0
+		m.ip += 3
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 func (m *bunnyMachine) step() (int64, bool, error) {
 	// Match current instructions on every visit: tgl can change a previously seen loop.
-	if m.accelerate() {
-		return 0, false, nil
+	if accelerated, err := m.accelerate(); accelerated || err != nil {
+		return 0, false, err
 	}
 	instruction := m.program[m.ip]
 	offset := int64(1)
@@ -217,38 +233,65 @@ func (m *bunnyMachine) step() (int64, bool, error) {
 	return output, emitted, nil
 }
 
+// bunnyState is everything that determines how a machine continues. It keeps
+// the parity of the output count so that a repeated state also repeats the
+// expected next value of an alternating clock signal.
 type bunnyState struct {
 	registers [4]int64
 	ip        int64
 	image     string
-	next      int64
+	parity    int
 }
 
-func (m *bunnyMachine) state(next int64) bunnyState {
-	return bunnyState{m.registers, m.ip, m.image, next}
+func (m *bunnyMachine) state() bunnyState {
+	return bunnyState{m.registers, m.ip, m.image, m.outputs & 1}
 }
 
-const bunnyStateLimit = 1_000_000
+type bunnyOutcome int
+
+const (
+	bunnyHalted bunnyOutcome = iota
+	bunnyRejected
+	bunnyCycled
+)
+
+// run executes the machine until it halts, emit rejects an output value, or
+// the machine returns to an earlier state. Brent's cycle detection keeps
+// memory constant. For a cycle, run also reports the outputs per cycle.
+func (m *bunnyMachine) run(emit func(int64) bool) (bunnyOutcome, int, error) {
+	saved, savedOutputs := m.state(), m.outputs
+	power, length := 1, 0
+	for m.running() {
+		value, emitted, err := m.step()
+		if err != nil {
+			return 0, 0, err
+		}
+		if emitted {
+			if !emit(value) {
+				return bunnyRejected, 0, nil
+			}
+			m.outputs++
+		}
+		length++
+		if m.state() == saved {
+			return bunnyCycled, m.outputs - savedOutputs, nil
+		}
+		if length == power {
+			saved, savedOutputs = m.state(), m.outputs
+			power, length = 2*power, 0
+		}
+	}
+	return bunnyHalted, 0, nil
+}
 
 func runAssembunny(program []bunnyInstruction, initial [4]int64) ([4]int64, error) {
-	return executeAssembunny(program, initial, bunnyStateLimit)
-}
-
-func executeAssembunny(program []bunnyInstruction, initial [4]int64, stateLimit int) ([4]int64, error) {
 	machine := newBunnyMachine(program, initial)
-	seen := make(map[bunnyState]struct{})
-	for machine.running() {
-		state := machine.state(0)
-		if _, exists := seen[state]; exists {
-			return [4]int64{}, fmt.Errorf("program repeats a state at %d", machine.ip)
-		}
-		if len(seen) >= stateLimit {
-			return [4]int64{}, fmt.Errorf("execution exceeded %d states", stateLimit)
-		}
-		seen[state] = struct{}{}
-		if _, _, err := machine.step(); err != nil {
-			return [4]int64{}, err
-		}
+	outcome, _, err := machine.run(func(int64) bool { return true })
+	if err != nil {
+		return [4]int64{}, err
+	}
+	if outcome == bunnyCycled {
+		return [4]int64{}, fmt.Errorf("program repeats a state at %d", machine.ip)
 	}
 	return machine.registers, nil
 }

@@ -48,6 +48,7 @@ func TestDay05MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"door ID", "", day05p01},
+		{"door ID with space", "a b", day05p02},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

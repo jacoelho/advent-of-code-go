@@ -9,7 +9,15 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 )
+
+func screenOperands(text, separator string) (int, int, bool) {
+	first, second, ok := strings.Cut(text, separator)
+	a, errA := convert.ScanNumber[int]([]byte(first))
+	b, errB := convert.ScanNumber[int]([]byte(second))
+	return a, b, ok && errA == nil && errB == nil && a >= 0 && b >= 0
+}
 
 func swipeScreen(r io.Reader, width, height int) ([][]bool, error) {
 	pixels := make([][]bool, height)
@@ -19,11 +27,9 @@ func swipeScreen(r io.Reader, width, height int) ([][]bool, error) {
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		line := s.Text()
-		var a, b int
-		switch {
-		case strings.HasPrefix(line, "rect "):
-			n, err := fmt.Sscanf(line, "rect %dx%d", &a, &b)
-			if err != nil || n != 2 || a < 0 || a > width || b < 0 || b > height {
+		if size, ok := strings.CutPrefix(line, "rect "); ok {
+			a, b, ok := screenOperands(size, "x")
+			if !ok || a > width || b > height {
 				return nil, fmt.Errorf("invalid screen rectangle %q", line)
 			}
 			for y := range b {
@@ -31,18 +37,18 @@ func swipeScreen(r io.Reader, width, height int) ([][]bool, error) {
 					pixels[y][x] = true
 				}
 			}
-		case strings.HasPrefix(line, "rotate row "):
-			n, err := fmt.Sscanf(line, "rotate row y=%d by %d", &a, &b)
-			if err != nil || n != 2 || a < 0 || a >= height || b < 0 {
+		} else if rotation, ok := strings.CutPrefix(line, "rotate row y="); ok {
+			a, b, ok := screenOperands(rotation, " by ")
+			if !ok || a >= height {
 				return nil, fmt.Errorf("invalid row rotation %q", line)
 			}
 			row := slices.Clone(pixels[a])
 			for x, pixel := range row {
 				pixels[a][(x+b%width)%width] = pixel
 			}
-		case strings.HasPrefix(line, "rotate column "):
-			n, err := fmt.Sscanf(line, "rotate column x=%d by %d", &a, &b)
-			if err != nil || n != 2 || a < 0 || a >= width || b < 0 {
+		} else if rotation, ok := strings.CutPrefix(line, "rotate column x="); ok {
+			a, b, ok := screenOperands(rotation, " by ")
+			if !ok || a >= width {
 				return nil, fmt.Errorf("invalid column rotation %q", line)
 			}
 			column := make([]bool, height)
@@ -52,7 +58,7 @@ func swipeScreen(r io.Reader, width, height int) ([][]bool, error) {
 			for y, pixel := range column {
 				pixels[(y+b%height)%height][a] = pixel
 			}
-		default:
+		} else {
 			return nil, fmt.Errorf("invalid screen instruction %q", line)
 		}
 	}

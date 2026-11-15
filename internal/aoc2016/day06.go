@@ -1,9 +1,9 @@
 package aoc2016
 
 import (
-	"bufio"
-	"fmt"
 	"io"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
 type messageFrequency int
@@ -14,25 +14,13 @@ const (
 )
 
 func recoverMessage(r io.Reader, frequency messageFrequency) (string, error) {
-	s := bufio.NewScanner(r)
-	var columns [][26]int
-	for s.Scan() {
-		line := s.Bytes()
-		if len(columns) == 0 {
-			columns = make([][26]int, len(line))
-		}
-		if len(line) != len(columns) || len(line) == 0 {
-			return "", fmt.Errorf("inconsistent message width")
-		}
-		for i, letter := range line {
-			if letter < 'a' || letter > 'z' {
-				return "", fmt.Errorf("invalid message letter %q", letter)
-			}
-			columns[i][letter-'a']++
-		}
-	}
-	if err := s.Err(); err != nil {
+	g, err := grid.ReadBytes(r, "abcdefghijklmnopqrstuvwxyz")
+	if err != nil {
 		return "", err
+	}
+	columns := make([][26]int, g.Width())
+	for i, letter := range g.Cells() {
+		columns[i%g.Width()][letter-'a']++
 	}
 	message := make([]byte, len(columns))
 	for i, counts := range columns {
