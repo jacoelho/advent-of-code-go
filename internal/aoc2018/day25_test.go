@@ -28,6 +28,14 @@ func Test_day25p01(t *testing.T) {
 	aoc.AOCTest(t, day25p01, tests)
 }
 
+func TestConstellationErrors(t *testing.T) {
+	for _, input := range []string{"", "1,2,3"} {
+		if _, err := day25p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected error for %q", input)
+		}
+	}
+}
+
 func TestDay25ReadErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	tests := []struct {

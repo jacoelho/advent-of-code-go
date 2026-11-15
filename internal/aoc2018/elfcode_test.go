@@ -70,17 +70,6 @@ func TestElfArithmeticOverflow(t *testing.T) {
 	}
 }
 
-func TestElfExecutionLimit(t *testing.T) {
-	program, err := parseElfProgram(strings.NewReader("#ip 5\nseti -1 0 5"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	machine := elfMachine{program: program}
-	if err := machine.run(3); err == nil {
-		t.Fatal("expected execution limit error")
-	}
-}
-
 func TestElfInstructionPointerOverflow(t *testing.T) {
 	if _, err := day19p01(strings.NewReader("#ip 5\nseti 9223372036854775807 0 5")); err == nil {
 		t.Fatal("expected instruction pointer overflow")

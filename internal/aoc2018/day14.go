@@ -7,9 +7,8 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
-
-const recipeLimit = 100_000_000
 
 type recipeBoard struct {
 	scores        []byte
@@ -49,16 +48,20 @@ func day14p01(r io.Reader) (string, error) {
 		return "", err
 	}
 	target, err := convert.ScanNumber[int](data)
-	if err != nil || target > recipeLimit-10 {
-		return "", fmt.Errorf("recipe target exceeds supported scoreboard size")
+	if err != nil {
+		return "", fmt.Errorf("invalid recipe count: %w", err)
+	}
+	end, ok := xmath.CheckedAdd(target, 10)
+	if !ok {
+		return "", fmt.Errorf("recipe count %d overflows the scoreboard index", target)
 	}
 
 	board := recipeBoard{scores: []byte{3, 7}, second: 1}
-	for len(board.scores) < target+10 {
+	for len(board.scores) < end {
 		board.step()
 	}
 	result := make([]byte, 10)
-	for i, score := range board.scores[target : target+10] {
+	for i, score := range board.scores[target:end] {
 		result[i] = score + '0'
 	}
 	return string(result), nil
@@ -98,9 +101,6 @@ func day14p02(r io.Reader) (string, error) {
 			if matched == len(pattern) {
 				return strconv.Itoa(checked - len(pattern)), nil
 			}
-		}
-		if len(board.scores) >= recipeLimit {
-			return "", fmt.Errorf("recipe search exceeds %d scores", recipeLimit)
 		}
 		board.step()
 	}

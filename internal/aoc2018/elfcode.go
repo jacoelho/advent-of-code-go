@@ -8,11 +8,10 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 const elfOperationNames = "addr addi mulr muli banr bani borr bori setr seti gtir gtri gtrr eqir eqri eqrr"
-
-const elfStepLimit = 10_000_000
 
 type elfInstruction struct {
 	operation string
@@ -45,15 +44,16 @@ func (instruction elfInstruction) validate(registerCount int) error {
 }
 
 func elfAdd(a, b int64) (int64, error) {
-	if b > 0 && a > math.MaxInt64-b || b < 0 && a < math.MinInt64-b {
+	sum, ok := xmath.CheckedAdd(a, b)
+	if !ok {
 		return 0, fmt.Errorf("register addition overflows int64")
 	}
-	return a + b, nil
+	return sum, nil
 }
 
 func elfMultiply(a, b int64) (int64, error) {
-	product := a * b
-	if a == -1 && b == math.MinInt64 || b == -1 && a == math.MinInt64 || a != 0 && product/a != b {
+	product, ok := xmath.CheckedMul(a, b)
+	if !ok {
 		return 0, fmt.Errorf("register multiplication overflows int64")
 	}
 	return product, nil
@@ -185,20 +185,5 @@ func (machine *elfMachine) step() error {
 		return fmt.Errorf("instruction pointer overflows int64")
 	}
 	machine.ip = next + 1
-	return nil
-}
-
-func (machine *elfMachine) run(limit int) error {
-	for range limit {
-		if !machine.running() {
-			return nil
-		}
-		if err := machine.step(); err != nil {
-			return err
-		}
-	}
-	if machine.running() {
-		return fmt.Errorf("program exceeds %d literal instructions", limit)
-	}
 	return nil
 }

@@ -37,6 +37,12 @@ func Test_day16p02(t *testing.T) {
 	aoc.AOCTest(t, day16p02, tests)
 }
 
+func TestOpcodeInputRequiresSamples(t *testing.T) {
+	if _, err := day16p01(strings.NewReader("9 0 0 0")); err == nil {
+		t.Fatal("expected missing opcode samples error")
+	}
+}
+
 func TestOpcodeMappingErrors(t *testing.T) {
 	tests := map[string]string{
 		"ambiguous": opcodeExample,

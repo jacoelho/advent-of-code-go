@@ -3,11 +3,11 @@ package aoc2018
 import (
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func calibrationFrequencies(r io.Reader) ([]int64, error) {
@@ -15,10 +15,11 @@ func calibrationFrequencies(r io.Reader) ([]int64, error) {
 	frequencies := []int64{0}
 	for change := range s.Values() {
 		previous := frequencies[len(frequencies)-1]
-		if change > 0 && previous > math.MaxInt64-change || change < 0 && previous < math.MinInt64-change {
+		frequency, ok := xmath.CheckedAdd(previous, change)
+		if !ok {
 			return nil, fmt.Errorf("calibration frequency overflows int64")
 		}
-		frequencies = append(frequencies, previous+change)
+		frequencies = append(frequencies, frequency)
 	}
 	if err := s.Err(); err != nil {
 		return nil, err

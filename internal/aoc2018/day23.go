@@ -40,9 +40,6 @@ func parseNanobots(r io.Reader) ([]nanobot, error) {
 	})
 	var bots []nanobot
 	for bot := range s.Values() {
-		if len(bots) == 10_000 {
-			return nil, fmt.Errorf("nanobot search supports at most 10000 bots")
-		}
 		bots = append(bots, bot)
 	}
 	if err := s.Err(); err != nil {
@@ -126,30 +123,19 @@ func day23p02(r io.Reader) (string, error) {
 		}
 		return a.size < b.size
 	})
-	work := 0
-	add := func(cube botCube) error {
+	add := func(cube botCube) {
 		for _, bot := range bots {
-			work++
-			if work > 50_000_000 {
-				return fmt.Errorf("nanobot search exceeded 50000000 intersection checks")
-			}
 			if cube.distanceTo(bot.pos) <= bot.radius {
 				cube.coverage++
 			}
 		}
 		if cube.coverage == 0 {
-			return nil
-		}
-		if queue.Len() == 1_000_000 {
-			return fmt.Errorf("nanobot search exceeded 1000000 queued cubes")
+			return
 		}
 		cube.distance = cube.distanceTo([3]int64{})
 		queue.Push(cube)
-		return nil
 	}
-	if err := add(botCube{min: low, size: size}); err != nil {
-		return "", err
-	}
+	add(botCube{min: low, size: size})
 
 	for cube := range queue.PopSeq() {
 		// Queue priorities bound coverage above and distance below for every point in a cube.
@@ -164,9 +150,7 @@ func day23p02(r io.Reader) (string, error) {
 					child.min[axis] += half
 				}
 			}
-			if err := add(child); err != nil {
-				return "", err
-			}
+			add(child)
 		}
 	}
 

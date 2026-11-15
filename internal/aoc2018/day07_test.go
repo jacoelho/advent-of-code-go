@@ -90,6 +90,7 @@ func TestDay07InvalidInput(t *testing.T) {
 	}{
 		{name: "step cycle part one", solve: day07p01, input: "Step A must be finished before step A can begin."},
 		{name: "step cycle part two", solve: day07p02, input: "Step A must be finished before step A can begin."},
+		{name: "empty input", solve: day07p01, input: ""},
 	}
 
 	for _, tt := range tests {

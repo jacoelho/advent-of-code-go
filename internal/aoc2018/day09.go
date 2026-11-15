@@ -3,11 +3,11 @@ package aoc2018
 import (
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func marbleGame(r io.Reader, multiplier int) (int64, error) {
@@ -19,10 +19,11 @@ func marbleGame(r io.Reader, multiplier int) (int64, error) {
 	if _, err := fmt.Sscanf(string(data), "%d players; last marble is worth %d points", &players, &last); err != nil {
 		return 0, fmt.Errorf("invalid marble game: %w", err)
 	}
-	if players <= 0 || last < 0 || last > math.MaxInt/multiplier {
+	scaled, ok := xmath.CheckedMul(last, multiplier)
+	if players <= 0 || last < 0 || !ok {
 		return 0, fmt.Errorf("invalid player count or last marble")
 	}
-	last *= multiplier
+	last = scaled
 
 	scores := make([]int64, players)
 	circle := collections.NewDeque[int](16)

@@ -1,66 +1,24 @@
 package aoc2018
 
 import (
-	"bufio"
-	"fmt"
 	"io"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
-type lumberArea struct {
-	width, height int
-	acres         []byte
-}
-
-func parseLumberArea(r io.Reader) (lumberArea, error) {
-	var area lumberArea
-	s := bufio.NewScanner(r)
-	for s.Scan() {
-		row := s.Bytes()
-		if area.height == 0 {
-			area.width = len(row)
-		}
-		if len(row) == 0 || len(row) != area.width {
-			return lumberArea{}, fmt.Errorf("lumber area must be a nonempty rectangle")
-		}
-		for _, acre := range row {
-			if acre != '.' && acre != '|' && acre != '#' {
-				return lumberArea{}, fmt.Errorf("invalid acre %q", acre)
-			}
-		}
-		if len(area.acres)+len(row) > 1_000_000 {
-			return lumberArea{}, fmt.Errorf("lumber area exceeds 1000000 acres")
-		}
-		area.acres = append(area.acres, row...)
-		area.height++
-	}
-	if err := s.Err(); err != nil {
-		return lumberArea{}, err
-	}
-	if area.height == 0 {
-		return lumberArea{}, fmt.Errorf("empty lumber area")
-	}
-
-	return area, nil
-}
-
 func lumberResource(r io.Reader, minutes int) (int, error) {
-	if minutes < 0 || minutes > 1_000_000_000 {
-		return 0, fmt.Errorf("lumber minutes must be between 0 and 1000000000")
-	}
-	area, err := parseLumberArea(r)
+	area, err := grid.ReadBytes(r, ".|#")
 	if err != nil {
 		return 0, err
 	}
+	width, height, acres := area.Width(), area.Height(), area.Cells()
 
 	seen := make(map[string]int)
-	stateLimit := (64 << 20) / (len(area.acres) + 64)
 	offsets := grid.OffsetsNeighbours8[int]()
-	next := make([]byte, len(area.acres))
+	next := make([]byte, len(acres))
 	for minute := 0; minute < minutes; {
-		key := string(area.acres)
+		key := string(acres)
 		if previous, ok := seen[key]; ok {
 			period := minute - previous
 			minute += (minutes - minute) / period * period
@@ -68,21 +26,18 @@ func lumberResource(r io.Reader, minutes int) (int, error) {
 				break
 			}
 		} else {
-			if len(seen) == stateLimit {
-				return 0, fmt.Errorf("lumber cycle search exceeded %d states", stateLimit)
-			}
 			seen[key] = minute
 		}
 
-		for i, acre := range area.acres {
-			x, y := i%area.width, i/area.width
+		for i, acre := range acres {
+			x, y := i%width, i/width
 			trees, yards := 0, 0
 			for _, offset := range offsets {
 				nx, ny := x+offset.X, y+offset.Y
-				if nx < 0 || ny < 0 || nx >= area.width || ny >= area.height {
+				if nx < 0 || ny < 0 || nx >= width || ny >= height {
 					continue
 				}
-				switch area.acres[ny*area.width+nx] {
+				switch acres[ny*width+nx] {
 				case '|':
 					trees++
 				case '#':
@@ -99,12 +54,12 @@ func lumberResource(r io.Reader, minutes int) (int, error) {
 				next[i] = '.'
 			}
 		}
-		area.acres, next = next, area.acres
+		acres, next = next, acres
 		minute++
 	}
 
 	trees, yards := 0, 0
-	for _, acre := range area.acres {
+	for _, acre := range acres {
 		switch acre {
 		case '|':
 			trees++

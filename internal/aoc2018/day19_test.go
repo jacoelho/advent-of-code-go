@@ -73,55 +73,12 @@ func TestDivisorLoopExit(t *testing.T) {
 		t.Fatal("expected divisor loop")
 	}
 	machine := elfMachine{program: program, registers: [6]int64{0, 0, 0, 0, 6, 0}, ip: 1}
-	remaining := 10
-	skipped, err := machine.skipDivisorLoop(roles, &remaining)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !skipped {
+	if !machine.skipDivisorLoop(roles) {
 		t.Fatal("expected loop acceleration")
 	}
 	want := [6]int64{12, 1, 7, 15, 6, 7}
 	if machine.registers != want || machine.ip != 16 {
 		t.Errorf("exit = %v at %d, want %v at 16", machine.registers, machine.ip, want)
-	}
-}
-
-func TestDivisorLoopBudget(t *testing.T) {
-	program, err := parseElfProgram(strings.NewReader(divisorExample))
-	if err != nil {
-		t.Fatal(err)
-	}
-	roles, recognized := recognizeDivisorLoop(program)
-	if !recognized {
-		t.Fatal("expected divisor loop")
-	}
-	before := [6]int64{0, 0, 0, 0, 6, 0}
-	machine := elfMachine{program: program, registers: before, ip: 1}
-	remaining := 1
-	if skipped, err := machine.skipDivisorLoop(roles, &remaining); err == nil || skipped {
-		t.Fatalf("skip = %v, error = %v; expected budget failure", skipped, err)
-	}
-	if machine.registers != before || machine.ip != 1 {
-		t.Errorf("budget failure changed state: %v at %d", machine.registers, machine.ip)
-	}
-}
-
-func TestDivisorProgramBudget(t *testing.T) {
-	program, err := parseElfProgram(strings.NewReader(divisorExample))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Three initializer steps, one skip dispatch, two divisors, and two tail steps cost eight units.
-	if _, err := runDivisorProgram(program, 0, 7); err == nil {
-		t.Fatal("expected shared work budget exhaustion")
-	}
-	got, err := runDivisorProgram(program, 0, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != 22 {
-		t.Errorf("got %d, want 22", got)
 	}
 }
 
