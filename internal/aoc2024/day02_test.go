@@ -78,6 +78,9 @@ func TestReportParseErrors(t *testing.T) {
 		if got, err := solve(strings.NewReader("\n")); err == nil {
 			t.Fatalf("got %q; want empty-report error", got)
 		}
+		if got, err := solve(strings.NewReader("3 2 -1")); err == nil {
+			t.Fatalf("got %q; want negative-level error", got)
+		}
 	}
 }
 

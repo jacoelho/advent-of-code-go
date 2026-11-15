@@ -115,6 +115,7 @@ func TestWarehouseParseErrors(t *testing.T) {
 		{"invalid movement", "###\n#@#\n###\n\n?"},
 		{"open map", "@\n\n>"},
 		{"ragged map", "#####\n#@.#\n#####\n\n>"},
+		{"gap in boundary wall", "####\n.@.#\n####\n\n>"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

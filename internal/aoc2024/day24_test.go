@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -158,70 +157,94 @@ func TestCircuitAdderTruthTable(t *testing.T) {
 	}
 }
 
-func TestCircuitSumOutputRepair(t *testing.T) {
-	swaps := [][2]string{{"z01", "z02"}, {"z03", "z04"}, {"z05", "z06"}, {"z07", "z08"}}
+var day24DetectableSwaps = [][2]string{{"z01", "h01"}, {"z02", "c03"}, {"p03", "g03"}, {"z04", "g04"}}
+
+func TestCircuitRepairFindsDetectableSwaps(t *testing.T) {
 	for _, reversed := range []bool{false, true} {
-		input := adderFixture(9, 0, 0, swaps, reversed)
+		input := adderFixture(5, 0, 0, day24DetectableSwaps, reversed)
 		got, err := day24p02(strings.NewReader(input))
-		const want = "z01,z02,z03,z04,z05,z06,z07,z08"
+		const want = "c03,g03,g04,h01,p03,z01,z02,z04"
 		if err != nil || got != want {
 			t.Errorf("reversed %v: got %q, %v; want %q", reversed, got, err, want)
 		}
 	}
 }
 
-func TestCircuitRepairedTruthTable(t *testing.T) {
-	swaps := [][2]string{{"z00", "c01"}, {"z01", "g01"}, {"z02", "g02"}, {"z03", "p01"}}
-	input := adderFixture(3, 0, 0, swaps, false)
-	const wantWires = "c01,g01,g02,p01,z00,z01,z02,z03"
-	if got, err := day24p02(strings.NewReader(input)); err != nil || got != wantWires {
-		t.Fatalf("got %q, %v; want %q", got, err, wantWires)
-	}
-	device, err := parseMonitoringDevice(strings.NewReader(input))
+func TestCircuitRepairedSwapsAdd(t *testing.T) {
+	device, err := parseMonitoringDevice(strings.NewReader(adderFixture(5, 0, 0, day24DetectableSwaps, false)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	repair, err := repairRippleAdder(device, 2_000_000)
+	pairs, err := repairRippleAdder(device)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for x := uint64(0); x < 8; x++ {
-		for y := uint64(0); y < 8; y++ {
-			candidate := repair.device
-			candidate.initial = maps.Clone(repair.device.initial)
-			for bit := range 3 {
-				candidate.initial[fmt.Sprintf("x%02d", bit)] = x>>bit&1 != 0
-				candidate.initial[fmt.Sprintf("y%02d", bit)] = y>>bit&1 != 0
+	swapped := make(map[string]string)
+	for _, pair := range pairs {
+		swapped[pair[0]], swapped[pair[1]] = pair[1], pair[0]
+	}
+	for i, gate := range device.gates {
+		if other, ok := swapped[gate.output]; ok {
+			device.gates[i].output = other
+		}
+	}
+	for x := uint64(0); x < 32; x++ {
+		for y := uint64(0); y < 32; y++ {
+			for bit := range 5 {
+				device.initial[fmt.Sprintf("x%02d", bit)] = x>>bit&1 != 0
+				device.initial[fmt.Sprintf("y%02d", bit)] = y>>bit&1 != 0
 			}
-			values, err := evaluateDevice(candidate)
+			values, err := evaluateDevice(device)
 			if err != nil {
 				t.Fatal(err)
 			}
 			got, err := deviceNumber(values, 'z')
-			want := fmt.Sprint(x + y)
-			if err != nil || got.String() != want {
-				t.Fatalf("repaired %d + %d: got %v, %v; want %s", x, y, got, err, want)
+			if err != nil || got != x+y {
+				t.Fatalf("repaired %d + %d: got %d, %v; want %d", x, y, got, err, x+y)
 			}
 		}
 	}
-	if _, err := repairRippleAdder(device, 0); !errors.Is(err, errAdderRepairLimit) {
-		t.Errorf("got %v, want repair work limit error", err)
+}
+
+func TestCircuitRepairRejectsSwapsTheRulesMiss(t *testing.T) {
+	swaps := append(slices.Clone(day24DetectableSwaps), [2]string{"z00", "z03"})
+	_, err := day24p02(strings.NewReader(adderFixture(5, 0, 0, swaps, false)))
+	if !errors.Is(err, errDay24RepairUncertified) {
+		t.Fatalf("got %v, want uncertified repair error", err)
 	}
 }
 
-func TestCircuitAmbiguousRepair(t *testing.T) {
-	swaps := [][2]string{{"z00", "z01"}, {"z02", "z03"}, {"g01", "h01"}, {"p01", "c01"}}
-	input := adderFixture(3, 0, 0, swaps, false)
-	if _, err := day24p02(strings.NewReader(input)); !errors.Is(err, errAmbiguousAdderRepair) {
-		t.Fatalf("got %v, want ambiguous repair error", err)
+func TestCircuitRepairNeedsFourFlaggedPairs(t *testing.T) {
+	_, err := day24p02(strings.NewReader(adderFixture(5, 0, 0, day24DetectableSwaps[:3], false)))
+	if err == nil || !strings.Contains(err.Error(), "flags 6 wires") {
+		t.Fatalf("got %v, want flagged wire count error", err)
 	}
 }
 
-func TestCircuitWideOutput(t *testing.T) {
+func TestCircuitRepairNeedsMatchingXYInputs(t *testing.T) {
+	for _, input := range []string{
+		strings.ReplaceAll(adderFixture(5, 0, 0, nil, false), "y04", "w04"),
+		"x05: 1\n" + adderFixture(5, 0, 0, nil, false),
+	} {
+		_, err := day24p02(strings.NewReader(input))
+		if err == nil || !strings.Contains(err.Error(), "adder") || strings.Contains(err.Error(), "flags") {
+			t.Errorf("got %v, want adder input error", err)
+		}
+	}
+}
+
+func TestCircuitOutputWiderThan64BitsRejected(t *testing.T) {
 	input := "a: 1\nb: 0\n\na XOR b -> z64"
+	if got, err := day24p01(strings.NewReader(input)); err == nil {
+		t.Fatalf("got %q, want output width error", got)
+	}
+}
+
+func TestCircuitOutput64Bits(t *testing.T) {
+	input := "a: 1\nb: 0\n\na XOR b -> z63\na AND b -> z00"
 	got, err := day24p01(strings.NewReader(input))
-	if err != nil || got != "18446744073709551616" {
-		t.Fatalf("got %q, %v; want 18446744073709551616", got, err)
+	if err != nil || got != "9223372036854775808" {
+		t.Fatalf("got %q, %v; want 9223372036854775808", got, err)
 	}
 }
 

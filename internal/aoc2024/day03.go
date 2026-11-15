@@ -1,7 +1,6 @@
 package aoc2024
 
 import (
-	"fmt"
 	"io"
 	"regexp"
 	"strconv"
@@ -27,13 +26,9 @@ type memoryInstruction struct {
 }
 
 func parseCorruptedMemory(r io.Reader) ([]memoryInstruction, error) {
-	const inputLimit = 4 << 20
-	input, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	input, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
-	}
-	if len(input) > inputLimit {
-		return nil, fmt.Errorf("corrupted memory exceeds 4 MiB")
 	}
 
 	var instructions []memoryInstruction

@@ -57,7 +57,7 @@ bbrgwb`),
 }
 
 func TestDesignParseErrors(t *testing.T) {
-	for _, input := range []string{"r, b", "r, \n\nr"} {
+	for _, input := range []string{"r, b", "r, \n\nr", "r, x\n\nr", "r, b\n\nrxb"} {
 		for _, solve := range []func(io.Reader) (string, error){day19p01, day19p02} {
 			if got, err := solve(strings.NewReader(input)); err == nil {
 				t.Fatalf("input %q: got %q; want towel parse error", input, got)

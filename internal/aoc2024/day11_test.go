@@ -40,11 +40,27 @@ func Test_day11p02(t *testing.T) {
 	aoc.AOCTest(t, day11p02, tests)
 }
 
-func TestStoneParseErrors(t *testing.T) {
-	for _, solve := range []func(io.Reader) (string, error){day11p01, day11p02} {
-		if got, err := solve(strings.NewReader("125 nope")); err == nil {
-			t.Fatalf("got %q; want numeric conversion error", got)
-		}
+func TestStoneArrangementRejectsMalformedInput(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+	}{
+		{"non-numeric stone", "125 nope"},
+		{"negative stone", "125 -1"},
+		{"empty input", " \n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for i, solve := range []func(io.Reader) (string, error){day11p01, day11p02} {
+				if got, err := solve(strings.NewReader(tt.input)); err == nil {
+					t.Fatalf("part %d = %q; want error", i+1, got)
+				}
+			}
+		})
+	}
+}
+
+func TestStoneMultiplicationOverflowIsRejected(t *testing.T) {
+	if got, err := day11p01(strings.NewReader("9223372036854775807")); err == nil {
+		t.Fatalf("got %q; want overflow error", got)
 	}
 }
 

@@ -7,12 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
 type robot struct {
@@ -26,26 +24,9 @@ func parseBathroomRobots(r io.Reader) ([]robot, error) {
 		if !ok {
 			return grid.Position2D[int]{}, fmt.Errorf("robot field needs prefix %q", prefix)
 		}
-		xText, yText, ok := strings.Cut(text, ",")
-		if !ok {
-			return grid.Position2D[int]{}, fmt.Errorf("robot field needs two coordinates")
-		}
-		x, err := convert.ScanNumber[int]([]byte(xText))
-		if err != nil {
-			return grid.Position2D[int]{}, fmt.Errorf("robot x: %w", err)
-		}
-		y, err := convert.ScanNumber[int]([]byte(yText))
-		if err != nil {
-			return grid.Position2D[int]{}, fmt.Errorf("robot y: %w", err)
-		}
-		return grid.NewPosition2D(x, y), nil
+		return grid.ParsePosition2D[int](text)
 	}
-	count := 0
 	s := scanner.NewScanner(r, func(line []byte) (robot, error) {
-		count++
-		if count > 100_000 {
-			return robot{}, fmt.Errorf("robot input exceeds 100000 robots")
-		}
 		fields := strings.Fields(string(line))
 		if len(fields) != 2 {
 			return robot{}, fmt.Errorf("robot needs position and velocity")
@@ -61,7 +42,25 @@ func parseBathroomRobots(r io.Reader) ([]robot, error) {
 		return robot{position: position, velocity: velocity}, nil
 	})
 	robots := slices.Collect(s.Values())
-	return robots, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(robots) == 0 {
+		return nil, fmt.Errorf("bathroom has no robots")
+	}
+	return robots, nil
+}
+
+func day14CheckBounds(robots []robot, width, height int) error {
+	if width < 1 || height < 1 {
+		return fmt.Errorf("bathroom dimensions %dx%d must be positive", width, height)
+	}
+	for i, r := range robots {
+		if r.position.X < 0 || r.position.X >= width || r.position.Y < 0 || r.position.Y >= height {
+			return fmt.Errorf("robot %d position %v is outside the %dx%d bathroom", i+1, r.position, width, height)
+		}
+	}
+	return nil
 }
 
 func positionsAfterIterations(
@@ -71,7 +70,6 @@ func positionsAfterIterations(
 	iterations int,
 ) []grid.Position2D[int] {
 	advance := func(position, velocity, size int) int {
-		position = xmath.Modulo(position, size)
 		velocity = xmath.Modulo(velocity, size)
 		return int((int64(position) + int64(velocity)*int64(iterations)) % int64(size))
 	}
@@ -117,8 +115,8 @@ func day14p01(width, height int) func(io.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if width < 1 || height < 1 || width > 1_000_000 || height > 1_000_000 {
-			return "", fmt.Errorf("bathroom dimensions must be between 1 and 1000000")
+		if err := day14CheckBounds(initialPositions, width, height); err != nil {
+			return "", err
 		}
 
 		finalPositions := positionsAfterIterations(initialPositions, width, height, 100)
@@ -129,36 +127,55 @@ func day14p01(width, height int) func(io.Reader) (string, error) {
 	}
 }
 
-func uniqueRobotFrame(robots []robot, width, height int) (int, error) {
-	if len(robots) > width*height {
-		return 0, fmt.Errorf("no collision-free frame: more robots than cells")
-	}
-	candidate := -1
-	for iteration := range xmath.LCM(width, height) {
-		positions := positionsAfterIterations(robots, width, height, iteration)
-		if xslices.HasDuplicates(positions) {
-			continue
+// day14LeastSpreadTime returns the time in [0, size) at which the robots'
+// coordinates along one axis have the least variance.
+func day14LeastSpreadTime(positions, velocities []int, size int) int {
+	best, bestSpread := 0, -1
+	n := len(positions)
+	for t := range size {
+		var sum, sumSquares int
+		for i, p := range positions {
+			q := (p + velocities[i]*t) % size
+			sum += q
+			sumSquares += q * q
 		}
-		if candidate != -1 {
-			return 0, fmt.Errorf("cannot identify tree: multiple collision-free frames")
+		// n² times the variance.
+		if spread := n*sumSquares - sum*sum; bestSpread < 0 || spread < bestSpread {
+			best, bestSpread = t, spread
 		}
-		candidate = iteration
 	}
-	if candidate == -1 {
-		return 0, fmt.Errorf("cannot identify tree: no collision-free frame")
+	return best
+}
+
+// day14TreeTime returns the frame where the robots cluster into the tree,
+// which is the frame of least spread on both axes. x positions repeat every
+// width steps and y positions every height steps, independently, so each axis
+// minimum is found within one period and, for coprime dimensions, the Chinese
+// remainder theorem gives the unique frame below width*height matching both.
+func day14TreeTime(robots []robot, width, height int) int {
+	xs, ys := make([]int, len(robots)), make([]int, len(robots))
+	vxs, vys := make([]int, len(robots)), make([]int, len(robots))
+	for i, r := range robots {
+		xs[i], ys[i] = r.position.X, r.position.Y
+		vxs[i], vys[i] = xmath.Modulo(r.velocity.X, width), xmath.Modulo(r.velocity.Y, height)
 	}
-	return candidate, nil
+	tx := day14LeastSpreadTime(xs, vxs, width)
+	ty := day14LeastSpreadTime(ys, vys, height)
+	t := tx
+	for t%height != ty {
+		t += width
+	}
+	return t
 }
 
 func day14p02(reader io.Reader) (string, error) {
+	const width, height = 101, 103
 	robots, err := parseBathroomRobots(reader)
 	if err != nil {
 		return "", err
 	}
-	// This specialization assumes the unique collision-free frame is the intended tree.
-	iteration, err := uniqueRobotFrame(robots, 101, 103)
-	if err != nil {
+	if err := day14CheckBounds(robots, width, height); err != nil {
 		return "", err
 	}
-	return strconv.Itoa(iteration), nil
+	return strconv.Itoa(day14TreeTime(robots, width, height)), nil
 }

@@ -2,42 +2,46 @@ package aoc2024
 
 import (
 	"io"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-func parseWordSearch(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
-		res := make([]rune, len(b))
-		for i, v := range b {
-			res[i] = rune(v)
-		}
-		return res, nil
-	})
-	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
+type wordSearch [][]byte
+
+func parseWordSearch(r io.Reader) (wordSearch, error) {
+	g, err := grid.ReadBytes(r, "XMAS")
+	if err != nil {
+		return nil, err
+	}
+	return g.Rows(), nil
+}
+
+func (w wordSearch) at(x, y int) byte {
+	if y < 0 || y >= len(w) || x < 0 || x >= len(w[y]) {
+		return 0
+	}
+	return w[y][x]
 }
 
 func day04p01(r io.Reader) (string, error) {
-	m, err := parseWordSearch(r)
+	w, err := parseWordSearch(r)
 	if err != nil {
 		return "", err
 	}
 
 	var count int
-	for p, v := range m {
-		if v != 'X' {
-			continue
-		}
-		for _, offset := range grid.OffsetsNeighbours8[int]() {
-			mPosition := p.Add(offset)
-			aPosition := p.Add(grid.Position2D[int]{X: offset.X * 2, Y: offset.Y * 2})
-			sPosition := p.Add(grid.Position2D[int]{X: offset.X * 3, Y: offset.Y * 3})
-
-			if m[mPosition] == 'M' && m[aPosition] == 'A' && m[sPosition] == 'S' {
-				count++
+	for y, row := range w {
+		for x, letter := range row {
+			if letter != 'X' {
+				continue
+			}
+			for dy := -1; dy <= 1; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					if w.at(x+dx, y+dy) == 'M' && w.at(x+2*dx, y+2*dy) == 'A' && w.at(x+3*dx, y+3*dy) == 'S' {
+						count++
+					}
+				}
 			}
 		}
 	}
@@ -46,38 +50,28 @@ func day04p01(r io.Reader) (string, error) {
 }
 
 func day04p02(r io.Reader) (string, error) {
-	m, err := parseWordSearch(r)
+	w, err := parseWordSearch(r)
 	if err != nil {
 		return "", err
 	}
 
-	// Keep opposite corners two entries apart for the pattern comparisons below.
-	corners := [4]grid.Position2D[int]{
-		{X: -1, Y: -1},
-		{X: -1, Y: 1},
-		{X: 1, Y: 1},
-		{X: 1, Y: -1},
-	}
-
 	var count int
-	for p, v := range m {
-		if v != 'A' {
-			continue
-		}
-
-		var values [4]rune
-		for i, offset := range corners {
-			values[i] = m[p.Add(offset)]
-		}
-		neighbours := string(values[:])
-
-		if neighbours == "MMSS" ||
-			neighbours == "MSSM" ||
-			neighbours == "SSMM" ||
-			neighbours == "SMMS" {
-			count++
+	for y, row := range w {
+		for x, letter := range row {
+			if letter != 'A' {
+				continue
+			}
+			diagonal := [2]byte{w.at(x-1, y-1), w.at(x+1, y+1)}
+			antiDiagonal := [2]byte{w.at(x-1, y+1), w.at(x+1, y-1)}
+			if wordSearchMS(diagonal) && wordSearchMS(antiDiagonal) {
+				count++
+			}
 		}
 	}
 
 	return strconv.Itoa(count), nil
+}
+
+func wordSearchMS(ends [2]byte) bool {
+	return ends == [2]byte{'M', 'S'} || ends == [2]byte{'S', 'M'}
 }

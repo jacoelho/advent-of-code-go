@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
+	"math"
+	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/linear"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type clawVector struct {
@@ -19,283 +21,223 @@ type clawMachine struct {
 	a, b, prize clawVector
 }
 
-type clawButton uint8
+var errDay13Overflow = errors.New("claw arithmetic overflows int64")
 
-const (
-	clawButtonA clawButton = iota
-	clawButtonB
-)
-
-// Eighteen decimal digits fit int64; longer fields use the full numeric parser.
-func scanClawDecimalPrefix(input []byte) (int64, int, bool) {
-	var value int64
-	for i, character := range input {
-		digit := character - '0'
-		if digit > 9 {
-			return value, i, i > 0
-		}
-		if i == 18 {
-			return 0, 0, false
-		}
-		value = value*10 + int64(digit)
+func day13ParseCoordinate(text []byte) (int64, error) {
+	if len(text) == 0 || text[0] < '0' || text[0] > '9' {
+		return 0, fmt.Errorf("%q is not a nonnegative decimal", text)
 	}
-	return value, len(input), len(input) > 0
+	return convert.ScanNumber[int64](text)
 }
 
-func invalidClawCoordinateLine(line []byte) error {
-	return fmt.Errorf("invalid claw coordinate line %q", line)
-}
-
-func parseClawVectorBody(line, body []byte, separator [4]byte) (clawVector, error) {
-	if x, next, ok := scanClawDecimalPrefix(body); ok && bytes.HasPrefix(body[next:], separator[:]) {
-		yText := body[next+len(separator):]
-		if y, consumed, ok := scanClawDecimalPrefix(yText); ok && consumed == len(yText) {
-			return clawVector{x: x, y: y}, nil
-		}
-	}
-	// Restart over the whole body to preserve syntax and range error context.
-	xText, yText, ok := bytes.Cut(body, separator[:])
+func day13ParseVector(line []byte, prefix, separator string) (clawVector, error) {
+	body, ok := bytes.CutPrefix(line, []byte(prefix))
 	if !ok {
-		return clawVector{}, fmt.Errorf("invalid claw coordinates %q", line)
+		return clawVector{}, fmt.Errorf("%q does not start with %q", line, prefix)
 	}
-	x, err := convert.ScanNumber[int64](xText)
+	xText, yText, ok := bytes.Cut(body, []byte(separator))
+	if !ok {
+		return clawVector{}, fmt.Errorf("%q has no %q separator", line, separator)
+	}
+	x, err := day13ParseCoordinate(xText)
 	if err != nil {
 		return clawVector{}, fmt.Errorf("claw x coordinate: %w", err)
 	}
-	y, err := convert.ScanNumber[int64](yText)
+	y, err := day13ParseCoordinate(yText)
 	if err != nil {
 		return clawVector{}, fmt.Errorf("claw y coordinate: %w", err)
-	}
-	if x < 0 || y < 0 {
-		return clawVector{}, fmt.Errorf("claw coordinates must be nonnegative")
 	}
 	return clawVector{x: x, y: y}, nil
 }
 
-func parseClawMachine(input []byte) (clawMachine, []byte, bool, error) {
-	aLine, remaining, hasA := bytes.Cut(input, []byte("\n"))
-	bLine, remaining, hasB := bytes.Cut(remaining, []byte("\n"))
-	prizeLine, rest, more := bytes.Cut(remaining, []byte("\n"))
-	// Blank B or prize lines end a frame before all three required lines.
-	if !hasA || !hasB || len(bLine) == 0 || len(prizeLine) == 0 ||
-		more && (len(rest) == 0 || rest[0] != '\n') {
-		return clawMachine{}, nil, false, fmt.Errorf("claw machine needs two buttons and a prize")
-	}
-	if more {
-		rest = rest[1:]
-	}
-	body, ok := bytes.CutPrefix(aLine, []byte("Button A: X+"))
-	if !ok {
-		return clawMachine{}, nil, false, invalidClawCoordinateLine(aLine)
-	}
-	a, err := parseClawVectorBody(aLine, body, [4]byte{',', ' ', 'Y', '+'})
+// day13ParseMachines reads machines of three lines each, separated by one
+// blank line.
+func day13ParseMachines(r io.Reader) ([]clawMachine, error) {
+	blocks, err := scanner.ReadBlocks(r)
 	if err != nil {
-		return clawMachine{}, nil, false, err
+		return nil, err
 	}
-	body, ok = bytes.CutPrefix(bLine, []byte("Button B: X+"))
-	if !ok {
-		return clawMachine{}, nil, false, invalidClawCoordinateLine(bLine)
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("claw input needs machines of two buttons and a prize separated by blank lines")
 	}
-	b, err := parseClawVectorBody(bLine, body, [4]byte{',', ' ', 'Y', '+'})
-	if err != nil {
-		return clawMachine{}, nil, false, err
+	machines := make([]clawMachine, 0, len(blocks))
+	start := 1
+	for _, block := range blocks {
+		if len(block) != 3 {
+			return nil, fmt.Errorf("claw input line %d: want machines of two buttons and a prize separated by blank lines", start+min(len(block), 3))
+		}
+		var vectors [3]clawVector
+		for i, format := range [3][2]string{
+			{"Button A: X+", ", Y+"},
+			{"Button B: X+", ", Y+"},
+			{"Prize: X=", ", Y="},
+		} {
+			var err error
+			if vectors[i], err = day13ParseVector([]byte(block[i]), format[0], format[1]); err != nil {
+				return nil, fmt.Errorf("claw input line %d: %w", start+i, err)
+			}
+		}
+		machines = append(machines, clawMachine{a: vectors[0], b: vectors[1], prize: vectors[2]})
+		start += len(block) + 1
 	}
-	body, ok = bytes.CutPrefix(prizeLine, []byte("Prize: X="))
-	if !ok {
-		return clawMachine{}, nil, false, invalidClawCoordinateLine(prizeLine)
-	}
-	prize, err := parseClawVectorBody(prizeLine, body, [4]byte{',', ' ', 'Y', '='})
-	if err != nil {
-		return clawMachine{}, nil, false, err
-	}
-	return clawMachine{a: a, b: b, prize: prize}, rest, more, nil
+	return machines, nil
 }
 
-func ceilClawRatio(numerator, denominator *big.Int) *big.Int {
-	result := new(big.Int).Neg(numerator)
-	result.Div(result, denominator)
-	return result.Neg(result)
+func day13Mul(a, b int64) (int64, error) {
+	product, ok := xmath.CheckedMul(a, b)
+	if !ok {
+		return 0, errDay13Overflow
+	}
+	return product, nil
 }
 
-// dependentClawPresses requires consistent equations with at least one free variable.
-func dependentClawPresses(m clawMachine, targetX, targetY, limit *big.Int) (*big.Int, *big.Int) {
-	x, y, target := big.NewInt(m.a.x), big.NewInt(m.b.x), targetX
-	if m.a.x == 0 && m.b.x == 0 {
-		x.SetInt64(m.a.y)
-		y.SetInt64(m.b.y)
-		target = targetY
+func day13Add(a, b int64) (int64, error) {
+	sum, ok := xmath.CheckedAdd(a, b)
+	if !ok {
+		return 0, errDay13Overflow
 	}
-	var remainder big.Int
-	if x.Sign() == 0 && y.Sign() == 0 {
-		return new(big.Int), new(big.Int)
-	}
-	if x.Sign() == 0 {
-		b := new(big.Int)
-		b.QuoRem(target, y, &remainder)
-		if remainder.Sign() != 0 {
-			return nil, nil
-		}
-		return new(big.Int), b
-	}
-	if y.Sign() == 0 {
-		a := new(big.Int)
-		a.QuoRem(target, x, &remainder)
-		if remainder.Sign() != 0 {
-			return nil, nil
-		}
-		return a, new(big.Int)
-	}
+	return sum, nil
+}
 
-	var a, b big.Int
-	divisor := new(big.Int).GCD(&a, &b, x, y)
-	factor := new(big.Int)
-	factor.QuoRem(target, divisor, &remainder)
-	if remainder.Sign() != 0 {
-		return nil, nil
+// day13Reaches reports whether a*u + b*v == target for nonnegative operands.
+func day13Reaches(u, v, a, b, target int64) bool {
+	ua, err := day13Mul(u, a)
+	if err != nil {
+		return false
 	}
-	a.Mul(&a, factor)
-	b.Mul(&b, factor)
-	stepA := new(big.Int).Quo(y, divisor)
-	stepB := new(big.Int).Quo(x, divisor)
+	vb, err := day13Mul(v, b)
+	if err != nil {
+		return false
+	}
+	sum, err := day13Add(ua, vb)
+	return err == nil && sum == target
+}
 
-	// Every solution is (a + k*stepA, b - k*stepB); intersect its press bounds.
-	low := ceilClawRatio(new(big.Int).Neg(&a), stepA)
-	high := new(big.Int).Div(&b, stepB)
-	if limit != nil {
-		lower := ceilClawRatio(new(big.Int).Sub(&b, limit), stepB)
-		upper := new(big.Int).Div(new(big.Int).Sub(limit, &a), stepA)
-		if low.Cmp(lower) < 0 {
-			low = lower
-		}
-		if high.Cmp(upper) > 0 {
-			high = upper
+// day13CheapestCombination returns nonnegative a, b no greater than limit with
+// u*a + v*b == t and minimal 3*a + b.
+func day13CheapestCombination(u, v, t, limit int64) (int64, int64, bool) {
+	switch {
+	case u == 0 && v == 0:
+		return 0, 0, t == 0
+	case u == 0:
+		b := t / v
+		return 0, b, t%v == 0 && b <= limit
+	case v == 0:
+		a := t / u
+		return a, 0, t%u == 0 && a <= limit
+	}
+	g := xmath.GCD(u, v)
+	if t%g != 0 {
+		return 0, 0, false
+	}
+	stepA, stepB := v/g, u/g
+	// stepA and stepB are coprime, so the inverse exists.
+	inverse, _ := xmath.ModInverse(stepB, stepA)
+	minA := xmath.MulMod(inverse, t/g, stepA)
+	uA, err := day13Mul(u, minA)
+	if err != nil || uA > t || minA > limit {
+		return 0, 0, false
+	}
+	maxB := (t - uA) / v
+	// Every solution is (minA + k*stepA, maxB - k*stepB) for k in [low, high].
+	low, high := int64(0), maxB/stepB
+	if excess := maxB - limit; excess > 0 {
+		low = excess / stepB
+		if excess%stepB != 0 {
+			low++
 		}
 	}
-	if low.Cmp(high) > 0 {
-		return nil, nil
+	high = min(high, (limit-minA)/stepA)
+	if low > high {
+		return 0, 0, false
 	}
-	change := new(big.Int).Sub(new(big.Int).Mul(big.NewInt(3), stepA), stepB)
 	k := low
-	if change.Sign() < 0 {
+	if stepA <= (stepB-1)/3 {
 		k = high
 	}
-	a.Add(&a, new(big.Int).Mul(k, stepA))
-	b.Sub(&b, new(big.Int).Mul(k, stepB))
-	return &a, &b
+	return minA + k*stepA, maxB - k*stepB, true
 }
 
-// minimumClawTokens returns zero when no admissible integer solution exists.
-// The offset and optional press limit are integers prepared by clawTokenTotal.
-func minimumClawTokens(m clawMachine, offset linear.Rat, limit *linear.Rat) (linear.Rat, error) {
-	buttonA, buttonB := linear.Variable(clawButtonA), linear.Variable(clawButtonB)
-	x := buttonA.Scale(m.a.x).Add(buttonB.Scale(m.b.x))
-	y := buttonA.Scale(m.a.y).Add(buttonB.Scale(m.b.y))
-	targetX, targetY := linear.NewRat(m.prize.x, 1), linear.NewRat(m.prize.y, 1)
-	if !offset.IsZero() {
-		targetX = targetX.Add(offset)
-		targetY = targetY.Add(offset)
-	}
-	solution, err := linear.NewSystem(buttonA, buttonB).
-		Add(x.EquateRat(targetX)).
-		Add(y.EquateRat(targetY)).
-		Solve()
+// day13Presses returns the cheapest button presses reaching the prize with
+// at most limit presses of each button.
+func day13Presses(m clawMachine, limit int64) (int64, int64, bool, error) {
+	axBy, err := day13Mul(m.a.x, m.b.y)
 	if err != nil {
-		if errors.Is(err, linear.ErrInconsistent) {
-			return linear.Rat{}, nil
-		}
-		return linear.Rat{}, fmt.Errorf("solve claw equations: %w", err)
+		return 0, 0, false, err
 	}
-	var a, b linear.Rat
-	if len(solution.Free()) != 0 {
-		var bound *big.Int
-		if limit != nil {
-			bound = limit.Numerator()
-		}
-		pressA, pressB := dependentClawPresses(m, targetX.Numerator(), targetY.Numerator(), bound)
-		if pressA == nil {
-			return linear.Rat{}, nil
-		}
-		a, b = linear.NewInteger(pressA), linear.NewInteger(pressB)
-	} else {
-		expressionA, err := solution.Expression(buttonA)
-		if err != nil {
-			return linear.Rat{}, fmt.Errorf("extract claw A solution: %w", err)
-		}
-		expressionB, err := solution.Expression(buttonB)
-		if err != nil {
-			return linear.Rat{}, fmt.Errorf("extract claw B solution: %w", err)
-		}
-		a, b = expressionA.Constant(), expressionB.Constant()
-		if !a.IsInt() || !b.IsInt() {
-			return linear.Rat{}, nil
-		}
+	ayBx, err := day13Mul(m.a.y, m.b.x)
+	if err != nil {
+		return 0, 0, false, err
 	}
-	if a.Sign() < 0 || b.Sign() < 0 {
-		return linear.Rat{}, nil
-	}
-	if limit != nil {
-		if a.Cmp(*limit) > 0 || b.Cmp(*limit) > 0 {
-			return linear.Rat{}, nil
+	if det := axBy - ayBx; det != 0 {
+		var products [4]int64
+		for i, operands := range [4][2]int64{
+			{m.prize.x, m.b.y}, {m.prize.y, m.b.x},
+			{m.a.x, m.prize.y}, {m.a.y, m.prize.x},
+		} {
+			if products[i], err = day13Mul(operands[0], operands[1]); err != nil {
+				return 0, 0, false, err
+			}
 		}
+		numeratorA, numeratorB := products[0]-products[1], products[2]-products[3]
+		if numeratorA%det != 0 || numeratorB%det != 0 {
+			return 0, 0, false, nil
+		}
+		a, b := numeratorA/det, numeratorB/det
+		return a, b, a >= 0 && b >= 0 && a <= limit && b <= limit, nil
 	}
-	return a.Mul(linear.NewRat(3, 1)).Add(b), nil
+	// Collinear buttons: solve on an axis where a button moves, then confirm
+	// the other axis, which then holds for every solution of the first.
+	u, v, t := m.a.x, m.b.x, m.prize.x
+	if u == 0 && v == 0 {
+		u, v, t = m.a.y, m.b.y, m.prize.y
+	}
+	a, b, ok := day13CheapestCombination(u, v, t, limit)
+	ok = ok && day13Reaches(m.a.x, m.b.x, a, b, m.prize.x) && day13Reaches(m.a.y, m.b.y, a, b, m.prize.y)
+	return a, b, ok, nil
 }
 
-func clawTokenTotal(r io.Reader, offset int64, limit *big.Int) (string, error) {
-	const inputLimit = 4 << 20
-	var buffer bytes.Buffer
-	buffer.Grow(32 << 10)
-	if _, err := buffer.ReadFrom(io.LimitReader(r, inputLimit+1)); err != nil {
+func clawTokenTotal(r io.Reader, offset, limit int64) (string, error) {
+	machines, err := day13ParseMachines(r)
+	if err != nil {
 		return "", err
 	}
-	if buffer.Len() > inputLimit {
-		return "", fmt.Errorf("claw input exceeds 4 MiB")
-	}
-	data := buffer.Bytes()
-	if first := bytes.IndexByte(data, '\r'); first >= 0 {
-		write := first
-		for read := first; read < len(data); read++ {
-			if data[read] == '\r' && read+1 < len(data) && data[read+1] == '\n' {
-				continue
-			}
-			data[write] = data[read]
-			write++
-		}
-		data = data[:write]
-	}
-	input := bytes.TrimSpace(data)
-	offsetRat := linear.NewRat(offset, 1)
-	var limitRat *linear.Rat
-	if limit != nil {
-		bound := linear.NewInteger(limit)
-		limitRat = &bound
-	}
-	var total linear.Rat
-	for ordinal := 1; ; ordinal++ {
-		if ordinal > 10_000 {
-			return "", fmt.Errorf("claw input exceeds 10000 machines")
-		}
-		machine, rest, more, err := parseClawMachine(input)
+	var total int64
+	for i, m := range machines {
+		cost, err := day13Tokens(m, offset, limit)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("claw machine %d: %w", i+1, err)
 		}
-		cost, err := minimumClawTokens(machine, offsetRat, limitRat)
-		if err != nil {
-			return "", fmt.Errorf("claw machine %d: %w", ordinal, err)
+		if total, err = day13Add(total, cost); err != nil {
+			return "", fmt.Errorf("claw token total: %w", err)
 		}
-		total = total.Add(cost)
-		if !more {
-			break
-		}
-		input = rest
 	}
-	return total.Numerator().String(), nil
+	return strconv.FormatInt(total, 10), nil
+}
+
+func day13Tokens(m clawMachine, offset, limit int64) (int64, error) {
+	var err error
+	if m.prize.x, err = day13Add(m.prize.x, offset); err != nil {
+		return 0, err
+	}
+	if m.prize.y, err = day13Add(m.prize.y, offset); err != nil {
+		return 0, err
+	}
+	a, b, ok, err := day13Presses(m, limit)
+	if err != nil || !ok {
+		return 0, err
+	}
+	tokensA, err := day13Mul(3, a)
+	if err != nil {
+		return 0, err
+	}
+	return day13Add(tokensA, b)
 }
 
 func day13p01(r io.Reader) (string, error) {
-	return clawTokenTotal(r, 0, big.NewInt(100))
+	return clawTokenTotal(r, 0, 100)
 }
 
 func day13p02(r io.Reader) (string, error) {
-	return clawTokenTotal(r, 10_000_000_000_000, nil)
+	return clawTokenTotal(r, 10_000_000_000_000, math.MaxInt64)
 }

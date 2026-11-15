@@ -92,6 +92,25 @@ func TestRaceRoutes(t *testing.T) {
 	}
 }
 
+func TestRaceTrackInvalidInput(t *testing.T) {
+	for _, tt := range []struct{ name, input string }{
+		{"empty", ""},
+		{"no end", "S.."},
+		{"two starts", "S.SE"},
+		{"two ends", "SEE"},
+		{"ragged rows", "S.E\n#"},
+		{"invalid character", "S.xE"},
+		{"branching track", "S..\n.#.\n..E"},
+		{"open cell off the path", "SE#\n#.."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, err := day20p02(1)(strings.NewReader(tt.input)); err == nil {
+				t.Fatalf("got %q, want race track error", got)
+			}
+		})
+	}
+}
+
 func TestDay20ReaderErrors(t *testing.T) {
 	want := errors.New("input read failure")
 	for _, tt := range []struct {

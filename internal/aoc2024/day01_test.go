@@ -51,7 +51,7 @@ func Test_day01p02(t *testing.T) {
 }
 
 func TestLocationRowErrors(t *testing.T) {
-	for _, input := range []string{"1", "1 2 3"} {
+	for _, input := range []string{"1", "1 2 3", "-1 2", "1 -2"} {
 		t.Run(input, func(t *testing.T) {
 			for _, solve := range []func(io.Reader) (string, error){day01p01, day01p02} {
 				if got, err := solve(strings.NewReader(input)); err == nil {
@@ -59,6 +59,16 @@ func TestLocationRowErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLocationTotalsRejectOverflow(t *testing.T) {
+	const input = "0 9223372036854775807\n0 9223372036854775807\n9223372036854775807 9223372036854775807"
+	if got, err := day01p01(strings.NewReader("0 9223372036854775807\n0 9223372036854775807")); err == nil {
+		t.Errorf("part 1: got %q; want overflow error", got)
+	}
+	if got, err := day01p02(strings.NewReader(input)); err == nil {
+		t.Errorf("part 2: got %q; want overflow error", got)
 	}
 }
 

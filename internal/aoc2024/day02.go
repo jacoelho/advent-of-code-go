@@ -25,6 +25,9 @@ func parseReport(b []byte) ([]int, error) {
 		if err != nil {
 			return nil, fmt.Errorf("report level: %w", err)
 		}
+		if value < 0 {
+			return nil, fmt.Errorf("report level %d is negative", value)
+		}
 		result = append(result, value)
 	}
 	return result, nil

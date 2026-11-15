@@ -75,10 +75,14 @@ func TestComputerInstructions(t *testing.T) {
 			t.Fatalf("program %q: expected instruction error", program)
 		}
 	}
-	computer := chronospatialComputer{a: 1, program: []uint8{3, 0}}
-	work := computerWork{steps: 8}
-	if _, err := computer.run(&work); err == nil || !strings.Contains(err.Error(), "budget") {
-		t.Fatalf("loop error = %v; want instruction budget error", err)
+}
+
+func TestComputerNonHaltingProgramRejected(t *testing.T) {
+	for _, program := range []string{"3,0", "1,1,3,0"} {
+		_, err := day17p01(strings.NewReader(computerInput(1, 0, 0, program)))
+		if err == nil || !strings.Contains(err.Error(), "never halts") {
+			t.Errorf("program %q: got %v; want non-halting error", program, err)
+		}
 	}
 }
 
@@ -89,6 +93,10 @@ func TestComputerQuines(t *testing.T) {
 	}
 	for _, tt := range []struct{ program, category string }{
 		{"5,0", "unsupported"},
+		{"0,1,5,4,3,0", "unsupported"},
+		{"0,3,3,0,5,4,3,0", "unsupported"},
+		{"0,3,5,4,0,3,5,4,3,0", "unsupported"},
+		{"0,3,5,4" + strings.Repeat(",2,4", 8) + ",3,0", "at most 21"},
 		{"1,1,0,3,5,5,3,0", "unsupported"},
 		{"0,3,5,0,3,0", "no quine"},
 	} {

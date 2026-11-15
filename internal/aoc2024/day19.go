@@ -13,13 +13,9 @@ import (
 )
 
 func parseDesigns(r io.Reader) (collections.Set[string], []string, error) {
-	const inputLimit = 128 << 10
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, nil, err
-	}
-	if len(data) > inputLimit {
-		return nil, nil, fmt.Errorf("towel input exceeds 128 KiB")
 	}
 	text := strings.ReplaceAll(string(data), "\r\n", "\n")
 	patternsString, desiredString, ok := strings.Cut(text, "\n\n")
@@ -30,12 +26,28 @@ func parseDesigns(r io.Reader) (collections.Set[string], []string, error) {
 	patterns := collections.NewSet[string]()
 	for field := range strings.SplitSeq(patternsString, ",") {
 		pattern := strings.TrimSpace(field)
-		if pattern == "" {
-			return nil, nil, fmt.Errorf("towel pattern is empty")
+		if err := day19ValidStripes(pattern); err != nil {
+			return nil, nil, fmt.Errorf("towel pattern: %w", err)
 		}
 		patterns.Add(pattern)
 	}
-	return patterns, strings.Fields(desiredString), nil
+	designs := strings.Fields(desiredString)
+	for _, design := range designs {
+		if err := day19ValidStripes(design); err != nil {
+			return nil, nil, fmt.Errorf("towel design: %w", err)
+		}
+	}
+	return patterns, designs, nil
+}
+
+func day19ValidStripes(stripes string) error {
+	if stripes == "" {
+		return fmt.Errorf("no stripes")
+	}
+	if i := strings.IndexFunc(stripes, func(c rune) bool { return !strings.ContainsRune("wubrg", c) }); i >= 0 {
+		return fmt.Errorf("%q has invalid stripe colour %q", stripes, stripes[i])
+	}
+	return nil
 }
 
 func countMatches(designs collections.Set[string], longestDesign int, pattern string) int {

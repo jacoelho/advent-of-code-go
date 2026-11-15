@@ -9,16 +9,14 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func lists(r io.Reader) ([]int, []int, error) {
 	s := scanner.NewScanner(r, func(b []byte) ([2]int, error) {
 		numbers := bytes.Fields(b)
-
 		if len(numbers) != 2 {
-			return [2]int{}, fmt.Errorf("location row needs two numbers")
+			return [2]int{}, fmt.Errorf("location row %q needs two numbers", b)
 		}
 		var pair [2]int
 		for i, number := range numbers {
@@ -26,20 +24,23 @@ func lists(r io.Reader) ([]int, []int, error) {
 			if err != nil {
 				return [2]int{}, fmt.Errorf("location column %d: %w", i+1, err)
 			}
+			if value < 0 {
+				return [2]int{}, fmt.Errorf("location column %d: negative location ID %d", i+1, value)
+			}
 			pair[i] = value
 		}
 		return pair, nil
 	})
 
-	l := xiter.From(s.Values()).Reduce(make([][]int, 2), func(sum [][]int, v [2]int) [][]int {
-		sum[0] = append(sum[0], v[0])
-		sum[1] = append(sum[1], v[1])
-		return sum
-	})
-	if s.Err() != nil {
-		return nil, nil, s.Err()
+	var left, right []int
+	for pair := range s.Values() {
+		left = append(left, pair[0])
+		right = append(right, pair[1])
 	}
-	return l[0], l[1], nil
+	if err := s.Err(); err != nil {
+		return nil, nil, err
+	}
+	return left, right, nil
 }
 
 func day01p01(r io.Reader) (string, error) {
@@ -51,13 +52,16 @@ func day01p01(r io.Reader) (string, error) {
 	slices.Sort(left)
 	slices.Sort(right)
 
-	pairs := xiter.Zip(slices.Values(left), slices.Values(right))
-
-	result := xiter.From(pairs).SumBy(func(zipped xiter.Zipped[int, int]) int {
-		return xmath.Abs(zipped.V2 - zipped.V1)
-	})
-
-	return strconv.Itoa(result), nil
+	var total int
+	for i := range left {
+		distance := xmath.Abs(right[i] - left[i])
+		sum, ok := xmath.CheckedAdd(total, distance)
+		if !ok {
+			return "", fmt.Errorf("total location distance overflows int")
+		}
+		total = sum
+	}
+	return strconv.Itoa(total), nil
 }
 
 func day01p02(r io.Reader) (string, error) {
@@ -66,11 +70,20 @@ func day01p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	frequencies := xiter.Frequencies(slices.Values(right))
+	frequencies := make(map[int]int, len(right))
+	for _, id := range right {
+		frequencies[id]++
+	}
 
-	result := xiter.FromSlice(left).SumBy(func(v int) int {
-		return v * frequencies[v]
-	})
-
-	return strconv.Itoa(result), nil
+	var total int
+	for _, id := range left {
+		score, ok := xmath.CheckedMul(id, frequencies[id])
+		if ok {
+			total, ok = xmath.CheckedAdd(total, score)
+		}
+		if !ok {
+			return "", fmt.Errorf("location similarity score overflows int")
+		}
+	}
+	return strconv.Itoa(total), nil
 }

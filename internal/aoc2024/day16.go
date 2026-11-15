@@ -3,33 +3,27 @@ package aoc2024
 import (
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
-func parseReindeerMaze(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
-		res := make([]rune, len(b))
-		for i, v := range b {
-			res[i] = rune(v)
-		}
-		return res, nil
-	})
-	return grid.NewGrid2D[int, rune](slices.Collect(s.Values())), s.Err()
-}
-
-func mazeStartPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
-	for position, value := range g {
-		if value == 'S' {
-			return position, nil
-		}
+// parseReindeerMaze returns the maze and its unique start tile.
+func parseReindeerMaze(r io.Reader) (grid.Bytes, grid.Position2D[int], error) {
+	maze, err := grid.ReadBytes(r, "#.SE")
+	if err != nil {
+		return grid.Bytes{}, grid.Position2D[int]{}, fmt.Errorf("reindeer maze: %w", err)
 	}
-	return grid.Position2D[int]{}, fmt.Errorf("reindeer maze has no start")
+	start, err := maze.Find('S')
+	if err != nil {
+		return grid.Bytes{}, grid.Position2D[int]{}, fmt.Errorf("reindeer maze: %w", err)
+	}
+	if _, err := maze.Find('E'); err != nil {
+		return grid.Bytes{}, grid.Position2D[int]{}, fmt.Errorf("reindeer maze: %w", err)
+	}
+	return maze, start, nil
 }
 
 type reindeerState struct {
@@ -37,7 +31,7 @@ type reindeerState struct {
 	direction grid.Position2D[int]
 }
 
-func reindeerEdges(maze grid.Grid2D[int, rune]) search.Edges[reindeerState] {
+func reindeerEdges(maze grid.Bytes) search.Edges[reindeerState] {
 	return func(p reindeerState, yield func(reindeerState, int) bool) error {
 		forward := reindeerState{
 			position:  p.position.Add(p.direction),
@@ -52,7 +46,7 @@ func reindeerEdges(maze grid.Grid2D[int, rune]) search.Edges[reindeerState] {
 			direction: p.direction.TurnLeft(),
 		}
 		for i, candidate := range [...]reindeerState{forward, clockwise, counter} {
-			if maze[candidate.position] == '.' || maze[candidate.position] == 'E' || maze[candidate.position] == 'S' {
+			if maze.Contains(candidate.position) && maze.At(candidate.position) != '#' {
 				cost := 1000
 				if i == 0 {
 					cost = 1
@@ -66,18 +60,14 @@ func reindeerEdges(maze grid.Grid2D[int, rune]) search.Edges[reindeerState] {
 	}
 }
 
-func reindeerGoal(maze grid.Grid2D[int, rune]) func(reindeerState) bool {
+func reindeerGoal(maze grid.Bytes) func(reindeerState) bool {
 	return func(state reindeerState) bool {
-		return maze[state.position] == 'E'
+		return maze.At(state.position) == 'E'
 	}
 }
 
 func day16p01(r io.Reader) (string, error) {
-	maze, err := parseReindeerMaze(r)
-	if err != nil {
-		return "", err
-	}
-	position, err := mazeStartPosition(maze)
+	maze, position, err := parseReindeerMaze(r)
 	if err != nil {
 		return "", err
 	}
@@ -98,11 +88,7 @@ func day16p01(r io.Reader) (string, error) {
 }
 
 func day16p02(r io.Reader) (string, error) {
-	maze, err := parseReindeerMaze(r)
-	if err != nil {
-		return "", err
-	}
-	position, err := mazeStartPosition(maze)
+	maze, position, err := parseReindeerMaze(r)
 	if err != nil {
 		return "", err
 	}

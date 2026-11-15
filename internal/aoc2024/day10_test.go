@@ -54,30 +54,27 @@ func Test_day10p02(t *testing.T) {
 	aoc.AOCTest(t, day10p02, tests)
 }
 
-func TestTrailRows(t *testing.T) {
-	for _, test := range []struct {
-		name, input, want string
+func TestTrailRowsDoNotConnectAcrossLines(t *testing.T) {
+	for i, solve := range []func(io.Reader) (string, error){day10p01, day10p02} {
+		got, err := solve(strings.NewReader("01234\n56789"))
+		if err != nil || got != "0" {
+			t.Fatalf("part %d = %q, %v; want 0", i+1, got, err)
+		}
+	}
+}
+
+func TestTopographicMapRejectsMalformedInput(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
 	}{
-		{
-			name: "empty input",
-			want: "0",
-		},
-		{
-			name:  "row boundaries",
-			input: "01234\n56789",
-			want:  "0",
-		},
-		{
-			name:  "ragged rows and nondigits",
-			input: "0123456789\n.x",
-			want:  "1",
-		},
+		{"empty input", ""},
+		{"ragged rows", "0123456789\n01"},
+		{"nondigit height", "0123456789\n.123456789"},
 	} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			for i, solve := range []func(io.Reader) (string, error){day10p01, day10p02} {
-				got, err := solve(strings.NewReader(test.input))
-				if err != nil || got != test.want {
-					t.Fatalf("part %d = %q, %v; want %s", i+1, got, err, test.want)
+				if got, err := solve(strings.NewReader(tt.input)); err == nil {
+					t.Fatalf("part %d = %q; want error", i+1, got)
 				}
 			}
 		})

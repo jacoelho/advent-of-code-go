@@ -67,6 +67,24 @@ EEEEE`),
 	aoc.AOCTest(t, day12p02, tests)
 }
 
+func TestGardenRejectsMalformedInput(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+	}{
+		{"empty input", ""},
+		{"ragged rows", "AAA\nAA"},
+		{"invalid plant", "AA\na."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for i, solve := range []func(io.Reader) (string, error){day12p01, day12p02} {
+				if got, err := solve(strings.NewReader(tt.input)); err == nil {
+					t.Fatalf("part %d = %q; want error", i+1, got)
+				}
+			}
+		})
+	}
+}
+
 func TestDay12ReaderErrors(t *testing.T) {
 	want := errors.New("input read failure")
 	for _, tt := range []struct {

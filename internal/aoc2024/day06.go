@@ -1,98 +1,148 @@
 package aoc2024
 
 import (
-	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
-type guardStep struct {
-	next, ahead int
-}
+// Directions are indexed clockwise from north, so turning right is (d+1)%4.
+var (
+	guardDX = [4]int{0, 1, 0, -1}
+	guardDY = [4]int{-1, 0, 1, 0}
+)
 
 type guardMap struct {
-	steps []guardStep
-	start int
+	width, height int
+	wall          []bool
+	start         int
 }
 
+// guardObstacle is a cell first entered from state before, encoded as
+// 4*cell+direction; the walk up to before never touches cell.
 type guardObstacle struct {
 	cell, before int
 }
 
 func parseGuardMap(r io.Reader) (guardMap, error) {
-	s := scanner.NewScanner(r, func(b []byte) (string, error) { return string(b), nil })
-	rows := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
+	g, err := grid.ReadBytes(r, ".#^")
+	if err != nil {
 		return guardMap{}, err
 	}
-
-	offsets := make([]int, len(rows))
-	cellCount, start := 0, -1
-	multiple := false
-	for y, row := range rows {
-		if len(row) > int(^uint(0)>>1)/4-cellCount {
-			return guardMap{}, fmt.Errorf("guard map has too many cells")
-		}
-		offsets[y] = cellCount
-		for x := range len(row) {
-			if row[x] == '^' {
-				if start >= 0 {
-					multiple = true
-				} else {
-					start = 4 * (cellCount + x)
-				}
-			}
-		}
-		cellCount += len(row)
+	start, err := g.Find('^')
+	if err != nil {
+		return guardMap{}, err
 	}
-	if multiple {
-		return guardMap{}, fmt.Errorf("guard map has multiple guards")
-	}
-	if start < 0 {
-		return guardMap{}, fmt.Errorf("guard not found")
-	}
-
-	// Each cell has north, east, south, and west states, including turns in place.
-	m := guardMap{steps: make([]guardStep, 4*cellCount), start: start}
-	dx, dy := [4]int{0, 1, 0, -1}, [4]int{-1, 0, 1, 0}
-	for y, row := range rows {
-		for x := range len(row) {
-			cell := offsets[y] + x
-			for direction := range 4 {
-				step := guardStep{next: -1, ahead: -1}
-				nx, ny := x+dx[direction], y+dy[direction]
-				if ny >= 0 && ny < len(rows) && nx >= 0 && nx < len(rows[ny]) && rows[ny][nx] != 0 {
-					step.ahead = offsets[ny] + nx
-					if rows[ny][nx] == '#' {
-						step.next = 4*cell + (direction+1)%4
-					} else {
-						step.next = 4*step.ahead + direction
-					}
-				}
-				m.steps[4*cell+direction] = step
-			}
-		}
+	m := guardMap{width: g.Width(), height: g.Height(), start: g.Index(start), wall: make([]bool, len(g.Cells()))}
+	for i, tile := range g.Cells() {
+		m.wall[i] = tile == '#'
 	}
 	return m, nil
 }
 
-func (m guardMap) obstacles(marks []int) []guardObstacle {
-	visited := make([]bool, len(m.steps)/4)
-	visited[m.start/4] = true
-	var obstacles []guardObstacle
-	for state := m.start; state >= 0 && marks[state] == 0; {
-		marks[state] = 1
-		next := m.steps[state].next
-		if next >= 0 && !visited[next/4] {
-			visited[next/4] = true
-			obstacles = append(obstacles, guardObstacle{cell: next / 4, before: state})
+func (m guardMap) inside(x, y int) bool {
+	return x >= 0 && x < m.width && y >= 0 && y < m.height
+}
+
+// guardStops[d][cell] is the coordinate along d's axis (y for north and south,
+// x for east and west) of the last cell reached walking from cell in direction
+// d before a wall or the map edge.
+type guardStops [4][]int32
+
+func (m guardMap) stops() guardStops {
+	var result guardStops
+	n := len(m.wall)
+	for dir := range 4 {
+		stops := make([]int32, n)
+		// North and west neighbours precede a cell in row-major order; south
+		// and east neighbours follow it, so those directions fill in reverse.
+		reverse := dir == 1 || dir == 2
+		for i := range n {
+			cell := i
+			if reverse {
+				cell = n - 1 - i
+			}
+			x, y := cell%m.width, cell/m.width
+			nx, ny := x+guardDX[dir], y+guardDY[dir]
+			switch {
+			case m.inside(nx, ny) && !m.wall[ny*m.width+nx]:
+				stops[cell] = stops[ny*m.width+nx]
+			case dir%2 == 0:
+				stops[cell] = int32(y)
+			default:
+				stops[cell] = int32(x)
+			}
 		}
-		state = next
+		result[dir] = stops
 	}
-	return obstacles
+	return result
+}
+
+// obstacles walks the unobstructed patrol, which may itself loop, and returns
+// every cell it enters after the start, in order of first entry.
+func (m guardMap) obstacles() []guardObstacle {
+	seen := make([]bool, 4*len(m.wall))
+	entered := make([]bool, len(m.wall))
+	entered[m.start] = true
+	var obstacles []guardObstacle
+	x, y, dir := m.start%m.width, m.start/m.width, 0
+	for {
+		state := 4*(y*m.width+x) + dir
+		if seen[state] {
+			return obstacles
+		}
+		seen[state] = true
+		nx, ny := x+guardDX[dir], y+guardDY[dir]
+		if !m.inside(nx, ny) {
+			return obstacles
+		}
+		next := ny*m.width + nx
+		if m.wall[next] {
+			dir = (dir + 1) % 4
+			continue
+		}
+		if !entered[next] {
+			entered[next] = true
+			obstacles = append(obstacles, guardObstacle{cell: next, before: state})
+		}
+		x, y = nx, ny
+	}
+}
+
+// loopsWith reports whether the patrol loops once obstacle is placed. It
+// resumes from obstacle.before and jumps between turns, recording each turn in
+// marks under generation.
+func (m guardMap) loopsWith(stops guardStops, obstacle guardObstacle, marks []int32, generation int32) bool {
+	ox, oy := obstacle.cell%m.width, obstacle.cell/m.width
+	cell, dir := obstacle.before/4, obstacle.before%4
+	x, y := cell%m.width, cell/m.width
+	edges := [4]int{0, m.width - 1, m.height - 1, 0}
+	for {
+		vertical := dir%2 == 0
+		along, obstacleAlong, sameLine := x, ox, oy == y
+		if vertical {
+			along, obstacleAlong, sameLine = y, oy, ox == x
+		}
+		sign := guardDX[dir] + guardDY[dir]
+		end := int(stops[dir][y*m.width+x])
+		if sameLine && (obstacleAlong-along)*sign > 0 && (end-obstacleAlong)*sign >= 0 {
+			end = obstacleAlong - sign
+		} else if end == edges[dir] {
+			return false
+		}
+		if vertical {
+			y = end
+		} else {
+			x = end
+		}
+		state := 4*(y*m.width+x) + dir
+		if marks[state] == generation {
+			return true
+		}
+		marks[state] = generation
+		dir = (dir + 1) % 4
+	}
 }
 
 func day06p01(r io.Reader) (string, error) {
@@ -100,8 +150,7 @@ func day06p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	marks := make([]int, len(m.steps))
-	return strconv.Itoa(len(m.obstacles(marks)) + 1), nil
+	return strconv.Itoa(len(m.obstacles()) + 1), nil
 }
 
 func day06p02(r io.Reader) (string, error) {
@@ -109,23 +158,11 @@ func day06p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	marks := make([]int, len(m.steps))
-	obstacles := m.obstacles(marks)
+	stops := m.stops()
+	marks := make([]int32, 4*len(m.wall))
 	var count int
-	for i, obstacle := range obstacles {
-		generation := i + 2
-		// The unchanged prefix reaches this state; only the suffix needs replaying.
-		state := obstacle.before
-		for state >= 0 && marks[state] != generation {
-			marks[state] = generation
-			step := m.steps[state]
-			if step.ahead == obstacle.cell {
-				state = state&^3 | (state+1)&3
-			} else {
-				state = step.next
-			}
-		}
-		if state >= 0 {
+	for i, obstacle := range m.obstacles() {
+		if m.loopsWith(stops, obstacle, marks, int32(i+1)) {
 			count++
 		}
 	}

@@ -3,103 +3,100 @@ package aoc2024
 import (
 	"fmt"
 	"io"
-	"iter"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-func parseRaceTrack(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]rune, error) {
-		result := make([]rune, 0, len(b))
-		for _, v := range b {
-			result = append(result, rune(v))
-		}
-		return result, nil
-	})
-	return grid.NewGrid2D[int](slices.Collect(s.Values())), s.Err()
+const (
+	day20Wall      = -1
+	day20Unvisited = -2
+)
+
+type day20RaceTrack struct {
+	width, height int
+	// distance holds the step count from the start for each track cell,
+	// indexed by y*width+x, and day20Wall for walls.
+	distance []int32
+	// path lists track cell indices in race order.
+	path []int
 }
 
-func raceStartPosition(g grid.Grid2D[int, rune]) (grid.Position2D[int], error) {
-	for position, value := range g {
-		if value == 'S' {
-			return position, nil
-		}
+func parseRaceTrack(r io.Reader) (day20RaceTrack, error) {
+	g, err := grid.ReadBytes(r, "#.SE")
+	if err != nil {
+		return day20RaceTrack{}, fmt.Errorf("race track: %w", err)
 	}
-	return grid.Position2D[int]{}, fmt.Errorf("race track has no start")
-}
-
-func day20Heuristic(raceTrack grid.Grid2D[int, rune]) func(position grid.Position2D[int]) int {
-	return func(position grid.Position2D[int]) int {
-		if raceTrack[position] == 'E' {
-			return 0
-		}
-		return 1
+	start, err := g.Find('S')
+	if err != nil {
+		return day20RaceTrack{}, fmt.Errorf("race track: %w", err)
 	}
+	end, err := g.Find('E')
+	if err != nil {
+		return day20RaceTrack{}, fmt.Errorf("race track: %w", err)
+	}
+	track := day20RaceTrack{width: g.Width(), height: g.Height(), distance: make([]int32, len(g.Cells()))}
+	open := 0
+	for i, c := range g.Cells() {
+		if c == '#' {
+			track.distance[i] = day20Wall
+			continue
+		}
+		track.distance[i] = day20Unvisited
+		open++
+	}
+	if err := track.walk(g, start, end, open); err != nil {
+		return day20RaceTrack{}, err
+	}
+	return track, nil
 }
 
-func day20Edges(raceTrack grid.Grid2D[int, rune]) search.Edges[grid.Position2D[int]] {
-	return func(position grid.Position2D[int], yield func(grid.Position2D[int], int) bool) error {
-		for p := range grid.Neighbours4(position) {
-			if raceTrack[p] == '.' || raceTrack[p] == 'E' {
-				if !yield(p, 1) {
-					return nil
+// walk records the distance of each track cell, requiring the track to be a
+// single path from start to end through every open cell.
+func (t *day20RaceTrack) walk(g grid.Bytes, start, end grid.Position2D[int], open int) error {
+	current, last := g.Index(start), g.Index(end)
+	t.distance[current] = 0
+	t.path = append(t.path, current)
+	for current != last {
+		next := -1
+		p := g.Position(current)
+		for neighbour := range g.Neighbours4(p) {
+			if n := g.Index(neighbour); t.distance[n] == day20Unvisited {
+				if next >= 0 {
+					return fmt.Errorf("race track branches at %d,%d", p.X, p.Y)
 				}
+				next = n
 			}
 		}
-		return nil
-	}
-}
-
-func cheatDistanceOffsets(cheatDistance int) iter.Seq[grid.Position2D[int]] {
-	return func(yield func(grid.Position2D[int]) bool) {
-		for dy := -cheatDistance; dy <= cheatDistance; dy++ {
-			for dx := -cheatDistance + xmath.Abs(dy); dx <= cheatDistance-xmath.Abs(dy); dx++ {
-				if !yield(grid.Position2D[int]{X: dx, Y: dy}) {
-					return
-				}
-			}
+		if next < 0 {
+			return fmt.Errorf("race track has no route to the end")
 		}
+		t.distance[next] = t.distance[current] + 1
+		t.path = append(t.path, next)
+		current = next
 	}
+	if len(t.path) != open {
+		return fmt.Errorf("race track has %d open cells off the path", open-len(t.path))
+	}
+	return nil
 }
 
 func day20(cheatDistance, saveGoal int) func(r io.Reader) (string, error) {
 	return func(r io.Reader) (string, error) {
-		raceTrack, err := parseRaceTrack(r)
+		track, err := parseRaceTrack(r)
 		if err != nil {
 			return "", err
 		}
-		startPosition, err := raceStartPosition(raceTrack)
-		if err != nil {
-			return "", err
-		}
-		_, path, found, err := search.AStar(startPosition, func(position grid.Position2D[int]) bool {
-			return raceTrack[position] == 'E'
-		}, day20Edges(raceTrack), day20Heuristic(raceTrack), search.Limits{})
-		if err != nil {
-			return "", fmt.Errorf("race track: %w", err)
-		}
-		if !found {
-			return "", fmt.Errorf("race track has no route to the end")
-		}
-
-		distances := make(grid.Grid2D[int, int], len(path))
-		for distance, p := range path {
-			distances[p] = distance
-		}
-
-		offsets := slices.Collect(cheatDistanceOffsets(cheatDistance))
-
 		var count int
-		for start, startDistance := range distances {
-			for _, offset := range offsets {
-				end := start.Add(offset)
-				if endDistance, found := distances[end]; found {
-					if endDistance-startDistance-start.Distance(end) >= saveGoal {
+		for _, from := range track.path {
+			x, y := from%track.width, from/track.width
+			fromDistance := int(track.distance[from])
+			for dy := max(-cheatDistance, -y); dy <= min(cheatDistance, track.height-1-y); dy++ {
+				reach := cheatDistance - xmath.Abs(dy)
+				for dx := max(-reach, -x); dx <= min(reach, track.width-1-x); dx++ {
+					to := track.distance[(y+dy)*track.width+x+dx]
+					if to >= 0 && int(to)-fromDistance-xmath.Abs(dx)-xmath.Abs(dy) >= saveGoal {
 						count++
 					}
 				}

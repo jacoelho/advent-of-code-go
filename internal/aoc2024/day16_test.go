@@ -132,6 +132,29 @@ func TestReindeerEqualGoalOrientations(t *testing.T) {
 	}
 }
 
+func TestReindeerMazeRejectsMalformedInput(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+	}{
+		{"empty input", ""},
+		{"missing start", "..E"},
+		{"missing end", "S.."},
+		{"duplicate start", "S.SE"},
+		{"duplicate end", "SE.E"},
+		{"ragged rows", "S.E\n.."},
+		{"invalid tile", "S?E"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for i, solve := range []func(io.Reader) (string, error){day16p01, day16p02} {
+				got, err := solve(strings.NewReader(tt.input))
+				if err == nil || strings.Contains(err.Error(), "no route") {
+					t.Fatalf("part %d = %q, %v; want input validation error", i+1, got, err)
+				}
+			}
+		})
+	}
+}
+
 func TestDay16ReaderErrors(t *testing.T) {
 	want := errors.New("input read failure")
 	for _, tt := range []struct {
