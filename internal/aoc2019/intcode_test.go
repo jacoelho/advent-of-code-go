@@ -44,6 +44,11 @@ func TestIntcodeMemory(t *testing.T) {
 			output:  []int{0},
 		},
 		{
+			name:    "write far beyond the program",
+			program: []int{1101, 5, 0, 1 << 40, 4, 1 << 40, 1101, 6, 0, 20, 4, 20, 99},
+			output:  []int{5, 6},
+		},
+		{
 			name:    "large output",
 			program: []int{104, 1125899906842624, 99},
 			output:  []int{1125899906842624},
@@ -76,7 +81,6 @@ func TestIntcodeAddressErrors(t *testing.T) {
 		{109, -1, 204, 0, 99},
 		{3, -1, 99},
 		{1105, 1, -1},
-		{1101, 1, 0, 1_000_000, 99},
 		{109, math.MaxInt, 204, 1, 99},
 		{109, math.MinInt, 109, -1, 99},
 	}
@@ -131,9 +135,10 @@ func TestIntcodeCloneContinuation(t *testing.T) {
 		}
 	}
 	for _, tt := range cases {
-		memory := tt.computer.Memory()
-		if memory[31] != tt.input || memory[32] != tt.want {
-			t.Fatalf("input %d: continuation memory = %v", tt.input, memory[31:33])
+		input, _ := tt.computer.ReadMemory(31)
+		sum, _ := tt.computer.ReadMemory(32)
+		if input != tt.input || sum != tt.want {
+			t.Fatalf("input %d: continuation memory = [%d %d]", tt.input, input, sum)
 		}
 	}
 }
@@ -143,5 +148,13 @@ func TestIntcodeReaderError(t *testing.T) {
 	reader := io.MultiReader(strings.NewReader("99"), iotest.ErrReader(failure))
 	if _, err := ParseIntcodeInput(reader); !errors.Is(err, failure) {
 		t.Fatalf("got %v, want input failure", err)
+	}
+}
+
+func TestIntcodeRunToHaltRejectsInputRequest(t *testing.T) {
+	computer := New([]int{3, 0, 3, 1, 99})
+	computer.SetInput(1)
+	if err := computer.RunToHalt(); err == nil {
+		t.Fatal("expected an error for a program waiting on input")
 	}
 }

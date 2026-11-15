@@ -2,66 +2,70 @@ package aoc2019
 
 import (
 	"cmp"
+	"fmt"
 	"io"
-	"maps"
 	"math"
 	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func parseAsteroidMap(r io.Reader) ([]grid.Position2D[int], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]rune, error) {
-		return []rune(string(line)), nil
-	})
-
-	rows := slices.Collect(s.Values())
+	s := scanner.NewScanner(r, func(line []byte) ([]byte, error) { return line, nil })
+	var asteroids []grid.Position2D[int]
+	width, height := -1, 0
+	for line := range s.Values() {
+		if width >= 0 && len(line) != width {
+			return nil, fmt.Errorf("asteroid map row %d has width %d, want %d", height, len(line), width)
+		}
+		width = len(line)
+		for x, c := range line {
+			switch c {
+			case '#':
+				asteroids = append(asteroids, grid.Position2D[int]{X: x, Y: height})
+			case '.':
+			default:
+				return nil, fmt.Errorf("invalid asteroid map cell %q at (%d,%d)", c, x, height)
+			}
+		}
+		height++
+	}
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
-
-	g := grid.NewGrid2D[int](rows)
-	return xiter.From(maps.Keys(g)).Filter(func(pos grid.Position2D[int]) bool {
-		return g[pos] == '#'
-	}).Collect(), nil
-}
-
-func normalizeDirection(station, asteroid grid.Position2D[int]) grid.Position2D[int] {
-	dx := asteroid.X - station.X
-	dy := asteroid.Y - station.Y
-	gcd := xmath.GCD(dx, dy)
-
-	return grid.Position2D[int]{
-		X: dx / gcd,
-		Y: dy / gcd,
+	if len(asteroids) == 0 {
+		return nil, fmt.Errorf("asteroid map has no asteroids")
 	}
+	return asteroids, nil
 }
 
-func countVisibleAsteroids(station grid.Position2D[int], asteroids []grid.Position2D[int]) int {
-	directions := collections.NewSet[grid.Position2D[int]]()
+func lineOfSight(station, asteroid grid.Position2D[int]) grid.Position2D[int] {
+	delta := asteroid.Sub(station)
+	gcd := xmath.GCD(delta.X, delta.Y)
+	return grid.Position2D[int]{X: delta.X / gcd, Y: delta.Y / gcd}
+}
 
-	for _, asteroid := range asteroids {
-		if asteroid == station {
-			continue
+// bestStation returns the first asteroid, in row order, that sees the most
+// others, and how many it sees.
+func bestStation(asteroids []grid.Position2D[int]) (grid.Position2D[int], int) {
+	var best grid.Position2D[int]
+	bestVisible := -1
+	directions := make(map[grid.Position2D[int]]struct{})
+	for _, station := range asteroids {
+		clear(directions)
+		for _, asteroid := range asteroids {
+			if asteroid != station {
+				directions[lineOfSight(station, asteroid)] = struct{}{}
+			}
 		}
-
-		directions.Add(normalizeDirection(station, asteroid))
+		if len(directions) > bestVisible {
+			best, bestVisible = station, len(directions)
+		}
 	}
-
-	return directions.Len()
-}
-
-func findBestLocation(asteroids []grid.Position2D[int]) (grid.Position2D[int], int) {
-	bestLocation := slices.MaxFunc(asteroids, func(a, b grid.Position2D[int]) int {
-		return cmp.Compare(countVisibleAsteroids(a, asteroids), countVisibleAsteroids(b, asteroids))
-	})
-
-	return bestLocation, countVisibleAsteroids(bestLocation, asteroids)
+	return best, bestVisible
 }
 
 func day10p01(r io.Reader) (string, error) {
@@ -69,12 +73,12 @@ func day10p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	_, maxVisible := findBestLocation(asteroids)
-	return strconv.Itoa(maxVisible), nil
+	_, visible := bestStation(asteroids)
+	return strconv.Itoa(visible), nil
 }
 
-func calculateAngle(direction grid.Position2D[int]) float64 {
+// clockwiseAngle measures direction clockwise from straight up, in [0, 2π).
+func clockwiseAngle(direction grid.Position2D[int]) float64 {
 	angle := math.Atan2(float64(direction.X), float64(-direction.Y))
 	if angle < 0 {
 		angle += 2 * math.Pi
@@ -82,60 +86,40 @@ func calculateAngle(direction grid.Position2D[int]) float64 {
 	return angle
 }
 
-func groupAsteroidsByDirection(
-	station grid.Position2D[int],
-	asteroids []grid.Position2D[int],
-) map[grid.Position2D[int]][]grid.Position2D[int] {
-	groups := make(map[grid.Position2D[int]][]grid.Position2D[int])
-
+// vaporizationOrder returns the asteroids other than station in the order a
+// clockwise-rotating laser, starting upward, destroys them: the n-th asteroid
+// along a line of sight goes on the n-th rotation.
+func vaporizationOrder(station grid.Position2D[int], asteroids []grid.Position2D[int]) []grid.Position2D[int] {
+	type target struct {
+		pos      grid.Position2D[int]
+		rotation int
+		angle    float64
+	}
+	byDirection := make(map[grid.Position2D[int]][]grid.Position2D[int])
 	for _, asteroid := range asteroids {
-		if asteroid == station {
-			continue
+		if asteroid != station {
+			direction := lineOfSight(station, asteroid)
+			byDirection[direction] = append(byDirection[direction], asteroid)
 		}
-
-		normalizedDir := normalizeDirection(station, asteroid)
-		groups[normalizedDir] = append(groups[normalizedDir], asteroid)
 	}
-
-	for dir := range groups {
-		slices.SortFunc(groups[dir], func(a, b grid.Position2D[int]) int {
-			distA := station.Distance(a)
-			distB := station.Distance(b)
-			return cmp.Compare(distA, distB)
+	var targets []target
+	for direction, line := range byDirection {
+		slices.SortFunc(line, func(a, b grid.Position2D[int]) int {
+			return cmp.Compare(station.Distance(a), station.Distance(b))
 		})
-	}
-
-	return groups
-}
-
-func vaporizeAsteroids(
-	station grid.Position2D[int],
-	asteroids []grid.Position2D[int],
-	targetCount int,
-) grid.Position2D[int] {
-	groups := groupAsteroidsByDirection(station, asteroids)
-
-	directions := slices.Collect(maps.Keys(groups))
-	slices.SortFunc(directions, func(a, b grid.Position2D[int]) int {
-		return cmp.Compare(calculateAngle(a), calculateAngle(b))
-	})
-
-	count := 0
-	for {
-		for _, dir := range directions {
-			if len(groups[dir]) == 0 {
-				continue
-			}
-
-			vaporized := groups[dir][0]
-			groups[dir] = groups[dir][1:]
-			count++
-
-			if count == targetCount {
-				return vaporized
-			}
+		angle := clockwiseAngle(direction)
+		for rotation, pos := range line {
+			targets = append(targets, target{pos: pos, rotation: rotation, angle: angle})
 		}
 	}
+	slices.SortFunc(targets, func(a, b target) int {
+		return cmp.Or(cmp.Compare(a.rotation, b.rotation), cmp.Compare(a.angle, b.angle))
+	})
+	order := make([]grid.Position2D[int], len(targets))
+	for i, t := range targets {
+		order[i] = t.pos
+	}
+	return order
 }
 
 func day10p02(r io.Reader) (string, error) {
@@ -144,9 +128,12 @@ func day10p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	station, _ := findBestLocation(asteroids)
-	target := vaporizeAsteroids(station, asteroids, 200)
-
-	result := target.X*100 + target.Y
-	return strconv.Itoa(result), nil
+	const target = 200
+	station, _ := bestStation(asteroids)
+	order := vaporizationOrder(station, asteroids)
+	if len(order) < target {
+		return "", fmt.Errorf("only %d asteroids to vaporize, need %d", len(order), target)
+	}
+	pos := order[target-1]
+	return strconv.Itoa(pos.X*100 + pos.Y), nil
 }

@@ -1,88 +1,71 @@
 package aoc2019
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"maps"
-	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-func parse(r io.Reader) (int, int, error) {
-	s := scanner.NewScanner(r, func(b []byte) (string, error) {
-		return string(b), nil
-	})
-
-	var line string
-	for l := range s.Values() {
-		line = l
-		break
-	}
-
-	if err := s.Err(); err != nil {
+func parsePasswordRange(r io.Reader) (int, int, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
 		return 0, 0, err
 	}
+	lowText, highText, ok := bytes.Cut(bytes.TrimSpace(data), []byte("-"))
+	if !ok {
+		return 0, 0, fmt.Errorf("password range %q needs the form low-high", data)
+	}
+	low, err := convert.ScanNumber[int](lowText)
+	if err != nil {
+		return 0, 0, fmt.Errorf("password range low: %w", err)
+	}
+	high, err := convert.ScanNumber[int](highText)
+	if err != nil {
+		return 0, 0, fmt.Errorf("password range high: %w", err)
+	}
+	if low < 0 || low > high {
+		return 0, 0, fmt.Errorf("invalid password range %d-%d", low, high)
+	}
+	return low, high, nil
+}
 
-	nums := convert.ExtractDigits[int](line)
-	if len(nums) != 2 {
-		return 0, 0, fmt.Errorf("expected 2 numbers, got %d", len(nums))
+// countPasswords counts the six-digit numbers in the input range whose digits
+// never decrease and whose run lengths satisfy valid. Run lengths are passed
+// as a bit set: bit n is set when some run of equal digits has length n.
+func countPasswords(r io.Reader, valid func(runLengths uint) bool) (string, error) {
+	low, high, err := parsePasswordRange(r)
+	if err != nil {
+		return "", err
 	}
 
-	return nums[0], nums[1], nil
-}
-
-func hasPair(digits []int) bool {
-	return xiter.From(maps.Values(xiter.Frequencies(slices.Values(digits)))).Any(func(count int) bool { return count >= 2 })
-}
-
-func isNonDecreasing(digits []int) bool {
-	for pair := range xslices.Window(2, digits) {
-		if pair[0] > pair[1] {
-			return false
+	count := 0
+	var walk func(value, length, last, run int, runLengths uint)
+	walk = func(value, length, last, run int, runLengths uint) {
+		if length == 6 {
+			if value >= low && value <= high && valid(runLengths|1<<run) {
+				count++
+			}
+			return
+		}
+		for digit := max(last, 1); digit <= 9; digit++ {
+			if digit == last {
+				walk(value*10+digit, length+1, digit, run+1, runLengths)
+			} else {
+				walk(value*10+digit, length+1, digit, 1, runLengths|1<<run)
+			}
 		}
 	}
-	return true
-}
-
-func hasExactlyOnePair(digits []int) bool {
-	return xiter.From(maps.Values(xiter.Frequencies(slices.Values(digits)))).Any(func(count int) bool { return count == 2 })
+	walk(0, 0, 0, 0, 0)
+	return strconv.Itoa(count), nil
 }
 
 func day04p01(r io.Reader) (string, error) {
-	min, max, err := parse(r)
-	if err != nil {
-		return "", err
-	}
-
-	count := 0
-	for n := min; n <= max; n++ {
-		digits := convert.ToDigits(n)
-		if hasPair(digits) && isNonDecreasing(digits) {
-			count++
-		}
-	}
-
-	return strconv.Itoa(count), nil
+	return countPasswords(r, func(runLengths uint) bool { return runLengths>>2 != 0 })
 }
 
 func day04p02(r io.Reader) (string, error) {
-	min, max, err := parse(r)
-	if err != nil {
-		return "", err
-	}
-
-	count := 0
-	for n := min; n <= max; n++ {
-		digits := convert.ToDigits(n)
-		if hasExactlyOnePair(digits) && isNonDecreasing(digits) {
-			count++
-		}
-	}
-
-	return strconv.Itoa(count), nil
+	return countPasswords(r, func(runLengths uint) bool { return runLengths&(1<<2) != 0 })
 }

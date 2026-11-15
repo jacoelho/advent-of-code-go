@@ -1,6 +1,7 @@
 package aoc2019
 
 import (
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -79,4 +80,19 @@ func Test_day16p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day16p02, tests)
+}
+
+func TestSignalErrors(t *testing.T) {
+	for _, input := range []string{"", "1234567", "1234x678"} {
+		for _, solve := range []func(io.Reader) (string, error){day16p01, day16p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("expected signal error for %q", input)
+			}
+		}
+	}
+	for _, input := range []string{"00000010", "99999999"} {
+		if _, err := day16p02(strings.NewReader(input)); err == nil {
+			t.Errorf("expected offset error for %q", input)
+		}
+	}
 }

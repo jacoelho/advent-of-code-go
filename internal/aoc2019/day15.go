@@ -19,8 +19,6 @@ const (
 	statusOxygen status = 2
 )
 
-const maxDroidTiles = 100_000
-
 type droidDirection int
 
 const (
@@ -86,9 +84,6 @@ func exploreWithDroid(program []int) (grid.Grid2D[int, tile], grid.Position2D[in
 				continue
 			}
 
-			if visited.Len() == maxDroidTiles {
-				return nil, oxygenPos, fmt.Errorf("droid exploration exceeds %d tiles", maxDroidTiles)
-			}
 			computer := state.computer.Clone()
 			computer.AddInput(int(dir))
 			if err := computer.Run(); err != nil {

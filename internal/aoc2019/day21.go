@@ -10,7 +10,7 @@ func runSpringdroid(program []int, springscript []string) (string, error) {
 	computer := New(program)
 	computer.SetInput(StringsToASCII(springscript...)...)
 
-	if err := computer.Run(); err != nil {
+	if err := computer.RunToHalt(); err != nil {
 		return "", err
 	}
 

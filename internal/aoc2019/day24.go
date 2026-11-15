@@ -1,242 +1,153 @@
 package aoc2019
 
 import (
-	"bufio"
+	"fmt"
 	"io"
 	"math/bits"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 const (
-	gridSize  = 5
-	centerPos = 12
-	centerX   = 2
-	centerY   = 2
+	erisSize   = 5
+	erisCells  = erisSize * erisSize
+	erisCenter = erisCells / 2
 )
 
-type gridMode int
-
-const (
-	gridModeFlat gridMode = iota
-	gridModeRecursive
-)
-
-func gridPosition(x, y int) int {
-	return y*gridSize + x
+// erisNeighbours holds, for each cell, bit masks of its neighbours on the same
+// level, on the enclosing level and on the level nested in the centre.
+type erisNeighbours struct {
+	same, outer, inner [erisCells]uint32
 }
 
-func countBugsInPositions(grid uint32, positions []int) int {
-	var count int
-	for _, pos := range positions {
-		if isBug(grid, pos) {
-			count++
+var erisAdjacency = func() erisNeighbours {
+	var n erisNeighbours
+	bit := func(x, y int) uint32 { return 1 << (y*erisSize + x) }
+	edge := func(x0, y0, dx, dy int) uint32 {
+		var mask uint32
+		for i := range erisSize {
+			mask |= bit(x0+i*dx, y0+i*dy)
+		}
+		return mask
+	}
+	const c = erisSize / 2
+	for y := range erisSize {
+		for x := range erisSize {
+			cell := y*erisSize + x
+			for _, d := range [][2]int{{0, -1}, {1, 0}, {0, 1}, {-1, 0}} {
+				nx, ny := x+d[0], y+d[1]
+				switch {
+				case nx < 0 || nx >= erisSize || ny < 0 || ny >= erisSize:
+					n.outer[cell] |= bit(c+d[0], c+d[1])
+				case nx == c && ny == c:
+					n.same[cell] |= bit(nx, ny)
+					switch d {
+					case [2]int{0, -1}:
+						n.inner[cell] |= edge(0, erisSize-1, 1, 0)
+					case [2]int{1, 0}:
+						n.inner[cell] |= edge(0, 0, 0, 1)
+					case [2]int{0, 1}:
+						n.inner[cell] |= edge(0, 0, 1, 0)
+					case [2]int{-1, 0}:
+						n.inner[cell] |= edge(erisSize-1, 0, 0, 1)
+					}
+				default:
+					n.same[cell] |= bit(nx, ny)
+				}
+			}
 		}
 	}
-	return count
-}
+	return n
+}()
 
-func shouldHaveBug(hasBug bool, adjacent int) bool {
-	if hasBug {
-		return adjacent == 1
-	}
-	return adjacent == 1 || adjacent == 2
-}
-
-func parseGrid(r io.Reader, mode gridMode) (uint32, error) {
+func parseEris(r io.Reader) (uint32, error) {
 	var state uint32
-	scanner := bufio.NewScanner(r)
-	y := 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		for x, ch := range line {
-			pos := gridPosition(x, y)
-			if ch == '?' {
-				continue // The recursive example marks the center opening with ?.
-			}
-			if mode == gridModeRecursive && pos == centerPos {
-				continue // The center represents the inner grid, not a cell.
-			}
-			if ch == '#' {
-				state |= 1 << pos
+	rows := 0
+	s := scanner.NewScanner(r, func(line []byte) ([]byte, error) { return line, nil })
+	for line := range s.Values() {
+		if rows == erisSize || len(line) != erisSize {
+			return 0, fmt.Errorf("eris scan must be %dx%d", erisSize, erisSize)
+		}
+		for x, c := range line {
+			cell := rows*erisSize + x
+			switch {
+			case c == '#':
+				state |= 1 << cell
+			case c == '.', c == '?' && cell == erisCenter:
+			default:
+				return 0, fmt.Errorf("invalid eris cell %q at (%d,%d)", c, x, rows)
 			}
 		}
-		y++
+		rows++
 	}
-	return state, scanner.Err()
+	if err := s.Err(); err != nil {
+		return 0, err
+	}
+	if rows != erisSize {
+		return 0, fmt.Errorf("eris scan must be %dx%d", erisSize, erisSize)
+	}
+	return state, nil
 }
 
-func isBug(state uint32, pos int) bool { return state&(1<<pos) != 0 }
-
-func countAdjacent(state uint32, x, y int) int {
-	pos := grid.NewPosition2D(x, y)
-	var count int
-	for neighbor := range grid.Neighbours4(pos) {
-		if !neighbor.Within(gridSize, gridSize) {
-			continue
-		}
-		neighborPos := gridPosition(neighbor.X, neighbor.Y)
-		if isBug(state, neighborPos) {
-			count++
-		}
-	}
-	return count
-}
-
-func step(state uint32) uint32 {
-	var next uint32
-	for y := range gridSize {
-		for x := range gridSize {
-			pos := gridPosition(x, y)
-			adjacent := countAdjacent(state, x, y)
-
-			if shouldHaveBug(isBug(state, pos), adjacent) {
-				next |= 1 << pos
-			}
-		}
-	}
-	return next
+func bugSurvives(hasBug bool, adjacent int) bool {
+	return adjacent == 1 || !hasBug && adjacent == 2
 }
 
 func day24p01(r io.Reader) (string, error) {
-	state, err := parseGrid(r, gridModeFlat)
+	state, err := parseEris(r)
 	if err != nil {
 		return "", err
 	}
-	seen := collections.NewSet[uint32]()
-
-	for {
-		if seen.Contains(state) {
-			return strconv.FormatUint(uint64(state), 10), nil
-		}
-		seen.Add(state)
-		state = step(state)
-	}
-}
-
-// countOuterLevel returns 0 or 1 for the enclosing-level cell reached by stepping outside
-// the grid.
-func countOuterLevel(grids map[int]uint32, level, x, y int) int {
-	var pos int
-	switch {
-	case x < 0:
-		pos = gridPosition(centerX-1, centerY)
-	case x >= gridSize:
-		pos = gridPosition(centerX+1, centerY)
-	case y < 0:
-		pos = gridPosition(centerX, centerY-1)
-	case y >= gridSize:
-		pos = gridPosition(centerX, centerY+1)
-	default:
-		return 0
-	}
-	if isBug(grids[level-1], pos) {
-		return 1
-	}
-	return 0
-}
-
-// countInnerLevel counts bugs on the inner grid edge reached from the cell at (x, y).
-func countInnerLevel(grids map[int]uint32, level, x, y int) int {
-	var positions []int
-	switch {
-	case x == centerX-1 && y == centerY:
-		for iy := range gridSize {
-			positions = append(positions, gridPosition(0, iy))
-		}
-	case x == centerX+1 && y == centerY:
-		for iy := range gridSize {
-			positions = append(positions, gridPosition(gridSize-1, iy))
-		}
-	case x == centerX && y == centerY-1:
-		for ix := range gridSize {
-			positions = append(positions, gridPosition(ix, 0))
-		}
-	case x == centerX && y == centerY+1:
-		for ix := range gridSize {
-			positions = append(positions, gridPosition(ix, gridSize-1))
-		}
-	default:
-		return 0
-	}
-	return countBugsInPositions(grids[level+1], positions)
-}
-
-func countAdjacentRecursive(grids map[int]uint32, level, x, y int) int {
-	count := 0
-	neighbors := [][2]int{{x + 1, y}, {x - 1, y}, {x, y + 1}, {x, y - 1}}
-
-	for _, neighbor := range neighbors {
-		nx, ny := neighbor[0], neighbor[1]
-
-		if nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && !(nx == centerX && ny == centerY) {
-			neighborPos := gridPosition(nx, ny)
-			if isBug(grids[level], neighborPos) {
-				count++
-			}
-		} else if nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize {
-			count += countOuterLevel(grids, level, nx, ny)
-		} else if nx == centerX && ny == centerY {
-			count += countInnerLevel(grids, level, x, y)
-		}
-	}
-	return count
-}
-
-func stepRecursive(grids map[int]uint32, minutes int) map[int]uint32 {
-	for range minutes {
-		next := make(map[int]uint32)
-
-		minLevel, maxLevel := 0, 0
-		for level := range grids {
-			minLevel = min(minLevel, level)
-			maxLevel = max(maxLevel, level)
-		}
-
-		// Bugs can spread by only one level per minute.
-		for level := minLevel - 1; level <= maxLevel+1; level++ {
-			var nextState uint32
-			for y := range gridSize {
-				for x := range gridSize {
-					if x == centerX && y == centerY {
-						continue
-					}
-					pos := gridPosition(x, y)
-					adjacent := countAdjacentRecursive(grids, level, x, y)
-					hasBug := isBug(grids[level], pos)
-
-					if shouldHaveBug(hasBug, adjacent) {
-						nextState |= 1 << pos
-					}
-				}
-			}
-			nextState &= ^uint32(1 << centerPos)
-			if nextState != 0 {
-				next[level] = nextState
+	seen := map[uint32]bool{}
+	for !seen[state] {
+		seen[state] = true
+		var next uint32
+		for cell := range erisCells {
+			adjacent := bits.OnesCount32(state & erisAdjacency.same[cell])
+			if bugSurvives(state&(1<<cell) != 0, adjacent) {
+				next |= 1 << cell
 			}
 		}
-		grids = next
+		state = next
 	}
-	return grids
+	return strconv.FormatUint(uint64(state), 10), nil
 }
 
 func simulateRecursive(r io.Reader, minutes int) (string, error) {
-	state, err := parseGrid(r, gridModeRecursive)
+	state, err := parseEris(r)
 	if err != nil {
 		return "", err
 	}
-	grids := map[int]uint32{0: state}
-	grids = stepRecursive(grids, minutes)
-
-	totalBugs := 0
-	for _, grid := range grids {
-		gridWithoutCenter := grid & ^uint32(1<<centerPos)
-		totalBugs += bits.OnesCount32(gridWithoutCenter)
+	// Bugs spread at most one level per minute, so the levels within minutes
+	// of the start, plus an empty border on each side, hold every bug.
+	levels := make([]uint32, 2*minutes+3)
+	levels[minutes+1] = state &^ (1 << erisCenter)
+	next := make([]uint32, len(levels))
+	for range minutes {
+		for level := 1; level < len(levels)-1; level++ {
+			var grid uint32
+			for cell := range erisCells {
+				if cell == erisCenter {
+					continue
+				}
+				adjacent := bits.OnesCount32(levels[level]&erisAdjacency.same[cell]&^(1<<erisCenter)) +
+					bits.OnesCount32(levels[level-1]&erisAdjacency.outer[cell]) +
+					bits.OnesCount32(levels[level+1]&erisAdjacency.inner[cell])
+				if bugSurvives(levels[level]&(1<<cell) != 0, adjacent) {
+					grid |= 1 << cell
+				}
+			}
+			next[level] = grid
+		}
+		levels, next = next, levels
 	}
 
-	return strconv.Itoa(totalBugs), nil
+	total := 0
+	for _, grid := range levels {
+		total += bits.OnesCount32(grid)
+	}
+	return strconv.Itoa(total), nil
 }
 
 func day24p02(r io.Reader) (string, error) {

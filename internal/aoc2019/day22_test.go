@@ -1,7 +1,7 @@
 package aoc2019
 
 import (
-	"math/big"
+	"io"
 	"strings"
 	"testing"
 
@@ -10,6 +10,10 @@ import (
 
 func Test_day22p01(t *testing.T) {
 	tests := []aoc.TestInput{
+		{Input: strings.NewReader("cut 20000"), Want: "2033"},
+		{Input: strings.NewReader("cut -20000"), Want: "2005"},
+		{Input: strings.NewReader("cut -9223372036854775808"), Want: "3918"},
+		{Input: strings.NewReader("deal with increment 3"), Want: "6057"},
 		{
 			Input: aoc.FileInput(t, 2019, 22),
 			Want:  "1234",
@@ -36,21 +40,38 @@ func TestRepeatedShuffle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inverse, err := composeInverse(instructions, big.NewInt(10))
+	f, err := shuffleMap(instructions, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	repeated := inverse.pow(3)
-	want := []int64{7, 4, 1, 8, 5, 2, 9, 6, 3, 0}
+	cardAt, err := f.pow(3).inverse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []uint64{7, 4, 1, 8, 5, 2, 9, 6, 3, 0}
 	for position, card := range want {
-		if got := repeated.apply(big.NewInt(int64(position))); got.Cmp(big.NewInt(card)) != 0 {
-			t.Errorf("position %d: got %s, want %d", position, got, card)
+		if got := cardAt.apply(uint64(position)); got != card {
+			t.Errorf("position %d: got %d, want %d", position, got, card)
 		}
 	}
 }
 
-func TestNoninvertibleShuffle(t *testing.T) {
-	if _, err := day22p02(strings.NewReader("deal with increment 0")); err == nil {
-		t.Fatal("expected noninvertible increment error")
+func TestShuffleErrors(t *testing.T) {
+	for _, input := range []string{
+		"deal with increment 0",
+		"deal with increment -3",
+		"cut",
+		"cut x",
+		"xcut 5",
+		"deal into new stacks",
+	} {
+		for _, solve := range []func(io.Reader) (string, error){day22p01, day22p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("expected shuffle error for %q", input)
+			}
+		}
+	}
+	if _, err := day22p01(strings.NewReader("deal with increment 10007")); err == nil {
+		t.Error("expected error for an increment that does not permute the deck")
 	}
 }

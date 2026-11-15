@@ -173,3 +173,35 @@ func TestDay20ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestDonutMazeCorridor(t *testing.T) {
+	aoc.AOCTest(t, day20p01, []aoc.TestInput{{Input: strings.NewReader("AA...ZZ"), Want: "2"}})
+	aoc.AOCTest(t, day20p02, []aoc.TestInput{{Input: strings.NewReader("AA...ZZ"), Want: "2"}})
+}
+
+func TestDonutMazeErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name, input, cause string
+	}{
+		{"empty", "", "no walls"},
+		{"missing ZZ", "AA...#", "no ZZ"},
+		{"invalid cell", "AA.x.ZZ", "invalid maze cell"},
+		{"single-ended portal", "AA..BC#..ZZ", "only one end"},
+		{"unreachable ZZ", "AA.#.ZZ", "unreachable"},
+		{"lone letter", "A...ZZ", "label letters"},
+		{"label without passage", "AA#..ZZ", "exactly one adjacent passage"},
+		{"label between passages", "AA..BC..ZZ", "exactly one adjacent passage"},
+		{"duplicate AA", "AA...ZZ\n  .\n  A\n  A", "more than once"},
+		{"shared passage", "AA.BC#BC.ZZ", "more than one label"},
+		{"portal ends on one rim", "AA.#.BC#BC.#.ZZ", "one outer and one inner"},
+		{"portal seen three times", "     A\n     A\n  ###.###\n  #.....#\nBC..#BC.#\n  #.....#\n  ###.###\n     B\n     C", "more than twice"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, solve := range []func(io.Reader) (string, error){day20p01, day20p02} {
+				if _, err := solve(strings.NewReader(tt.input)); err == nil || !strings.Contains(err.Error(), tt.cause) {
+					t.Errorf("error = %v, want one mentioning %q", err, tt.cause)
+				}
+			}
+		})
+	}
+}

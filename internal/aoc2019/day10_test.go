@@ -1,6 +1,7 @@
 package aoc2019
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -118,4 +119,17 @@ func Test_day10p02(t *testing.T) {
 		},
 	}
 	aoc.AOCTest(t, day10p02, tests)
+}
+
+func TestAsteroidMapErrors(t *testing.T) {
+	for _, input := range []string{"", "...\n...", "#.\n#", "#x"} {
+		for _, solve := range []func(io.Reader) (string, error){day10p01, day10p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("expected asteroid map error for %q", input)
+			}
+		}
+	}
+	if _, err := day10p02(strings.NewReader("###\n###")); err == nil {
+		t.Fatal("expected error with fewer than 200 asteroids to vaporize")
+	}
 }

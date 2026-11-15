@@ -21,7 +21,7 @@ func runPaintingRobot(program []int, startColor int) (grid.Grid2D[int, hullPanel
 	panels := make(grid.Grid2D[int, hullPanel])
 	panels[position] = hullPanel{color: startColor}
 
-	for range 100_000 {
+	for {
 		computer.AddInput(panels[position].color)
 		if err := computer.Run(); err != nil {
 			return nil, err
@@ -45,7 +45,6 @@ func runPaintingRobot(program []int, startColor int) (grid.Grid2D[int, hullPanel
 			return panels, nil
 		}
 	}
-	return nil, fmt.Errorf("painting robot exceeds 100000 commands")
 }
 
 func paintingDisplay(panels grid.Grid2D[int, hullPanel]) ([]string, error) {
@@ -66,9 +65,6 @@ func paintingDisplay(panels grid.Grid2D[int, hullPanel]) ([]string, error) {
 		return nil, fmt.Errorf("painting has no white panels")
 	}
 	width, height := maxX-minX+1, maxY-minY+1
-	if width > 1_000_000 || height > 1_000_000/width {
-		return nil, fmt.Errorf("painting display exceeds one million pixels")
-	}
 	rows := make([]string, height)
 	for y := range height {
 		row := make([]byte, width)

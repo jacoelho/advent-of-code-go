@@ -128,6 +128,7 @@ func TestVaultRoutes(t *testing.T) {
 		{"key before door", "#@.a.A.b#", "6"},
 		{"owned key junction", "#######\n#b.a.c#\n###.###\n###@###\n#######", "8"},
 		{"repeated doors", "#@aAA.b#", "5"},
+		{"hundreds of doors", "@a" + strings.Repeat("A", 300) + "b", "302"},
 		{"no keys", "@", "0"},
 	}
 	for _, tt := range tests {
@@ -154,8 +155,6 @@ func TestVaultErrors(t *testing.T) {
 		{"missing entrance", ".a"},
 		{"unreachable", "@#a"},
 		{"unmatched door", "#@A.b#"},
-		{"too many nodes", "@" + strings.Repeat("A", 256)},
-		{"too many cells", "@" + strings.Repeat(".", 499) + "\n" + strings.Repeat(strings.Repeat(".", 500)+"\n", 200)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -178,31 +177,6 @@ func TestVaultErrors(t *testing.T) {
 		if _, err := solve(input); !errors.Is(err, failure) {
 			t.Fatalf("error = %v, want reader failure", err)
 		}
-	}
-}
-
-func TestVaultWorkLimit(t *testing.T) {
-	v, err := parseVault(strings.NewReader("#####\n#@Aa#\n#.#.#\n#...#\n#####"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	exhausted := vaultSearch{}
-	if err := exhausted.buildGraph(v); err == nil {
-		t.Fatal("expected graph construction budget error")
-	}
-	search := vaultSearch{remaining: maxVaultWork, memo: make(map[vaultState]int)}
-	if err := search.buildGraph(v); err != nil {
-		t.Fatal(err)
-	}
-	var start vaultState
-	copy(start.positions[:], search.graph.entrances)
-	search.remaining = 0
-	if _, err := search.remainingDistance(start); err == nil {
-		t.Fatal("expected key search budget error")
-	}
-	search.remaining = maxVaultWork
-	if got, err := search.remainingDistance(start); err != nil || got != 6 {
-		t.Fatalf("search after budget failure = %d, %v; want 6", got, err)
 	}
 }
 

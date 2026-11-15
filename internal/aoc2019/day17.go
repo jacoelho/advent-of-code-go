@@ -9,14 +9,13 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 func calculateAlignmentSum(scaffoldGrid grid.Grid2D[int, rune]) int {
 	alignmentSum := 0
 	for pos := range scaffoldGrid {
 		if isIntersection(scaffoldGrid, pos) {
-			alignmentSum += int(pos.X * pos.Y)
+			alignmentSum += pos.X * pos.Y
 		}
 	}
 	return alignmentSum
@@ -27,60 +26,53 @@ func day17p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	computer := New(program)
-	if err := computer.Run(); err != nil {
+	scaffoldGrid, err := readCameraView(program)
+	if err != nil {
 		return "", err
 	}
-
-	scaffoldGrid := parseScaffoldFromASCII(computer.GetOutput())
 	return strconv.Itoa(calculateAlignmentSum(scaffoldGrid)), nil
 }
 
-func filterScaffold(g grid.Grid2D[int, rune]) grid.Grid2D[int, rune] {
-	result := make(grid.Grid2D[int, rune])
-	for pos, ch := range g {
-		if ch != '.' {
-			result[pos] = ch
-		}
+func readCameraView(program []int) (grid.Grid2D[int, rune], error) {
+	computer := New(program)
+	if err := computer.RunToHalt(); err != nil {
+		return nil, fmt.Errorf("camera: %w", err)
 	}
-	return result
+	output := computer.GetOutput()
+	view := make([]byte, len(output))
+	for i, value := range output {
+		if value < 0 || value > 127 {
+			return nil, fmt.Errorf("camera output %d is not ASCII", value)
+		}
+		view[i] = byte(value)
+	}
+	return parseScaffold(string(view))
 }
 
-func parseScaffoldFromASCII(output []int) grid.Grid2D[int, rune] {
-	var rows [][]rune
-	var currentRow []rune
-
-	for _, val := range output {
-		ch := rune(val)
-		if ch == '\n' {
-			if len(currentRow) > 0 {
-				rows = append(rows, currentRow)
-				currentRow = nil
+// parseScaffold returns the scaffold and robot cells of a rectangular camera
+// view; open space is omitted.
+func parseScaffold(view string) (grid.Grid2D[int, rune], error) {
+	view = strings.TrimRight(view, "\n")
+	if view == "" {
+		return nil, fmt.Errorf("empty camera view")
+	}
+	scaffold := make(grid.Grid2D[int, rune])
+	rows := strings.Split(view, "\n")
+	for y, row := range rows {
+		if len(row) != len(rows[0]) {
+			return nil, fmt.Errorf("camera view row %d has width %d, want %d", y, len(row), len(rows[0]))
+		}
+		for x, c := range []byte(row) {
+			switch c {
+			case '.':
+			case '#', '^', 'v', '<', '>', 'X':
+				scaffold[grid.Position2D[int]{X: x, Y: y}] = rune(c)
+			default:
+				return nil, fmt.Errorf("invalid camera view cell %q at (%d,%d)", c, x, y)
 			}
-		} else {
-			currentRow = append(currentRow, ch)
 		}
 	}
-
-	if len(currentRow) > 0 {
-		rows = append(rows, currentRow)
-	}
-
-	return filterScaffold(grid.NewGrid2D[int](rows))
-}
-
-func parseScaffoldGrid(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]rune, error) {
-		return []rune(string(line)), nil
-	})
-
-	rows := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
-		return nil, err
-	}
-
-	return filterScaffold(grid.NewGrid2D[int](rows)), nil
+	return scaffold, nil
 }
 
 func isIntersection(scaffoldGrid grid.Grid2D[int, rune], pos grid.Position2D[int]) bool {
@@ -181,9 +173,8 @@ type movementProgram struct {
 
 func compressPath(path []string) (movementProgram, error) {
 	const (
-		lineLimit   = 20
-		callLimit   = 10
-		searchLimit = 1_000_000
+		lineLimit = 20
+		callLimit = 10
 	)
 
 	// Ten calls to functions of at most five pairs cannot encode a longer route.
@@ -209,19 +200,9 @@ func compressPath(path []string) (movementProgram, error) {
 
 	var functions [3][]string
 	main := make([]string, 0, callLimit)
-	visited := 0
-	exhausted := false
 
 	var search func(int) bool
 	search = func(offset int) bool {
-		if exhausted {
-			return false
-		}
-		visited++
-		if visited > searchLimit {
-			exhausted = true
-			return false
-		}
 		if offset == len(path) {
 			return true
 		}
@@ -269,9 +250,6 @@ func compressPath(path []string) (movementProgram, error) {
 	}
 
 	if !search(0) {
-		if exhausted {
-			return movementProgram{}, fmt.Errorf("movement compression exceeds %d search states", searchLimit)
-		}
 		return movementProgram{}, fmt.Errorf("movement path cannot fit three 20-character routines")
 	}
 
@@ -318,11 +296,10 @@ func day17p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	computer := New(program)
-	if err := computer.Run(); err != nil {
+	scaffoldGrid, err := readCameraView(program)
+	if err != nil {
 		return "", err
 	}
-	scaffoldGrid := parseScaffoldFromASCII(computer.GetOutput())
 
 	path, err := generatePath(scaffoldGrid)
 	if err != nil {

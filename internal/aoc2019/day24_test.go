@@ -71,3 +71,20 @@ func TestDay24ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestErisScanErrors(t *testing.T) {
+	for _, input := range []string{
+		"",
+		".....\n.....\n.....\n.....",
+		".....\n.....\n.....\n.....\n.....\n.....",
+		".....\n.....\n.....\n.....\n....",
+		".....\n.....\n..x..\n.....\n.....",
+		"?....\n.....\n.....\n.....\n.....",
+	} {
+		for _, solve := range []func(io.Reader) (string, error){day24p01, day24p02} {
+			if _, err := solve(strings.NewReader(input)); err == nil {
+				t.Errorf("expected scan error for %q", input)
+			}
+		}
+	}
+}

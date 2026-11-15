@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 var (
@@ -23,6 +22,8 @@ type adventureRoom struct {
 	items    []string
 }
 
+// dangerousItems end or trap the game when taken; "infinite loop" never
+// returns control, so it cannot be probed.
 var dangerousItems = collections.NewSet(
 	"infinite loop",
 	"escape pod",
@@ -31,62 +32,52 @@ var dangerousItems = collections.NewSet(
 	"giant electromagnet",
 )
 
-type adventureState struct {
-	computer   *IntcodeComputer
-	inventory  []string
-	lastOutput string
+var oppositeDoor = map[string]string{
+	"north": "south",
+	"south": "north",
+	"east":  "west",
+	"west":  "east",
 }
 
 func parseList(lines []string, header string) []string {
 	var result []string
-	var foundHeader bool
 	for i, line := range lines {
-		if strings.HasPrefix(line, header) {
-			foundHeader = true
-			for j := i + 1; j < len(lines); j++ {
-				listLine := lines[j]
-				if after, ok := strings.CutPrefix(listLine, "- "); ok {
-					result = append(result, after)
-				} else if listLine == "" || !strings.HasPrefix(listLine, "-") {
-					break
-				}
-			}
-			break
+		if !strings.HasPrefix(line, header) {
+			continue
 		}
-	}
-	if !foundHeader {
-		return nil
+		for _, listLine := range lines[i+1:] {
+			after, ok := strings.CutPrefix(listLine, "- ")
+			if !ok {
+				break
+			}
+			result = append(result, after)
+		}
+		break
 	}
 	return result
 }
 
+// parseGameOutput describes the last room the output shows.
 func parseGameOutput(text string) adventureRoom {
-	state := adventureRoom{}
-
-	allMatches := roomRe.FindAllStringSubmatch(text, -1)
-	if len(allMatches) > 0 {
-		state.roomName = allMatches[len(allMatches)-1][1]
+	var room adventureRoom
+	matches := roomRe.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return room
 	}
-
-	sections := strings.Split(text, "== ")
-	if len(sections) < 2 {
-		return state
-	}
-	lastSection := "== " + sections[len(sections)-1]
-
-	lines := strings.Split(lastSection, "\n")
-
-	state.doors = parseList(lines, "Doors here lead:")
-	state.items = parseList(lines, "Items here:")
-
-	return state
+	room.roomName = matches[len(matches)-1][1]
+	lines := strings.Split(text[strings.LastIndex(text, "== "):], "\n")
+	room.doors = parseList(lines, "Doors here lead:")
+	room.items = parseList(lines, "Items here:")
+	return room
 }
 
 func isDeath(text string) bool {
-	deathPhrases := []string{"ejected", "are frozen", "crushed", "knocked"}
-	return xiter.FromSlice(deathPhrases).Any(func(phrase string) bool {
-		return strings.Contains(text, phrase)
-	})
+	for _, phrase := range []string{"ejected", "are frozen", "crushed", "knocked"} {
+		if strings.Contains(text, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func isSecurityCheck(text string) bool {
@@ -99,294 +90,153 @@ func extractPassword(text string) string {
 	return passwordRe.FindString(text)
 }
 
-func tryCommand(computer *IntcodeComputer, command string) (*IntcodeComputer, string, error) {
-	next := computer.Clone()
-	next.SetInput(StringsToASCII(command)...)
-	if err := next.Run(); err != nil {
-		return nil, "", fmt.Errorf("command %q: %w", command, err)
-	}
-	return next, next.ReadOutputString(), nil
-}
-
-func stateKey(roomName string, inventory []string) string {
-	sortedInv := slices.Clone(inventory)
-	slices.Sort(sortedInv)
-	return fmt.Sprintf("%s:%v", roomName, sortedInv)
-}
-
-func isSafeToTake(computer *IntcodeComputer, item string) (bool, error) {
-	if dangerousItems.Contains(item) {
-		return false, nil
-	}
-	_, output, err := tryCommand(computer, "take "+item)
-	if err != nil {
-		return false, err
-	}
-	return !isDeath(output), nil
-}
-
-func findCheckpointDirection(computer *IntcodeComputer, doors []string) (string, error) {
-	for _, door := range doors {
-		_, output, err := tryCommand(computer, door)
-		if err != nil {
-			return "", err
-		}
-		if isSecurityCheck(output) || extractPassword(output) != "" {
-			return door, nil
-		}
-	}
-	return "", nil
-}
-
-func exploreDirection(computer *IntcodeComputer, door string) (*IntcodeComputer, string, error) {
-	next, output, err := tryCommand(computer, door)
-	if err != nil {
-		return nil, "", err
-	}
-	if isDeath(output) || isSecurityCheck(output) || extractPassword(output) != "" {
-		return nil, "", nil
-	}
-	return next, output, nil
-}
-
-func mapShip(computer *IntcodeComputer, initialOutput string) (collections.Set[string], string, error) {
-	var checkpointDir string
-	visited := make(map[string]bool)
-	queue := collections.NewDeque[adventureState](16)
-	queue.PushBack(adventureState{
-		computer:   computer,
-		lastOutput: initialOutput,
-	})
-
-	items := collections.NewSet[string]()
-
-	for current, ok := queue.PopFront(); ok; current, ok = queue.PopFront() {
-		state := parseGameOutput(current.lastOutput)
-
-		if visited[state.roomName] {
-			continue
-		}
-		if state.roomName == "" || len(visited) == 256 {
-			return nil, "", fmt.Errorf("ship exploration needs named rooms and at most 256 rooms")
-		}
-		visited[state.roomName] = true
-
-		for _, item := range state.items {
-			safe, err := isSafeToTake(current.computer, item)
-			if err != nil {
-				return nil, "", err
-			}
-			if safe {
-				items.Add(item)
-				if items.Len() > 16 {
-					return nil, "", fmt.Errorf("ship has more than 16 safe items")
-				}
-			}
-		}
-
-		if strings.Contains(state.roomName, "Security Checkpoint") && checkpointDir == "" {
-			var err error
-			checkpointDir, err = findCheckpointDirection(current.computer, state.doors)
-			if err != nil {
-				return nil, "", err
-			}
-		}
-
-		for _, door := range state.doors {
-			next, output, err := exploreDirection(current.computer, door)
-			if err != nil {
-				return nil, "", err
-			}
-			if next != nil {
-				if queue.Size() == 100_000 {
-					return nil, "", fmt.Errorf("ship exploration exceeds 100000 queued states")
-				}
-				queue.PushBack(adventureState{
-					computer:   next,
-					lastOutput: output,
-				})
-			}
-		}
-	}
-
-	return items, checkpointDir, nil
-}
-
-func collectItemsInRoom(
-	computer *IntcodeComputer,
-	inventory []string,
-	items []string,
-	safeItems collections.Set[string],
-) (*IntcodeComputer, []string, error) {
-	current := computer
-	collected := slices.Clone(inventory)
-	for _, item := range items {
-		if !safeItems.Contains(item) || slices.Contains(collected, item) {
-			continue
-		}
-		next, _, err := tryCommand(current, "take "+item)
-		if err != nil {
-			return nil, nil, err
-		}
-		current = next
-		collected = append(collected, item)
-	}
-	return current, collected, nil
-}
-
-func collectItemsAndReachCheckpoint(program []int, safeItems collections.Set[string]) (*IntcodeComputer, error) {
-	collector := New(program)
-	if err := collector.Run(); err != nil {
-		return nil, err
-	}
-	collectorOutput := collector.ReadOutputString()
-
-	visitedStates := make(map[string]bool)
-	collectionQueue := collections.NewDeque[adventureState](16)
-	collectionQueue.PushBack(adventureState{
-		computer:   collector,
-		lastOutput: collectorOutput,
-	})
-
-	for current, ok := collectionQueue.PopFront(); ok; current, ok = collectionQueue.PopFront() {
-		state := parseGameOutput(current.lastOutput)
-
-		key := stateKey(state.roomName, current.inventory)
-		if visitedStates[key] {
-			continue
-		}
-		if state.roomName == "" || len(visitedStates) == 100_000 {
-			return nil, fmt.Errorf("item collection needs named rooms and at most 100000 states")
-		}
-		visitedStates[key] = true
-
-		currentComputer, currentInventory, err := collectItemsInRoom(current.computer, current.inventory, state.items, safeItems)
-		if err != nil {
-			return nil, err
-		}
-
-		if strings.Contains(state.roomName, "Security Checkpoint") && len(currentInventory) == safeItems.Len() {
-			return currentComputer, nil
-		}
-
-		for _, door := range state.doors {
-			next, output, err := exploreDirection(currentComputer, door)
-			if err != nil {
-				return nil, err
-			}
-			if next == nil {
-				continue
-			}
-			if collectionQueue.Size() == 100_000 {
-				return nil, fmt.Errorf("item collection exceeds 100000 queued states")
-			}
-			collectionQueue.PushBack(adventureState{
-				computer:   next,
-				inventory:  slices.Clone(currentInventory),
-				lastOutput: output,
-			})
-		}
-	}
-
-	return nil, fmt.Errorf("never reached checkpoint with all items")
-}
-
-func exploreAndCollect(program []int) (*IntcodeComputer, collections.Set[string], string, error) {
-	computer := New(program)
+func sendCommand(computer *IntcodeComputer, command string) (string, error) {
+	computer.AddInput(StringsToASCII(command)...)
 	if err := computer.Run(); err != nil {
-		return nil, nil, "", err
+		return "", fmt.Errorf("command %q: %w", command, err)
 	}
-	initialOutput := computer.ReadOutputString()
-
-	safeItems, checkpointDir, err := mapShip(computer, initialOutput)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	if checkpointDir == "" {
-		return nil, nil, "", fmt.Errorf("ship has no security checkpoint exit")
-	}
-
-	checkpointComputer, err := collectItemsAndReachCheckpoint(program, safeItems)
-	return checkpointComputer, safeItems, checkpointDir, err
+	return computer.ReadOutputString(), nil
 }
 
+// shipSurvey is what one walk of the ship learns: the safe items, all carried
+// by the droid, the route from the start to the security checkpoint, and the
+// checkpoint door that weighs the droid.
+type shipSurvey struct {
+	items           []string
+	checkpointFound bool
+	checkpointPath  []string
+	checkpointDoor  string
+	password        string
+}
+
+// explore walks every room reachable from the current one depth-first,
+// taking safe items, and returns to the current room. It stops early once a
+// password appears.
+func explore(computer *IntcodeComputer, output string, path []string, visited map[string]bool, survey *shipSurvey) error {
+	room := parseGameOutput(output)
+	if room.roomName == "" {
+		return fmt.Errorf("game output names no room: %q", output)
+	}
+	visited[room.roomName] = true
+
+	for _, item := range room.items {
+		if dangerousItems.Contains(item) {
+			continue
+		}
+		probe, err := sendCommand(computer.Clone(), "take "+item)
+		if err != nil {
+			return err
+		}
+		if isDeath(probe) {
+			continue
+		}
+		if _, err := sendCommand(computer, "take "+item); err != nil {
+			return err
+		}
+		survey.items = append(survey.items, item)
+	}
+
+	if strings.Contains(room.roomName, "Security Checkpoint") {
+		survey.checkpointFound = true
+		survey.checkpointPath = slices.Clone(path)
+	}
+
+	for _, door := range room.doors {
+		back, ok := oppositeDoor[door]
+		if !ok {
+			return fmt.Errorf("unknown door %q in %s", door, room.roomName)
+		}
+		if len(path) > 0 && back == path[len(path)-1] {
+			continue
+		}
+		next, err := sendCommand(computer, door)
+		if err != nil {
+			return err
+		}
+		if survey.password = extractPassword(next); survey.password != "" {
+			return nil
+		}
+		if isSecurityCheck(next) {
+			// The pressure floor ejects the droid back into this room.
+			survey.checkpointDoor = door
+			continue
+		}
+		if isDeath(next) {
+			return fmt.Errorf("moving %s from %s ended the game", door, room.roomName)
+		}
+		if !visited[parseGameOutput(next).roomName] {
+			if err := explore(computer, next, append(path, door), visited, survey); err != nil || survey.password != "" {
+				return err
+			}
+		}
+		if _, err := sendCommand(computer, back); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// grayCodeChange is one step of a Gray-code walk over item subsets: take or
+// drop a single item.
 type grayCodeChange struct {
 	itemIdx int
 	take    bool
 }
 
-// grayCodeChanges yields the single-item changes that enumerate subsets of n items in
-// Gray-code order, starting from an empty inventory.
+// grayCodeChanges yields the single-item changes that enumerate subsets of n
+// items in Gray-code order, starting from an empty inventory.
 func grayCodeChanges(n int) func(yield func(grayCodeChange) bool) {
 	return func(yield func(grayCodeChange) bool) {
-		currentMask := 0
-		numCombinations := 1 << n
-
-		for i := range numCombinations {
+		for i := 1; i < 1<<n; i++ {
 			gray := i ^ (i >> 1)
-			diff := currentMask ^ gray
-			currentMask = gray
-
-			if diff != 0 {
-				itemIdx := bits.TrailingZeros(uint(diff))
-				take := (gray & (1 << itemIdx)) != 0
-				if !yield(grayCodeChange{itemIdx: itemIdx, take: take}) {
-					return
-				}
+			itemIdx := bits.TrailingZeros(uint(gray ^ (i - 1) ^ ((i - 1) >> 1)))
+			if !yield(grayCodeChange{itemIdx: itemIdx, take: gray&(1<<itemIdx) != 0}) {
+				return
 			}
 		}
 	}
 }
 
 func tryItemCombination(computer *IntcodeComputer, securityDir string) (string, error) {
-	computer.SetInput(StringsToASCII(securityDir)...)
-	if err := computer.Run(); err != nil {
+	output, err := sendCommand(computer, securityDir)
+	if err != nil {
 		return "", fmt.Errorf("try security checkpoint: %w", err)
-	}
-	output := computer.ReadOutputString()
-	if isSecurityCheck(output) {
-		return "", nil
 	}
 	if password := extractPassword(output); password != "" {
 		return password, nil
 	}
+	if isSecurityCheck(output) {
+		return "", nil
+	}
 	return "", fmt.Errorf("checkpoint response has neither rejection nor password")
 }
 
+// findWinningInventory stands at the security checkpoint carrying items and
+// tries every subset of them on the pressure floor.
 func findWinningInventory(computer *IntcodeComputer, items []string, securityDir string) (string, error) {
-	if len(items) > 16 {
-		return "", fmt.Errorf("inventory search exceeds 16 items")
-	}
-	current := computer.Clone()
 	for _, item := range items {
-		next, _, err := tryCommand(current, "drop "+item)
-		if err != nil {
+		if _, err := sendCommand(computer, "drop "+item); err != nil {
 			return "", err
 		}
-		current = next
 	}
-	password, err := tryItemCombination(current, securityDir)
+	password, err := tryItemCombination(computer, securityDir)
 	if err != nil || password != "" {
 		return password, err
 	}
-	tried := 1
 	for change := range grayCodeChanges(len(items)) {
-		action := "drop"
+		action := "drop "
 		if change.take {
-			action = "take"
+			action = "take "
 		}
-		next, _, err := tryCommand(current, action+" "+items[change.itemIdx])
-		if err != nil {
+		if _, err := sendCommand(computer, action+items[change.itemIdx]); err != nil {
 			return "", err
 		}
-		current = next
-		password, err := tryItemCombination(current, securityDir)
+		password, err := tryItemCombination(computer, securityDir)
 		if err != nil || password != "" {
 			return password, err
 		}
-		tried++
 	}
-	return "", fmt.Errorf("tried all %d inventory combinations, none worked", tried)
+	return "", fmt.Errorf("none of the %d inventory combinations passes the checkpoint", 1<<len(items))
 }
 
 func day25p01(r io.Reader) (string, error) {
@@ -395,11 +245,26 @@ func day25p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	checkpointComputer, itemsSet, securityDir, err := exploreAndCollect(program)
-	if err != nil {
+	computer := New(program)
+	if err := computer.Run(); err != nil {
 		return "", err
 	}
+	var survey shipSurvey
+	if err := explore(computer, computer.ReadOutputString(), nil, map[string]bool{}, &survey); err != nil {
+		return "", err
+	}
+	if survey.password != "" {
+		return survey.password, nil
+	}
+	if !survey.checkpointFound || survey.checkpointDoor == "" {
+		return "", fmt.Errorf("ship has no security checkpoint exit")
+	}
 
-	items := slices.Sorted(itemsSet.Iter())
-	return findWinningInventory(checkpointComputer, items, securityDir)
+	for _, door := range survey.checkpointPath {
+		if _, err := sendCommand(computer, door); err != nil {
+			return "", err
+		}
+	}
+	slices.Sort(survey.items)
+	return findWinningInventory(computer, survey.items, survey.checkpointDoor)
 }

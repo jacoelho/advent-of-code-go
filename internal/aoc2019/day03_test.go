@@ -45,3 +45,11 @@ func TestWiresWithoutIntersection(t *testing.T) {
 		}
 	}
 }
+
+func TestWirePathErrors(t *testing.T) {
+	for _, input := range []string{"R-1\nU1", "R+1\nU1", "X1\nU1", "R\nU1", "R1,,U1\nU1", "R1"} {
+		if _, err := day03p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected wire path error for %q", input)
+		}
+	}
+}

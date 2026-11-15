@@ -51,24 +51,20 @@ func adventureProgramText(program []int) string {
 }
 
 func TestAdventureCommandContinuation(t *testing.T) {
-	original := New(adventureReplyProgram("", "A\n", "B\n"))
-	next, output, err := tryCommand(original, "north")
+	computer := New(adventureReplyProgram("", "A\n", "B\n"))
+	output, err := sendCommand(computer, "north")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output != "A\n" || !next.IsWaiting() || len(next.GetOutput()) != 0 {
-		t.Fatalf("first command: output = %q, waiting = %v", output, next.IsWaiting())
+	if output != "A\n" || !computer.IsWaiting() || len(computer.GetOutput()) != 0 {
+		t.Fatalf("first command: output = %q, waiting = %v", output, computer.IsWaiting())
 	}
-	last, output, err := tryCommand(next, "south")
+	output, err = sendCommand(computer, "south")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output != "B\n" || !last.IsHalted() {
-		t.Fatalf("second command: output = %q, halted = %v", output, last.IsHalted())
-	}
-	_, output, err = tryCommand(original, "east")
-	if err != nil || output != "A\n" {
-		t.Fatalf("original command: output = %q, error = %v; want A", output, err)
+	if output != "B\n" || !computer.IsHalted() {
+		t.Fatalf("second command: output = %q, halted = %v", output, computer.IsHalted())
 	}
 }
 
@@ -103,9 +99,6 @@ func TestAdventureInventorySearch(t *testing.T) {
 	if got, err := findWinningInventory(computer, nil, "north"); err != nil || got != "12345" {
 		t.Fatalf("empty inventory: got %q, %v; want 12345", got, err)
 	}
-	if _, err := findWinningInventory(New([]int{42}), make([]string, 17), "north"); err == nil || !strings.Contains(err.Error(), "16 items") {
-		t.Fatalf("expected item limit error, got %v", err)
-	}
 }
 
 func TestAdventureCommandErrors(t *testing.T) {
@@ -114,19 +107,36 @@ func TestAdventureCommandErrors(t *testing.T) {
 	if _, err := day25p01(strings.NewReader(adventureProgramText(program))); err == nil || !strings.Contains(err.Error(), "opcode: 42") {
 		t.Fatalf("expected nested command error, got %v", err)
 	}
-	if _, _, err := tryCommand(New([]int{42}), "north"); err == nil {
+	if _, err := sendCommand(New([]int{42}), "north"); err == nil {
 		t.Fatal("expected command error")
-	}
-	if _, _, err := exploreDirection(New([]int{42}), "north"); err == nil {
-		t.Fatal("expected exploration error")
 	}
 	if _, err := findWinningInventory(New([]int{42}), nil, "north"); err == nil {
 		t.Fatal("expected checkpoint error")
 	}
-	for _, reply := range []string{"Alert! Too heavy.\n", "You are frozen.\n"} {
-		next, _, err := exploreDirection(New(adventureReplyProgram("", reply)), "north")
-		if err != nil || next != nil {
-			t.Fatalf("rejected movement %q: next = %v, error = %v", reply, next, err)
-		}
+}
+
+func TestAdventureExploration(t *testing.T) {
+	const room = "== Hall ==\nDoors here lead:\n- north\n\nCommand?\n"
+	exploreAfterReply := func(reply string) (shipSurvey, error) {
+		var survey shipSurvey
+		computer := New(adventureReplyProgram("", reply, room))
+		err := explore(computer, room, nil, map[string]bool{}, &survey)
+		return survey, err
+	}
+
+	survey, err := exploreAfterReply("Alert! Droids on this ship are heavier than the detected value!\n" + room)
+	if err != nil || survey.checkpointDoor != "north" {
+		t.Fatalf("pressure floor: door = %q, error = %v; want north", survey.checkpointDoor, err)
+	}
+	if _, err := exploreAfterReply("You are frozen.\n"); err == nil {
+		t.Fatal("expected an error when moving ends the game")
+	}
+	if _, err := exploreAfterReply("nothing here\n"); err == nil {
+		t.Fatal("expected an error for output without a room")
+	}
+	var unknownDoor shipSurvey
+	err = explore(New([]int{99}), "== Hall ==\nDoors here lead:\n- up\n\nCommand?\n", nil, map[string]bool{}, &unknownDoor)
+	if err == nil {
+		t.Fatal("expected an error for an unknown door")
 	}
 }

@@ -16,11 +16,11 @@ func runIntcodeWithInputs(program []int, noun, verb int) (int, error) {
 		return 0, err
 	}
 
-	if err := computer.Run(); err != nil {
+	if err := computer.RunToHalt(); err != nil {
 		return 0, err
 	}
 
-	return computer.Memory()[0], nil
+	return computer.ReadMemory(0)
 }
 
 func day02p01(r io.Reader) (string, error) {
@@ -49,6 +49,7 @@ func day02p02(r io.Reader) (string, error) {
 		for verb := range 100 {
 			result, err := runIntcodeWithInputs(program, noun, verb)
 			if err != nil {
+				// A noun and verb that crash the program are not the answer.
 				continue
 			}
 			if result == target {

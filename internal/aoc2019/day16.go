@@ -1,35 +1,45 @@
 package aoc2019
 
 import (
+	"bytes"
+	"fmt"
 	"io"
-	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-func parseInput(r io.Reader) ([]int, error) {
+const (
+	fftPhases       = 100
+	fftMessageLen   = 8
+	fftOffsetDigits = 7
+	fftRepeats      = 10_000
+)
+
+func parseSignal(r io.Reader) ([]int, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-
-	input := string(data)
-	digits := make([]int, 0, len(input))
-	for _, ch := range input {
-		if ch >= '0' && ch <= '9' {
-			digits = append(digits, int(ch-'0'))
+	data = bytes.TrimSpace(data)
+	if len(data) < fftMessageLen {
+		return nil, fmt.Errorf("signal has %d digits, need at least %d", len(data), fftMessageLen)
+	}
+	digits := make([]int, len(data))
+	for i, c := range data {
+		if c < '0' || c > '9' {
+			return nil, fmt.Errorf("invalid signal digit %q at %d", c, i)
 		}
+		digits[i] = int(c - '0')
 	}
 	return digits, nil
 }
 
-func digitsToString(digits []int, n int) string {
-	var result strings.Builder
-	for i := 0; i < min(n, len(digits)); i++ {
-		result.WriteRune(rune(digits[i] + '0'))
+func digitsToString[T int | uint8](digits []T) string {
+	text := make([]byte, len(digits))
+	for i, d := range digits {
+		text[i] = byte(d) + '0'
 	}
-	return result.String()
+	return string(text)
 }
 
 func applyFFTPhase(input []int) []int {
@@ -62,47 +72,49 @@ func applyFFTPhase(input []int) []int {
 }
 
 func day16p01(r io.Reader) (string, error) {
-	signal, err := parseInput(r)
+	signal, err := parseSignal(r)
 	if err != nil {
 		return "", err
 	}
 
-	for range 100 {
+	for range fftPhases {
 		signal = applyFFTPhase(signal)
 	}
 
-	return digitsToString(signal, 8), nil
+	return digitsToString(signal[:fftMessageLen]), nil
 }
 
 func day16p02(r io.Reader) (string, error) {
-	signal, err := parseInput(r)
+	signal, err := parseSignal(r)
 	if err != nil {
 		return "", err
 	}
 
-	offset := convert.FromDigits(signal[:min(7, len(signal))])
-
-	totalLen := len(signal) * 10000
-
-	// Suffix summation is valid only when the offset is in the second half of the
-	// repeated signal.
-	if offset < totalLen/2 {
-		return "", nil
+	offset := 0
+	for _, digit := range signal[:fftOffsetDigits] {
+		offset = offset*10 + digit
+	}
+	totalLen := len(signal) * fftRepeats
+	// Past the midpoint every pattern coefficient is one, so each output digit
+	// is the suffix sum of the input from its position.
+	if offset < totalLen/2 || offset > totalLen-fftMessageLen {
+		return "", fmt.Errorf("message offset %d is outside the second half of a %d-digit signal", offset, totalLen)
 	}
 
-	neededLen := totalLen - offset
-
-	current := make([]int, neededLen)
-	for i := range neededLen {
-		pos := offset + i
-		current[i] = signal[pos%len(signal)]
+	tail := make([]uint8, totalLen-offset)
+	for i := range tail {
+		tail[i] = uint8(signal[(offset+i)%len(signal)])
 	}
-
-	for range 100 {
-		for i := len(current) - 2; i >= 0; i-- {
-			current[i] = (current[i+1] + current[i]) % 10
+	for range fftPhases {
+		var sum uint8
+		for i := len(tail) - 1; i >= 0; i-- {
+			sum += tail[i]
+			if sum >= 10 {
+				sum -= 10
+			}
+			tail[i] = sum
 		}
 	}
 
-	return digitsToString(current, 8), nil
+	return digitsToString(tail[:fftMessageLen]), nil
 }
