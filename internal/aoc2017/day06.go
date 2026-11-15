@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func memoryBankCycles(r io.Reader) (cycles, loop int, err error) {
@@ -24,10 +24,11 @@ func memoryBankCycles(r io.Reader) (cycles, loop int, err error) {
 
 	total := 0
 	for _, blocks := range banks {
-		if blocks < 0 || blocks > math.MaxInt-total {
+		sum, ok := xmath.CheckedAdd(total, blocks)
+		if blocks < 0 || !ok {
 			return 0, 0, fmt.Errorf("invalid memory-bank block count")
 		}
-		total += blocks
+		total = sum
 	}
 
 	seen := make(map[string]int)

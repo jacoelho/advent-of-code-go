@@ -35,13 +35,7 @@ func parseParticles(r io.Reader) ([]particle, error) {
 		}
 		return result, nil
 	})
-	var particles []particle
-	for p := range s.Values() {
-		if len(particles) == 2000 {
-			return nil, fmt.Errorf("particle analysis supports at most 2000 particles")
-		}
-		particles = append(particles, p)
-	}
+	particles := slices.Collect(s.Values())
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
@@ -52,19 +46,24 @@ func parseParticles(r io.Reader) ([]particle, error) {
 	return particles, nil
 }
 
-func particleAxis(p particle, axis int) [3]*big.Int {
-	// Twice the coordinate at t is a*t*t + (a+2*v)*t + 2*p.
-	a := big.NewInt(p.acceleration[axis])
-	b := new(big.Int).Lsh(big.NewInt(p.velocity[axis]), 1)
-	b.Add(b, a)
-	c := new(big.Int).Lsh(big.NewInt(p.position[axis]), 1)
-	return [3]*big.Int{a, b, c}
+// particleTrajectory holds, per axis, the coefficients a, b, c of twice the coordinate at tick t: a*t*t + b*t + c.
+type particleTrajectory [3][3]*big.Int
+
+func (p particle) trajectory() particleTrajectory {
+	var trajectory particleTrajectory
+	for axis := range 3 {
+		a := big.NewInt(p.acceleration[axis])
+		b := new(big.Int).Lsh(big.NewInt(p.velocity[axis]), 1)
+		b.Add(b, a)
+		c := new(big.Int).Lsh(big.NewInt(p.position[axis]), 1)
+		trajectory[axis] = [3]*big.Int{a, b, c}
+	}
+	return trajectory
 }
 
 func eventualDistance(p particle) [3]*big.Int {
 	distance := [3]*big.Int{new(big.Int), new(big.Int), new(big.Int)}
-	for axis := range 3 {
-		coefficients := particleAxis(p, axis)
+	for _, coefficients := range p.trajectory() {
 		sign := 0
 		for _, coefficient := range coefficients {
 			if sign = coefficient.Sign(); sign != 0 {
@@ -107,51 +106,67 @@ func day20p01(r io.Reader) (string, error) {
 	return strconv.Itoa(closest), nil
 }
 
-func integerRoots(coefficients [3]*big.Int) []*big.Int {
-	a, b, c := coefficients[0], coefficients[1], coefficients[2]
-	var roots []*big.Int
-	add := func(numerator, denominator *big.Int) {
-		quotient, remainder := new(big.Int), new(big.Int)
-		quotient.QuoRem(numerator, denominator, remainder)
-		if remainder.Sign() == 0 && quotient.Sign() >= 0 {
-			roots = append(roots, quotient)
-		}
-	}
-	if a.Sign() == 0 {
-		if b.Sign() != 0 {
-			add(new(big.Int).Neg(c), b)
-		}
-		return roots
-	}
-
-	discriminant := new(big.Int).Mul(b, b)
-	product := new(big.Int).Mul(a, c)
-	discriminant.Sub(discriminant, product.Lsh(product, 2))
-	if discriminant.Sign() < 0 {
-		return nil
-	}
-	root := new(big.Int).Sqrt(discriminant)
-	if new(big.Int).Mul(root, root).Cmp(discriminant) != 0 {
-		return nil
-	}
-	denominator := new(big.Int).Lsh(a, 1)
-	numerator := new(big.Int).Neg(b)
-	add(new(big.Int).Add(numerator, root), denominator)
-	if root.Sign() != 0 {
-		add(new(big.Int).Sub(numerator, root), denominator)
-	}
-
-	return roots
+// collisionSolver finds the earliest tick at which two trajectories meet, reusing its scratch values across pairs.
+type collisionSolver struct {
+	difference   [3][3]big.Int
+	discriminant big.Int
+	root         big.Int
+	numerator    big.Int
+	denominator  big.Int
+	remainder    big.Int
+	value        big.Int
+	roots        [2]big.Int
 }
 
-func particleCollision(first, second particle) *big.Int {
-	var differences [3][3]*big.Int
+// addRoot stores numerator/denominator as roots[count] when it is a nonnegative integer and returns the root count.
+func (s *collisionSolver) addRoot(count int) int {
+	root := &s.roots[count]
+	root.QuoRem(&s.numerator, &s.denominator, &s.remainder)
+	if s.remainder.Sign() == 0 && root.Sign() >= 0 {
+		return count + 1
+	}
+	return count
+}
+
+// integerRoots stores the nonnegative integer roots of a*t*t + b*t + c and returns how many there are.
+func (s *collisionSolver) integerRoots(coefficients *[3]big.Int) int {
+	a, b, c := &coefficients[0], &coefficients[1], &coefficients[2]
+	if a.Sign() == 0 {
+		if b.Sign() == 0 {
+			return 0
+		}
+		s.numerator.Neg(c)
+		s.denominator.Set(b)
+		return s.addRoot(0)
+	}
+
+	s.discriminant.Mul(b, b)
+	s.value.Mul(a, c)
+	s.discriminant.Sub(&s.discriminant, s.value.Lsh(&s.value, 2))
+	if s.discriminant.Sign() < 0 {
+		return 0
+	}
+	s.root.Sqrt(&s.discriminant)
+	if s.value.Mul(&s.root, &s.root).Cmp(&s.discriminant) != 0 {
+		return 0
+	}
+	s.denominator.Lsh(a, 1)
+	s.numerator.Sub(&s.root, b)
+	count := s.addRoot(0)
+	if s.root.Sign() != 0 {
+		s.numerator.Neg(b)
+		s.numerator.Sub(&s.numerator, &s.root)
+		count = s.addRoot(count)
+	}
+	return count
+}
+
+// earliest returns the first tick at which both trajectories coincide, or nil if they never do.
+func (s *collisionSolver) earliest(first, second *particleTrajectory) *big.Int {
 	constrained := -1
 	for axis := range 3 {
-		left, right := particleAxis(first, axis), particleAxis(second, axis)
 		for i := range 3 {
-			differences[axis][i] = left[i].Sub(left[i], right[i])
-			if differences[axis][i].Sign() != 0 {
+			if s.difference[axis][i].Sub(first[axis][i], second[axis][i]).Sign() != 0 {
 				constrained = axis
 			}
 		}
@@ -161,12 +176,14 @@ func particleCollision(first, second particle) *big.Int {
 	}
 
 	var earliest *big.Int
-	for _, time := range integerRoots(differences[constrained]) {
+	for i := range s.integerRoots(&s.difference[constrained]) {
+		time := &s.roots[i]
 		matches := true
-		for _, coefficients := range differences {
-			value := new(big.Int).Mul(coefficients[0], time)
-			value.Add(value, coefficients[1]).Mul(value, time).Add(value, coefficients[2])
-			if value.Sign() != 0 {
+		for axis := range s.difference {
+			coefficients := &s.difference[axis]
+			s.value.Mul(&coefficients[0], time)
+			s.value.Add(&s.value, &coefficients[1]).Mul(&s.value, time).Add(&s.value, &coefficients[2])
+			if s.value.Sign() != 0 {
 				matches = false
 				break
 			}
@@ -175,8 +192,11 @@ func particleCollision(first, second particle) *big.Int {
 			earliest = time
 		}
 	}
+	if earliest == nil {
+		return nil
+	}
 
-	return earliest
+	return new(big.Int).Set(earliest)
 }
 
 func day20p02(r io.Reader) (string, error) {
@@ -185,15 +205,21 @@ func day20p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
+	trajectories := make([]particleTrajectory, len(particles))
+	for i, p := range particles {
+		trajectories[i] = p.trajectory()
+	}
+
 	type collision struct {
 		time          *big.Int
 		first, second int
 	}
+	var solver collisionSolver
 	var events []collision
-	for i, first := range particles {
-		for j := i + 1; j < len(particles); j++ {
+	for i := range trajectories {
+		for j := i + 1; j < len(trajectories); j++ {
 			// After a pair's first collision, at least one member is gone forever.
-			if time := particleCollision(first, particles[j]); time != nil {
+			if time := solver.earliest(&trajectories[i], &trajectories[j]); time != nil {
 				events = append(events, collision{time: time, first: i, second: j})
 			}
 		}

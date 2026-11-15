@@ -67,6 +67,9 @@ func TestDay09MalformedInput(t *testing.T) {
 	}{
 		{"unfinished garbage", "{<abc!", day09p01},
 		{"group close", "}", day09p01},
+		{"empty stream", "", day09p01},
+		{"second top-level group", "{},{}", day09p01},
+		{"garbage after group", "{}<>", day09p02},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

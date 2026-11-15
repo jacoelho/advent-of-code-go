@@ -1,7 +1,6 @@
 package aoc2017
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"strconv"
@@ -9,6 +8,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
+// infectionState values follow the evolved cycle, so adding state+3 to a
+// clockwise direction index turns left, keeps course, turns right or reverses.
 type infectionState byte
 
 const (
@@ -18,87 +19,73 @@ const (
 	flagged
 )
 
-type virusMode int
+// virusMode is how far one burst advances a node through the infection cycle.
+type virusMode byte
 
 const (
-	simpleVirus virusMode = iota
-	evolvedVirus
+	evolvedVirus virusMode = 1
+	simpleVirus  virusMode = 2
 )
 
-func parseInfections(r io.Reader) (map[grid.Position2D[int]]infectionState, error) {
-	var rows [][]byte
-	s := bufio.NewScanner(r)
-	width := 0
-	for s.Scan() {
-		row := append([]byte(nil), s.Bytes()...)
-		if len(rows) == 0 {
-			width = len(row)
-		}
-		if len(row) != width || width%2 != 1 {
-			return nil, fmt.Errorf("infection grid must have equal odd-width rows")
-		}
-		rows = append(rows, row)
+// infectionGrid is a square of nodes that grows around its centre when the carrier leaves it.
+type infectionGrid struct {
+	side  int
+	nodes []infectionState
+}
+
+func (g *infectionGrid) grow() {
+	side := 3 * g.side
+	nodes := make([]infectionState, side*side)
+	for y := range g.side {
+		copy(nodes[(y+g.side)*side+g.side:], g.nodes[y*g.side:(y+1)*g.side])
 	}
-	if err := s.Err(); err != nil {
-		return nil, err
+	g.side, g.nodes = side, nodes
+}
+
+func parseInfections(r io.Reader) (infectionGrid, error) {
+	cells, err := grid.ReadBytes(r, "#.")
+	if err != nil {
+		return infectionGrid{}, err
 	}
-	if len(rows)%2 != 1 {
-		return nil, fmt.Errorf("infection grid must have an odd number of rows")
+	width, height := cells.Width(), cells.Height()
+	if width%2 != 1 || height%2 != 1 {
+		return infectionGrid{}, fmt.Errorf("infection grid must have odd width and height, got %dx%d", width, height)
 	}
 
-	nodes := make(map[grid.Position2D[int]]infectionState)
-	for y, row := range rows {
-		for x, cell := range row {
-			switch cell {
-			case '#':
-				nodes[grid.Position2D[int]{X: x - width/2, Y: y - len(rows)/2}] = infected
-			case '.':
-			default:
-				return nil, fmt.Errorf("invalid infection cell %q", cell)
-			}
+	g := infectionGrid{side: max(width, height)}
+	g.nodes = make([]infectionState, g.side*g.side)
+	left, top := (g.side-width)/2, (g.side-height)/2
+	for i, cell := range cells.Cells() {
+		if cell == '#' {
+			p := cells.Position(i)
+			g.nodes[(top+p.Y)*g.side+left+p.X] = infected
 		}
 	}
 
-	return nodes, nil
+	return g, nil
 }
 
 func virusBursts(r io.Reader, mode virusMode, bursts int) (int, error) {
-	if bursts < 0 || bursts > 10_000_000 {
-		return 0, fmt.Errorf("virus burst count must be between 0 and 10000000")
-	}
-	nodes, err := parseInfections(r)
+	g, err := parseInfections(r)
 	if err != nil {
 		return 0, err
 	}
 
-	pos, dir := grid.Position2D[int]{}, grid.Position2D[int]{Y: -1}
+	offsets := [4][2]int{{0, -1}, {1, 0}, {0, 1}, {-1, 0}}
+	x, y, dir := g.side/2, g.side/2, 0
 	infections := 0
 	for range bursts {
-		state := nodes[pos]
-		switch state {
-		case clean:
-			dir = dir.TurnLeft()
-		case infected:
-			dir = dir.TurnRight()
-		case flagged:
-			dir = grid.Position2D[int]{X: -dir.X, Y: -dir.Y}
+		if x < 0 || y < 0 || x >= g.side || y >= g.side {
+			x, y = x+g.side, y+g.side
+			g.grow()
 		}
-		if mode == evolvedVirus {
-			state = (state + 1) % 4
-		} else if state == clean {
-			state = infected
-		} else {
-			state = clean
-		}
-		if state == infected {
+		node := &g.nodes[y*g.side+x]
+		dir = (dir + int(*node) + 3) & 3
+		*node = (*node + infectionState(mode)) & 3
+		if *node == infected {
 			infections++
 		}
-		if state == clean {
-			delete(nodes, pos)
-		} else {
-			nodes[pos] = state
-		}
-		pos = pos.Add(dir)
+		x, y = x+offsets[dir][0], y+offsets[dir][1]
 	}
 
 	return infections, nil

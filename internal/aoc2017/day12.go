@@ -16,6 +16,7 @@ import (
 
 func parseProgramPipes(r io.Reader) (map[int][]int, error) {
 	pipes := make(map[int][]int)
+	declared := collections.NewSet[int]()
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		from, destinations, ok := strings.Cut(s.Text(), " <-> ")
@@ -29,6 +30,10 @@ func parseProgramPipes(r io.Reader) (map[int][]int, error) {
 		if id < 0 {
 			return nil, fmt.Errorf("negative program ID")
 		}
+		if declared.Contains(id) {
+			return nil, fmt.Errorf("duplicate program %d", id)
+		}
+		declared.Add(id)
 		for destination := range strings.SplitSeq(destinations, ",") {
 			other, err := convert.ScanNumber[int]([]byte(strings.TrimSpace(destination)))
 			if err != nil {
@@ -42,7 +47,19 @@ func parseProgramPipes(r io.Reader) (map[int][]int, error) {
 		}
 	}
 
-	return pipes, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if declared.Len() == 0 {
+		return nil, fmt.Errorf("no programs")
+	}
+	for id := range pipes {
+		if !declared.Contains(id) {
+			return nil, fmt.Errorf("undeclared program %d", id)
+		}
+	}
+
+	return pipes, nil
 }
 
 func day12p01(r io.Reader) (string, error) {

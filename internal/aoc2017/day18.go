@@ -15,8 +15,6 @@ const (
 	duetMessages
 )
 
-const duetInstructionLimit = 50_000_000
-
 func parseDuet(r io.Reader, mode duetMode) ([]assemblyInstruction, error) {
 	program, err := parseAssembly(r)
 	if err != nil {
@@ -47,7 +45,7 @@ func day18p01(r io.Reader) (string, error) {
 	var registers [26]int64
 	var pointer, lastSound int64
 	hasSound := false
-	for range duetInstructionLimit {
+	for {
 		if pointer < 0 || pointer >= int64(len(program)) {
 			return "", fmt.Errorf("duet terminated without recovering a sound")
 		}
@@ -73,8 +71,6 @@ func day18p01(r io.Reader) (string, error) {
 			}
 		}
 	}
-
-	return "", fmt.Errorf("duet exceeds %d instructions", duetInstructionLimit)
 }
 
 type duetProcess struct {
@@ -92,9 +88,6 @@ func stepDuet(current, other *duetProcess, program []assemblyInstruction) (bool,
 	instruction := program[current.pointer]
 	switch instruction.operation {
 	case "snd":
-		if other.inbox.Size() == 1_000_000 {
-			return false, fmt.Errorf("duet message queue exceeds 1000000 values")
-		}
 		other.inbox.PushBack(instruction.x.value(current.registers))
 		current.sent++
 		current.pointer++
@@ -130,7 +123,6 @@ func day18p02(r io.Reader) (string, error) {
 	}
 	processes[1].registers['p'-'a'] = 1
 
-	steps := 0
 	for {
 		progress := false
 		for id := range processes {
@@ -138,13 +130,7 @@ func day18p02(r io.Reader) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			if advanced {
-				progress = true
-				steps++
-				if steps == duetInstructionLimit {
-					return "", fmt.Errorf("duet exceeds %d instructions", duetInstructionLimit)
-				}
-			}
+			progress = progress || advanced
 		}
 		if !progress {
 			return strconv.Itoa(processes[1].sent), nil

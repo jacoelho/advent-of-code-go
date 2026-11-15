@@ -58,6 +58,7 @@ func TestDay02MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"spreadsheet zero", "5 0", day02p02},
+		{"empty spreadsheet", "", day02p01},
 		{"missing pair", "5 7", day02p02},
 		{"ambiguous pairs", "2 4 8", day02p02},
 	}

@@ -31,6 +31,13 @@ func spinlockAfterZero(step int64, insertions int) int {
 		if position == 1 {
 			value = number
 		}
+		// Until the walk wraps past the end, each insertion lands step+1 further on and never at index 1.
+		skip := insertions - number
+		if step > 0 {
+			skip = min(skip, int(int64(number-position)/step))
+		}
+		position += skip * (int(step) + 1)
+		number += skip
 	}
 
 	return value

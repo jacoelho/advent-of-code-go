@@ -51,10 +51,16 @@ func Test_day13p02(t *testing.T) {
 }
 
 func TestFirewallErrors(t *testing.T) {
-	for _, input := range []string{"", "0: 0", "0: 1", "0: 2\n1: 2", "0: 3\n0: 4", "x: 3"} {
+	for _, input := range []string{"", "0: 0", "0: 1", "0: 2\n1: 2", "0: 3\n0: 4", "x: 3", "0: 9223372036854775807", "0: 4611686018427387904\n1: 4611686018427387903\n2: 1"} {
 		if _, err := day13p02(strings.NewReader(input)); err == nil {
 			t.Errorf("expected error for %q", input)
 		}
+	}
+}
+
+func TestFirewallSeverityOverflow(t *testing.T) {
+	if _, err := day13p01(strings.NewReader("4611686018427387904: 3")); err == nil {
+		t.Fatal("expected overflow error")
 	}
 }
 

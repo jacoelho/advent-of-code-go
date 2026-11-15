@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type bridgeComponent struct{ a, b int64 }
@@ -33,7 +33,7 @@ func buildBridges(r io.Reader) (bridgeScore, error) {
 		if err != nil {
 			return bridgeComponent{}, err
 		}
-		if a < 0 || b < 0 || a > math.MaxInt64-b {
+		if _, ok := xmath.CheckedAdd(a, b); a < 0 || b < 0 || !ok {
 			return bridgeComponent{}, fmt.Errorf("invalid bridge port strengths %q", line)
 		}
 		return bridgeComponent{a: a, b: b}, nil
@@ -42,14 +42,12 @@ func buildBridges(r io.Reader) (bridgeScore, error) {
 	byPort := make(map[int64][]int)
 	var total int64
 	for component := range s.Values() {
-		if len(components) == 64 {
-			return bridgeScore{}, fmt.Errorf("bridge search supports at most 64 components")
-		}
 		strength := component.a + component.b
-		if total > math.MaxInt64-strength {
+		sum, ok := xmath.CheckedAdd(total, strength)
+		if !ok {
 			return bridgeScore{}, fmt.Errorf("total bridge strength overflows int64")
 		}
-		total += strength
+		total = sum
 		id := len(components)
 		components = append(components, component)
 		byPort[component.a] = append(byPort[component.a], id)
@@ -61,37 +59,26 @@ func buildBridges(r io.Reader) (bridgeScore, error) {
 		return bridgeScore{}, err
 	}
 
-	type state struct {
-		port int64
-		used uint64
+	if len(components) == 0 {
+		return bridgeScore{}, fmt.Errorf("no bridge components")
 	}
-	memo := make(map[state]bridgeScore)
-	states := 0
-	var visit func(state) (bridgeScore, error)
-	visit = func(current state) (bridgeScore, error) {
-		if score, ok := memo[current]; ok {
-			return score, nil
-		}
-		states++
-		if states > 1_000_000 {
-			return bridgeScore{}, fmt.Errorf("bridge search exceeded 1000000 states")
-		}
 
+	used := make([]bool, len(components))
+	var visit func(port int64) bridgeScore
+	visit = func(port int64) bridgeScore {
 		var best bridgeScore
-		for _, id := range byPort[current.port] {
-			bit := uint64(1) << id
-			if current.used&bit != 0 {
+		for _, id := range byPort[port] {
+			if used[id] {
 				continue
 			}
 			component := components[id]
-			port := component.a
-			if port == current.port {
-				port = component.b
+			next := component.a
+			if next == port {
+				next = component.b
 			}
-			suffix, err := visit(state{port: port, used: current.used | bit})
-			if err != nil {
-				return bridgeScore{}, err
-			}
+			used[id] = true
+			suffix := visit(next)
+			used[id] = false
 			strength := component.a + component.b
 			best.strongest = max(best.strongest, strength+suffix.strongest)
 			length := suffix.longestLength + 1
@@ -100,11 +87,10 @@ func buildBridges(r io.Reader) (bridgeScore, error) {
 				best.longestStrength = strength + suffix.longestStrength
 			}
 		}
-		memo[current] = best
-		return best, nil
+		return best
 	}
 
-	return visit(state{})
+	return visit(0), nil
 }
 
 func day24p01(r io.Reader) (string, error) {

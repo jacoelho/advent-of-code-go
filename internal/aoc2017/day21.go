@@ -97,9 +97,6 @@ func parseFractalRules(r io.Reader) (map[fractalPattern]fractalPattern, error) {
 }
 
 func enhanceFractal(r io.Reader, iterations int) (int, error) {
-	if iterations < 0 || iterations > 18 {
-		return 0, fmt.Errorf("fractal iterations must be between 0 and 18")
-	}
 	rules, err := parseFractalRules(r)
 	if err != nil {
 		return 0, err

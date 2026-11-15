@@ -12,8 +12,8 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-func spreadsheetRows(r io.Reader) *scanner.Scanner[[]int] {
-	return scanner.NewScanner(r, func(line []byte) ([]int, error) {
+func spreadsheetRows(r io.Reader) ([][]int, error) {
+	s := scanner.NewScanner(r, func(line []byte) ([]int, error) {
 		var row []int
 		for field := range bytes.FieldsSeq(line) {
 			value, err := convert.ScanNumber[int](field)
@@ -30,24 +30,36 @@ func spreadsheetRows(r io.Reader) *scanner.Scanner[[]int] {
 		}
 		return row, nil
 	})
+	rows := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("empty spreadsheet")
+	}
+
+	return rows, nil
 }
 
 func day02p01(r io.Reader) (string, error) {
-	s := spreadsheetRows(r)
-	total := xiter.From(s.Values()).SumBy(func(row []int) int {
-		return slices.Max(row) - slices.Min(row)
-	})
-	if err := s.Err(); err != nil {
+	rows, err := spreadsheetRows(r)
+	if err != nil {
 		return "", err
 	}
+	total := xiter.From(slices.Values(rows)).SumBy(func(row []int) int {
+		return slices.Max(row) - slices.Min(row)
+	})
 
 	return strconv.Itoa(total), nil
 }
 
 func day02p02(r io.Reader) (string, error) {
-	s := spreadsheetRows(r)
+	rows, err := spreadsheetRows(r)
+	if err != nil {
+		return "", err
+	}
 	total := 0
-	for row := range s.Values() {
+	for _, row := range rows {
 		quotient := 0
 		for i, a := range row {
 			for _, b := range row[i+1:] {
@@ -64,9 +76,6 @@ func day02p02(r io.Reader) (string, error) {
 			return "", fmt.Errorf("no divisible pair in spreadsheet row")
 		}
 		total += quotient
-	}
-	if err := s.Err(); err != nil {
-		return "", err
 	}
 
 	return strconv.Itoa(total), nil

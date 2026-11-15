@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 )
 
@@ -76,8 +75,8 @@ func parseBlueprint(r io.Reader) (turingBlueprint, error) {
 	if err != nil {
 		return turingBlueprint{}, err
 	}
-	if steps < 0 || steps > 100_000_000 {
-		return turingBlueprint{}, fmt.Errorf("turing step count must be between 0 and 100000000")
+	if steps < 0 {
+		return turingBlueprint{}, fmt.Errorf("negative Turing step count %d", steps)
 	}
 	blueprint.initial, blueprint.steps = initial, steps
 
@@ -145,22 +144,31 @@ func day25p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	ones := collections.NewSet[int]()
-	pos, state := 0, blueprint.initial
+	tape := make([]bool, 64)
+	pos, state, ones := len(tape)/2, blueprint.initial, 0
 	for range blueprint.steps {
+		if pos < 0 || pos == len(tape) {
+			grown := make([]bool, 3*len(tape))
+			copy(grown[len(tape):], tape)
+			pos += len(tape)
+			tape = grown
+		}
 		bit := 0
-		if ones.Contains(pos) {
+		if tape[pos] {
 			bit = 1
 		}
 		transition := blueprint.rules[state][bit]
-		if transition.write {
-			ones.Add(pos)
-		} else {
-			ones.Remove(pos)
+		if transition.write != tape[pos] {
+			tape[pos] = transition.write
+			if transition.write {
+				ones++
+			} else {
+				ones--
+			}
 		}
 		pos += transition.move
 		state = transition.next
 	}
 
-	return strconv.Itoa(ones.Len()), nil
+	return strconv.Itoa(ones), nil
 }

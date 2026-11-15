@@ -66,6 +66,9 @@ func TestDay12MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"program ID", "zero <-> 0", day12p01},
+		{"no programs", "", day12p02},
+		{"duplicate program", "0 <-> 0\n0 <-> 0", day12p02},
+		{"undeclared program", "0 <-> 1", day12p02},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

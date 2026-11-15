@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type assemblyOperand struct {
@@ -102,11 +102,12 @@ func parseAssembly(r io.Reader) ([]assemblyInstruction, error) {
 }
 
 func assemblySum(a, b int64) (int64, error) {
-	if b > 0 && a > math.MaxInt64-b || b < 0 && a < math.MinInt64-b {
+	sum, ok := xmath.CheckedAdd(a, b)
+	if !ok {
 		return 0, fmt.Errorf("assembly integer overflow")
 	}
 
-	return a + b, nil
+	return sum, nil
 }
 
 func advanceAssembly(instruction assemblyInstruction, registers *[26]int64, pointer int64) (int64, error) {
@@ -122,15 +123,14 @@ func advanceAssembly(instruction assemblyInstruction, registers *[26]int64, poin
 		value, err = assemblySum(x, y)
 
 	case "sub":
-		if y > 0 && x < math.MinInt64+y || y < 0 && x > math.MaxInt64+y {
+		var ok bool
+		if value, ok = xmath.CheckedSub(x, y); !ok {
 			err = fmt.Errorf("assembly integer overflow")
-		} else {
-			value = x - y
 		}
 
 	case "mul":
-		value = x * y
-		if x != 0 && (x == -1 && y == math.MinInt64 || value/x != y) {
+		var ok bool
+		if value, ok = xmath.CheckedMul(x, y); !ok {
 			err = fmt.Errorf("assembly integer overflow")
 		}
 
