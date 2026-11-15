@@ -29,7 +29,14 @@ func parseBootCode(r io.Reader) ([]bootInstruction, error) {
 		}
 		return bootInstruction{operation, value}, nil
 	})
-	return slices.Collect(s.Values()), s.Err()
+	code := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(code) == 0 {
+		return nil, fmt.Errorf("empty boot code")
+	}
+	return code, nil
 }
 
 func executeBoot(code []bootInstruction, swap int) (accumulator int, terminated bool, err error) {

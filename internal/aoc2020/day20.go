@@ -1,118 +1,153 @@
 package aoc2020
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"iter"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-var seaMonsterPattern = []grid.Position2D[int]{
-	{X: 18, Y: 0},
-	{X: 0, Y: 1}, {X: 5, Y: 1}, {X: 6, Y: 1}, {X: 11, Y: 1}, {X: 12, Y: 1}, {X: 17, Y: 1}, {X: 18, Y: 1}, {X: 19, Y: 1},
-	{X: 1, Y: 2}, {X: 4, Y: 2}, {X: 7, Y: 2}, {X: 10, Y: 2}, {X: 13, Y: 2}, {X: 16, Y: 2},
+var seaMonster = []string{
+	"                  # ",
+	"#    ##    ##    ###",
+	" #  #  #  #  #  #   ",
 }
 
 type imageTile struct {
-	id   int
-	grid grid.Grid2D[int, rune]
+	id     int
+	pixels [][]byte
 }
 
-func parseImageTile(s string) (imageTile, error) {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	if len(lines) < 2 {
-		return imageTile{}, fmt.Errorf("invalid tile format")
-	}
-
-	digits := convert.ExtractDigits[int](lines[0])
-	if len(digits) == 0 {
-		return imageTile{}, fmt.Errorf("failed to parse tile ID")
-	}
-
-	rows := make([][]rune, len(lines)-1)
-	for i, line := range lines[1:] {
-		rows[i] = []rune(line)
-	}
-
-	return imageTile{
-		id:   digits[0],
-		grid: grid.NewGrid2D[int](rows),
-	}, nil
+// imageTiles holds square tiles of one size forming a square arrangement, with
+// each canonical edge shared by at most two tiles.
+type imageTiles struct {
+	tiles []imageTile
+	side  int
+	edges map[string][]int
 }
 
-func parseImageTiles(r io.Reader) ([]imageTile, error) {
-	s := bufio.NewScanner(r)
-	s.Split(scanner.SplitBySeparator([]byte{'\n', '\n'}))
-
+func parseImageTiles(r io.Reader) (imageTiles, error) {
+	blocks, err := scanner.ReadBlocks(r)
+	if err != nil {
+		return imageTiles{}, err
+	}
 	var tiles []imageTile
-	for s.Scan() {
-		tile, err := parseImageTile(s.Text())
-		if err != nil {
-			return nil, err
+	ids := make(map[int]bool)
+	for _, lines := range blocks {
+		if len(lines) == 0 {
+			return imageTiles{}, fmt.Errorf("empty tile")
 		}
-		tiles = append(tiles, tile)
-	}
-
-	if err := s.Err(); err != nil {
-		return nil, err
-	}
-
-	return tiles, nil
-}
-
-func reverseBorder(border string) string {
-	runes := []rune(border)
-	slices.Reverse(runes)
-	return string(runes)
-}
-
-func getBorders(tile imageTile) []string {
-	return []string{
-		string(tile.grid.Top()),
-		string(tile.grid.Bottom()),
-		string(tile.grid.Left()),
-		string(tile.grid.Right()),
-	}
-}
-
-func bordersMatch(border1, border2 string) bool {
-	return border1 == border2 || border1 == reverseBorder(border2)
-}
-
-func countMatchingBorders(tile imageTile, allTiles []imageTile) int {
-	tileBorders := getBorders(tile)
-
-	matchCount := 0
-	for _, border := range tileBorders {
-		if xiter.FromSlice(allTiles).Any(func(otherTile imageTile) bool {
-			if tile.id == otherTile.id {
-				return false
+		idText, ok := strings.CutPrefix(lines[0], "Tile ")
+		idText, colon := strings.CutSuffix(idText, ":")
+		id, err := strconv.Atoi(idText)
+		if !ok || !colon || err != nil || id <= 0 {
+			return imageTiles{}, fmt.Errorf("invalid tile header %q", lines[0])
+		}
+		if ids[id] {
+			return imageTiles{}, fmt.Errorf("duplicate tile %d", id)
+		}
+		ids[id] = true
+		size := len(lines) - 1
+		if size < 3 || len(tiles) > 0 && size != len(tiles[0].pixels) {
+			return imageTiles{}, fmt.Errorf("tile %d has %d rows", id, size)
+		}
+		pixels := make([][]byte, size)
+		for y, line := range lines[1:] {
+			if len(line) != size || strings.Trim(line, ".#") != "" {
+				return imageTiles{}, fmt.Errorf("tile %d: invalid row %q", id, line)
 			}
-			otherBorders := getBorders(otherTile)
-			return xiter.FromSlice(otherBorders).Any(func(otherBorder string) bool {
-				return bordersMatch(border, otherBorder)
-			})
-		}) {
-			matchCount++
+			pixels[y] = []byte(line)
+		}
+		tiles = append(tiles, imageTile{id, pixels})
+	}
+	side := 1
+	for side*side < len(tiles) {
+		side++
+	}
+	if side*side != len(tiles) || side < 2 {
+		return imageTiles{}, fmt.Errorf("%d tiles do not form a square of at least 2x2", len(tiles))
+	}
+	edges := make(map[string][]int)
+	for i, tile := range tiles {
+		for _, edge := range tileEdges(tile.pixels) {
+			key := canonicalEdge(edge)
+			edges[key] = append(edges[key], i)
+			if len(edges[key]) > 2 {
+				return imageTiles{}, fmt.Errorf("edge %s is shared by more than two tiles", key)
+			}
 		}
 	}
-
-	return matchCount
+	return imageTiles{tiles, side, edges}, nil
 }
 
-func findCorners(tiles []imageTile) xiter.Seq[imageTile] {
-	return xiter.FromSlice(tiles).Filter(func(tile imageTile) bool {
-		return countMatchingBorders(tile, tiles) == 2
-	})
+// tileEdges returns the top, right, bottom and left edges of a tile.
+func tileEdges(pixels [][]byte) [4]string {
+	n := len(pixels)
+	left, right := make([]byte, n), make([]byte, n)
+	for y, row := range pixels {
+		left[y], right[y] = row[0], row[n-1]
+	}
+	return [4]string{string(pixels[0]), string(right), string(pixels[n-1]), string(left)}
+}
+
+func canonicalEdge(edge string) string {
+	reversed := []byte(edge)
+	slices.Reverse(reversed)
+	return min(edge, string(reversed))
+}
+
+func (t imageTiles) unmatched(edge string) bool {
+	return len(t.edges[canonicalEdge(edge)]) == 1
+}
+
+func (t imageTiles) corners() ([]int, error) {
+	var corners []int
+	for i, tile := range t.tiles {
+		unmatched := 0
+		for _, edge := range tileEdges(tile.pixels) {
+			if t.unmatched(edge) {
+				unmatched++
+			}
+		}
+		if unmatched == 2 {
+			corners = append(corners, i)
+		}
+	}
+	if len(corners) != 4 {
+		return nil, fmt.Errorf("found %d corner tiles, want 4", len(corners))
+	}
+	return corners, nil
+}
+
+func rotateClockwise(pixels [][]byte) [][]byte {
+	n := len(pixels)
+	rotated := make([][]byte, n)
+	for y := range rotated {
+		rotated[y] = make([]byte, n)
+		for x := range rotated[y] {
+			rotated[y][x] = pixels[n-1-x][y]
+		}
+	}
+	return rotated
+}
+
+// orientations returns the four rotations of pixels and of its mirror image.
+func orientations(pixels [][]byte) [8][][]byte {
+	var result [8][][]byte
+	mirrored := make([][]byte, len(pixels))
+	for y, row := range pixels {
+		mirrored[y] = slices.Clone(row)
+		slices.Reverse(mirrored[y])
+	}
+	result[0], result[4] = pixels, mirrored
+	for i := 1; i < 4; i++ {
+		result[i] = rotateClockwise(result[i-1])
+		result[i+4] = rotateClockwise(result[i+3])
+	}
+	return result
 }
 
 func day20p01(r io.Reader) (string, error) {
@@ -120,216 +155,68 @@ func day20p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	result := findCorners(tiles).
-		Map(func(tile imageTile) int { return tile.id }).
-		Reduce(1, func(product, id int) int { return product * id })
-
-	return strconv.Itoa(result), nil
+	corners, err := tiles.corners()
+	if err != nil {
+		return "", err
+	}
+	product := 1
+	for _, corner := range corners {
+		product *= tiles.tiles[corner].id
+	}
+	return strconv.Itoa(product), nil
 }
 
-// allOrientations yields the four rotations of g and of its horizontal reflection.
-func allOrientations(g grid.Grid2D[int, rune]) iter.Seq[grid.Grid2D[int, rune]] {
-	return func(yield func(grid.Grid2D[int, rune]) bool) {
-		current := g
-		for range 4 {
-			if !yield(current) {
-				return
-			}
-			current = current.TurnRight()
-		}
-
-		current = g.FlipHorizontal()
-		for range 4 {
-			if !yield(current) {
-				return
-			}
-			current = current.TurnRight()
-		}
+// assemble arranges the tiles row by row from a corner. Each tile's top and
+// left edges must match its placed neighbours, or be unmatched on the border.
+func (t imageTiles) assemble() ([][][][]byte, error) {
+	corners, err := t.corners()
+	if err != nil {
+		return nil, err
 	}
-}
-
-func findTileWithBorder(border string, tiles []imageTile, excludeID int) (int, bool) {
-	for _, tile := range tiles {
-		if tile.id == excludeID {
-			continue
-		}
-		borders := getBorders(tile)
-		for _, b := range borders {
-			if bordersMatch(border, b) {
-				return tile.id, true
-			}
-		}
-	}
-	return 0, false
-}
-
-func findMatchingTileOrientation(tiles []imageTile, used map[int]bool, leftBorder, topBorder string) (imageTile, bool) {
-	for _, tile := range tiles {
-		if used[tile.id] {
-			continue
-		}
-
-		for oriented := range allOrientations(tile.grid) {
-			matchesLeft := leftBorder == "" || string(oriented.Left()) == leftBorder
-			matchesTop := topBorder == "" || string(oriented.Top()) == topBorder
-
-			if matchesLeft && matchesTop {
-				return imageTile{id: tile.id, grid: oriented}, true
-			}
-		}
-	}
-	return imageTile{}, false
-}
-
-func assembleTiles(tiles []imageTile) map[grid.Position2D[int]]imageTile {
-	cornerTile, ok := findCorners(tiles).First()
-	if !ok {
-		return nil
-	}
-
-	// Orient the first corner so matching borders face right and down.
-
-	var startOriented grid.Grid2D[int, rune]
-
-	for oriented := range allOrientations(cornerTile.grid) {
-		rightBorder := string(oriented.Right())
-		bottomBorder := string(oriented.Bottom())
-
-		_, hasRight := findTileWithBorder(rightBorder, tiles, cornerTile.id)
-		_, hasBottom := findTileWithBorder(bottomBorder, tiles, cornerTile.id)
-
-		if hasRight && hasBottom {
-			startOriented = oriented
-			break
-		}
-	}
-
-	placed := make(map[grid.Position2D[int]]imageTile)
-	placed[grid.Position2D[int]{X: 0, Y: 0}] = imageTile{id: cornerTile.id, grid: startOriented}
-	used := make(map[int]bool)
-	used[cornerTile.id] = true
-
-	gridSize := 1
-	for gridSize*gridSize < len(tiles) {
-		gridSize++
-	}
-
-	for y := 0; y < gridSize; y++ {
-		for x := 0; x < gridSize; x++ {
-			if x == 0 && y == 0 {
-				continue
-			}
-
-			var leftBorder, topBorder string
-			if x > 0 {
-				if leftTile, exists := placed[grid.Position2D[int]{X: x - 1, Y: y}]; exists {
-					leftBorder = string(leftTile.grid.Right())
-				}
-			}
+	used := make([]bool, len(t.tiles))
+	placed := make([][][][]byte, t.side)
+	for y := range placed {
+		placed[y] = make([][][]byte, t.side)
+		for x := range placed[y] {
+			var above, left string
+			candidates := corners[:1]
 			if y > 0 {
-				if topTile, exists := placed[grid.Position2D[int]{X: x, Y: y - 1}]; exists {
-					topBorder = string(topTile.grid.Bottom())
-				}
+				above = tileEdges(placed[y-1][x])[2]
+				candidates = t.edges[canonicalEdge(above)]
 			}
-
-			if leftBorder == "" && topBorder == "" {
-				continue
+			if x > 0 {
+				left = tileEdges(placed[y][x-1])[1]
+				candidates = t.edges[canonicalEdge(left)]
 			}
-
-			if matchedTile, found := findMatchingTileOrientation(tiles, used, leftBorder, topBorder); found {
-				placed[grid.Position2D[int]{X: x, Y: y}] = matchedTile
-				used[matchedTile.id] = true
+			fits := func(pixels [][]byte) bool {
+				edges := tileEdges(pixels)
+				topFits := y > 0 && edges[0] == above || y == 0 && t.unmatched(edges[0])
+				leftFits := x > 0 && edges[3] == left || x == 0 && t.unmatched(edges[3])
+				return topFits && leftFits
 			}
+			tile, oriented, ok := t.place(candidates, used, fits)
+			if !ok {
+				return nil, fmt.Errorf("no tile fits at row %d column %d", y, x)
+			}
+			used[tile] = true
+			placed[y][x] = oriented
 		}
 	}
-
-	return placed
+	return placed, nil
 }
 
-func removeBorder(g grid.Grid2D[int, rune]) grid.Grid2D[int, rune] {
-	minX, maxX, minY, maxY := g.Dimensions()
-	result := make(grid.Grid2D[int, rune])
-
-	for y := minY + 1; y < maxY; y++ {
-		for x := minX + 1; x < maxX; x++ {
-			if val, exists := g[grid.Position2D[int]{X: x, Y: y}]; exists {
-				newPos := grid.Position2D[int]{X: x - minX - 1, Y: y - minY - 1}
-				result[newPos] = val
+func (t imageTiles) place(candidates []int, used []bool, fits func([][]byte) bool) (int, [][]byte, bool) {
+	for _, candidate := range candidates {
+		if used[candidate] {
+			continue
+		}
+		for _, oriented := range orientations(t.tiles[candidate].pixels) {
+			if fits(oriented) {
+				return candidate, oriented, true
 			}
 		}
 	}
-
-	return result
-}
-
-func mergeToSingleGrid(assembled map[grid.Position2D[int]]imageTile) grid.Grid2D[int, rune] {
-	if len(assembled) == 0 {
-		return grid.Grid2D[int, rune]{}
-	}
-
-	result := make(grid.Grid2D[int, rune])
-
-	for tilePos, tile := range assembled {
-		borderless := removeBorder(tile.grid)
-		minX, maxX, minY, maxY := borderless.Dimensions()
-		tileWidth := maxX - minX + 1
-
-		for y := minY; y <= maxY; y++ {
-			for x := minX; x <= maxX; x++ {
-				val := borderless[grid.Position2D[int]{X: x, Y: y}]
-				finalX := tilePos.X*tileWidth + (x - minX)
-				finalY := tilePos.Y*tileWidth + (y - minY)
-				result[grid.Position2D[int]{X: finalX, Y: finalY}] = val
-			}
-		}
-	}
-
-	return result
-}
-
-func findSeaMonsters(g grid.Grid2D[int, rune]) []grid.Position2D[int] {
-	minX, maxX, minY, maxY := g.Dimensions()
-	var monsters []grid.Position2D[int]
-
-	for y := minY; y <= maxY; y++ {
-		for x := minX; x <= maxX; x++ {
-			found := true
-			for _, offset := range seaMonsterPattern {
-				pos := grid.Position2D[int]{X: x + offset.X, Y: y + offset.Y}
-				val, exists := g[pos]
-				if !exists || val != '#' {
-					found = false
-					break
-				}
-			}
-			if found {
-				monsters = append(monsters, grid.Position2D[int]{X: x, Y: y})
-			}
-		}
-	}
-
-	return monsters
-}
-
-// countRoughness counts lit pixels that do not belong to any sea monster.
-func countRoughness(g grid.Grid2D[int, rune], monsters []grid.Position2D[int]) int {
-	allHash := collections.NewSet[grid.Position2D[int]]()
-	for pos, val := range g {
-		if val == '#' {
-			allHash.Add(pos)
-		}
-	}
-
-	monsterPositions := collections.NewSet[grid.Position2D[int]]()
-	for _, monsterStart := range monsters {
-		for _, offset := range seaMonsterPattern {
-			pos := grid.Position2D[int]{X: monsterStart.X + offset.X, Y: monsterStart.Y + offset.Y}
-			monsterPositions.Add(pos)
-		}
-	}
-
-	return allHash.Difference(monsterPositions).Len()
+	return 0, nil, false
 }
 
 func day20p02(r io.Reader) (string, error) {
@@ -337,21 +224,67 @@ func day20p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	assembled := assembleTiles(tiles)
-	if len(assembled) != len(tiles) {
-		return "", fmt.Errorf("failed to assemble all tiles: placed %d of %d", len(assembled), len(tiles))
+	placed, err := tiles.assemble()
+	if err != nil {
+		return "", err
 	}
-
-	fullImage := mergeToSingleGrid(assembled)
-
-	for oriented := range allOrientations(fullImage) {
-		monsters := findSeaMonsters(oriented)
-		if len(monsters) > 0 {
-			roughness := countRoughness(oriented, monsters)
+	inner := len(tiles.tiles[0].pixels) - 2
+	image := make([][]byte, tiles.side*inner)
+	for y := range image {
+		row := placed[y/inner]
+		for _, tile := range row {
+			image[y] = append(image[y], tile[y%inner+1][1:inner+1]...)
+		}
+	}
+	for _, oriented := range orientations(image) {
+		if roughness, found := waterRoughness(oriented); found {
 			return strconv.Itoa(roughness), nil
 		}
 	}
-
 	return "", fmt.Errorf("no sea monsters found")
+}
+
+// waterRoughness counts '#' pixels outside sea monsters, reporting whether any
+// monster was found.
+func waterRoughness(image [][]byte) (int, bool) {
+	monster := make([][]bool, len(image))
+	for y := range monster {
+		monster[y] = make([]bool, len(image[y]))
+	}
+	found := false
+	for y := 0; y+len(seaMonster) <= len(image); y++ {
+		for x := 0; x+len(seaMonster[0]) <= len(image[y]); x++ {
+			if !seaMonsterAt(image, x, y) {
+				continue
+			}
+			found = true
+			for dy, pattern := range seaMonster {
+				for dx := range pattern {
+					if pattern[dx] == '#' {
+						monster[y+dy][x+dx] = true
+					}
+				}
+			}
+		}
+	}
+	roughness := 0
+	for y, row := range image {
+		for x, pixel := range row {
+			if pixel == '#' && !monster[y][x] {
+				roughness++
+			}
+		}
+	}
+	return roughness, found
+}
+
+func seaMonsterAt(image [][]byte, x, y int) bool {
+	for dy, pattern := range seaMonster {
+		for dx := range pattern {
+			if pattern[dx] == '#' && image[y+dy][x+dx] != '#' {
+				return false
+			}
+		}
+	}
+	return true
 }

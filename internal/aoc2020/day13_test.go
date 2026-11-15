@@ -29,10 +29,13 @@ func Test_day13p02(t *testing.T) {
 }
 
 func TestBusScheduleErrors(t *testing.T) {
-	for _, input := range []string{"", "0\nx,x", "0\n0", "0\n6,8"} {
+	for _, input := range []string{"", "0\nx,x", "0\n0", "0\n6,8", "0\n2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53"} {
 		if _, err := day13p02(strings.NewReader(input)); err == nil {
 			t.Errorf("expected error for %q", input)
 		}
+	}
+	if _, err := day13p01(strings.NewReader("1\n4611686018427387904")); err == nil {
+		t.Error("expected overflow error for a wait times bus beyond int64")
 	}
 	failure := errors.New("read failed")
 	if _, err := day13p01(iotest.ErrReader(failure)); !errors.Is(err, failure) {

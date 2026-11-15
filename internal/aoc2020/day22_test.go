@@ -97,3 +97,18 @@ func TestCombatInputErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestCombatRejectsMalformedDecks(t *testing.T) {
+	for _, input := range []string{
+		"Player 1:\n1\n\nPlayer 3:\n2",
+		"Player 1:\n1",
+		"Player 1:\n1\n\nPlayer 2:\n2\n\nPlayer 3:\n3",
+		"Player 1:\n1\n\nPlayer 2:\n1",
+		"Player 1:\n0\n\nPlayer 2:\n2",
+		"Player 1:\n\nPlayer 2:\n2",
+	} {
+		if _, err := day22p02(strings.NewReader(input)); err == nil {
+			t.Errorf("expected malformed-deck error for %q", input)
+		}
+	}
+}

@@ -34,3 +34,11 @@ func Test_day23p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day23p02, tests)
 }
+
+func TestCupsRejectMalformedLabels(t *testing.T) {
+	for _, input := range []string{"", "1234", "12a45", "12245", "12346"} {
+		if _, err := day23p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected malformed-cups error for %q", input)
+		}
+	}
+}

@@ -21,7 +21,7 @@ func parsePasswordPolicy(line []byte) (passwordPolicy, error) {
 	low, high, boundsOK := strings.Cut(bounds, "-")
 	first, firstErr := strconv.Atoi(low)
 	second, secondErr := strconv.Atoi(high)
-	if !ok || !letterOK || !boundsOK || firstErr != nil || secondErr != nil || first < 1 || second < first || len(letter) != 1 || letter[0] < 'a' || letter[0] > 'z' {
+	if !ok || !letterOK || !boundsOK || firstErr != nil || secondErr != nil || first < 1 || second < first || len(letter) != 1 || letter[0] < 'a' || letter[0] > 'z' || password == "" || strings.Trim(password, "abcdefghijklmnopqrstuvwxyz") != "" {
 		return passwordPolicy{}, fmt.Errorf("invalid password policy: %q", line)
 	}
 	return passwordPolicy{first, second, letter[0], password}, nil

@@ -14,7 +14,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-var foodRegex = regexp.MustCompile(`^(.+) \(contains (.+)\)$`)
+var foodRegex = regexp.MustCompile(`^([a-z]+(?: [a-z]+)*) \(contains ([a-z]+(?:, [a-z]+)*)\)$`)
 
 type food struct {
 	ingredients []string
@@ -37,7 +37,14 @@ func parseFood(r io.Reader) ([]food, error) {
 		}, nil
 	})
 
-	return slices.Collect(s.Values()), s.Err()
+	foods := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(foods) == 0 {
+		return nil, fmt.Errorf("no foods")
+	}
+	return foods, nil
 }
 
 func allergenCandidates(foods []food) map[string]collections.Set[string] {

@@ -45,52 +45,26 @@ func rotateNavigation(x, y, quarterTurns int) (int, int) {
 	return x, y
 }
 
-func day12p01(r io.Reader) (string, error) {
+// navigate moves the ship along the waypoint (wx, wy) on F. Cardinal actions
+// move the waypoint when moveWaypoint is set, and the ship otherwise.
+func navigate(r io.Reader, wx, wy int, moveWaypoint bool) (string, error) {
 	instructions, err := parseNavigation(r)
 	if err != nil {
 		return "", err
 	}
-	x, y, dx, dy := 0, 0, 1, 0
+	x, y := 0, 0
 	for _, instruction := range instructions {
 		value := instruction.value
+		dx, dy := 0, 0
 		switch instruction.action {
 		case 'N':
-			y += value
+			dy = value
 		case 'S':
-			y -= value
+			dy = -value
 		case 'E':
-			x += value
+			dx = value
 		case 'W':
-			x -= value
-		case 'F':
-			x += value * dx
-			y += value * dy
-		case 'L':
-			dx, dy = rotateNavigation(dx, dy, -value/90)
-		case 'R':
-			dx, dy = rotateNavigation(dx, dy, value/90)
-		}
-	}
-	return strconv.Itoa(xmath.Abs(x) + xmath.Abs(y)), nil
-}
-
-func day12p02(r io.Reader) (string, error) {
-	instructions, err := parseNavigation(r)
-	if err != nil {
-		return "", err
-	}
-	x, y, wx, wy := 0, 0, 10, 1
-	for _, instruction := range instructions {
-		value := instruction.value
-		switch instruction.action {
-		case 'N':
-			wy += value
-		case 'S':
-			wy -= value
-		case 'E':
-			wx += value
-		case 'W':
-			wx -= value
+			dx = -value
 		case 'F':
 			x += value * wx
 			y += value * wy
@@ -99,6 +73,19 @@ func day12p02(r io.Reader) (string, error) {
 		case 'R':
 			wx, wy = rotateNavigation(wx, wy, value/90)
 		}
+		if moveWaypoint {
+			wx, wy = wx+dx, wy+dy
+		} else {
+			x, y = x+dx, y+dy
+		}
 	}
 	return strconv.Itoa(xmath.Abs(x) + xmath.Abs(y)), nil
+}
+
+func day12p01(r io.Reader) (string, error) {
+	return navigate(r, 1, 0, false)
+}
+
+func day12p02(r io.Reader) (string, error) {
+	return navigate(r, 10, 1, true)
 }

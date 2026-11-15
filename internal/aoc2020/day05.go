@@ -9,6 +9,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
+// parseBoardingPasses returns the distinct seat IDs in ascending order.
 func parseBoardingPasses(r io.Reader) ([]int, error) {
 	s := scanner.NewScanner(r, func(line []byte) (int, error) {
 		if len(line) != 10 {
@@ -30,7 +31,20 @@ func parseBoardingPasses(r io.Reader) ([]int, error) {
 		}
 		return seat, nil
 	})
-	return slices.Collect(s.Values()), s.Err()
+	seats := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(seats) == 0 {
+		return nil, fmt.Errorf("no boarding passes")
+	}
+	slices.Sort(seats)
+	for i := 1; i < len(seats); i++ {
+		if seats[i] == seats[i-1] {
+			return nil, fmt.Errorf("duplicate boarding pass for seat %d", seats[i])
+		}
+	}
+	return seats, nil
 }
 
 func day05p01(r io.Reader) (string, error) {
@@ -38,10 +52,7 @@ func day05p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(seats) == 0 {
-		return "", fmt.Errorf("no boarding passes")
-	}
-	return strconv.Itoa(slices.Max(seats)), nil
+	return strconv.Itoa(seats[len(seats)-1]), nil
 }
 
 func day05p02(r io.Reader) (string, error) {

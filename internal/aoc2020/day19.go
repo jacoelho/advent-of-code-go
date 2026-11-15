@@ -16,19 +16,22 @@ type messageRule struct {
 }
 
 func parseMessageGrammar(r io.Reader) (map[int]messageRule, []string, error) {
+	sections, err := scanner.ReadBlocks(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(sections) > 2 || len(sections) == 2 && len(sections[1]) == 0 {
+		return nil, nil, fmt.Errorf("blank line among messages")
+	}
+	var ruleLines, messages []string
+	if len(sections) > 0 {
+		ruleLines = sections[0]
+	}
+	if len(sections) > 1 {
+		messages = sections[1]
+	}
 	rules := make(map[int]messageRule)
-	var messages []string
-	readingRules := true
-	s := scanner.NewScanner(r, func(line []byte) (string, error) { return string(line), nil })
-	for line := range s.Values() {
-		if line == "" {
-			readingRules = false
-			continue
-		}
-		if !readingRules {
-			messages = append(messages, line)
-			continue
-		}
+	for _, line := range ruleLines {
 		label, body, ok := strings.Cut(line, ":")
 		id, err := strconv.Atoi(label)
 		if !ok || err != nil || id < 0 {
@@ -62,8 +65,10 @@ func parseMessageGrammar(r io.Reader) (map[int]messageRule, []string, error) {
 		}
 		rules[id] = rule
 	}
-	if err := s.Err(); err != nil {
-		return nil, nil, err
+	for _, message := range messages {
+		if strings.Trim(message, "abcdefghijklmnopqrstuvwxyz") != "" {
+			return nil, nil, fmt.Errorf("invalid message %q", message)
+		}
 	}
 	if _, ok := rules[0]; !ok {
 		return nil, nil, fmt.Errorf("missing rule 0")

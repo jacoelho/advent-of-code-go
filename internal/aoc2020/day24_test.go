@@ -90,3 +90,11 @@ func TestTilePathReaderErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestTilePathsRejectMalformedInput(t *testing.T) {
+	for _, input := range []string{"", "e\n\nw", "n", "ex", "nn"} {
+		if _, err := day24p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected malformed-path error for %q", input)
+		}
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/graph"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 type ticketRule struct {
@@ -33,11 +34,10 @@ type ticketNotes struct {
 }
 
 func parseTicketNotes(r io.Reader) (ticketNotes, error) {
-	data, err := io.ReadAll(r)
+	sections, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return ticketNotes{}, err
 	}
-	sections := strings.Split(strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n")), "\n\n")
 	if len(sections) != 3 {
 		return ticketNotes{}, fmt.Errorf("expected rules, your ticket, and nearby tickets")
 	}
@@ -45,7 +45,7 @@ func parseTicketNotes(r io.Reader) (ticketNotes, error) {
 	pattern := regexp.MustCompile(`^([a-z ]+): ([0-9]+)-([0-9]+) or ([0-9]+)-([0-9]+)$`)
 	var notes ticketNotes
 	names := make(map[string]bool)
-	for line := range strings.SplitSeq(sections[0], "\n") {
+	for _, line := range sections[0] {
 		matches := pattern.FindStringSubmatch(line)
 		if matches == nil {
 			return ticketNotes{}, fmt.Errorf("invalid ticket rule %q", line)
@@ -85,7 +85,7 @@ func parseTicketNotes(r io.Reader) (ticketNotes, error) {
 		return values, nil
 	}
 
-	yours := strings.Split(sections[1], "\n")
+	yours := sections[1]
 	if len(yours) != 2 || yours[0] != "your ticket:" {
 		return ticketNotes{}, fmt.Errorf("invalid your-ticket section")
 	}
@@ -94,8 +94,8 @@ func parseTicketNotes(r io.Reader) (ticketNotes, error) {
 		return ticketNotes{}, err
 	}
 
-	nearby := strings.Split(sections[2], "\n")
-	if nearby[0] != "nearby tickets:" {
+	nearby := sections[2]
+	if len(nearby) == 0 || nearby[0] != "nearby tickets:" {
 		return ticketNotes{}, fmt.Errorf("invalid nearby-tickets section")
 	}
 	for _, line := range nearby[1:] {

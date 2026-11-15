@@ -49,6 +49,9 @@ func parseBagRules(r io.Reader) (map[string][]bagContents, error) {
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
+	if _, exists := rules["shiny gold"]; !exists {
+		return nil, fmt.Errorf("no shiny gold bag rule")
+	}
 	for color, contents := range rules {
 		for _, child := range contents {
 			if _, exists := rules[child.color]; !exists {
@@ -83,9 +86,6 @@ func day07p02(r io.Reader) (string, error) {
 	rules, err := parseBagRules(r)
 	if err != nil {
 		return "", err
-	}
-	if _, exists := rules["shiny gold"]; !exists {
-		return "", fmt.Errorf("no shiny gold bag rule")
 	}
 	totals := make(map[string]int64)
 	visiting := make(map[string]bool)

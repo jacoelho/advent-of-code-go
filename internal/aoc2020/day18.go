@@ -3,10 +3,10 @@ package aoc2020
 import (
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type homeworkExpression struct {
@@ -81,16 +81,15 @@ func (e *homeworkExpression) expression(minimumPriority int) (int64, error) {
 		if err != nil {
 			return 0, err
 		}
+		var ok bool
 		if operator == '+' {
-			if value > math.MaxInt64-right {
+			if value, ok = xmath.CheckedAdd(value, right); !ok {
 				return 0, fmt.Errorf("addition overflows int64")
 			}
-			value += right
 		} else {
-			if right != 0 && value > math.MaxInt64/right {
+			if value, ok = xmath.CheckedMul(value, right); !ok {
 				return 0, fmt.Errorf("multiplication overflows int64")
 			}
-			value *= right
 		}
 	}
 }
@@ -109,10 +108,11 @@ func sumHomework(r io.Reader, additionPriority int) (string, error) {
 	})
 	var total int64
 	for value := range s.Values() {
-		if total > math.MaxInt64-value {
+		sum, ok := xmath.CheckedAdd(total, value)
+		if !ok {
 			return "", fmt.Errorf("homework total overflows int64")
 		}
-		total += value
+		total = sum
 	}
 	if err := s.Err(); err != nil {
 		return "", err

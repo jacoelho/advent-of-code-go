@@ -85,6 +85,7 @@ func TestDay07MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"bags", "shiny gold bags contain many dark red bags.", day07p01},
+		{"no shiny gold", "dark red bags contain no other bags.", day07p01},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {

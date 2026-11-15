@@ -7,151 +7,118 @@ import (
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-type direction uint8
+type hexTile = grid.Position2D[int]
 
-const (
-	east direction = iota
-	southeast
-	southwest
-	west
-	northwest
-	northeast
-)
-
-var directionMap = map[string]direction{
-	"e":  east,
-	"w":  west,
-	"se": southeast,
-	"sw": southwest,
-	"ne": northeast,
-	"nw": northwest,
-}
-
-var directionsOffsets = map[direction]grid.Position2D[int]{
-	east:      {X: 1, Y: 0},
-	west:      {X: -1, Y: 0},
-	northeast: {X: 0, Y: -1},
-	southwest: {X: 0, Y: 1},
-	southeast: {X: 1, Y: 1},
-	northwest: {X: -1, Y: -1},
-}
-
-func parseDirections(s string) ([]direction, error) {
-	var dirs []direction
-
-	for i := 0; i < len(s); {
-		if i+1 < len(s) {
-			if dir, ok := directionMap[s[i:i+2]]; ok {
-				dirs = append(dirs, dir)
-				i += 2
-				continue
+// hexTilePosition follows a path of e, se, sw, w, nw and ne steps in axial
+// coordinates where se is (1, 1) and nw is (-1, -1).
+func hexTilePosition(path []byte) (hexTile, error) {
+	if len(path) == 0 {
+		return hexTile{}, fmt.Errorf("empty tile path")
+	}
+	var tile hexTile
+	for i := 0; i < len(path); i++ {
+		switch path[i] {
+		case 'e':
+			tile.X++
+		case 'w':
+			tile.X--
+		case 'n', 's':
+			if i+1 == len(path) || path[i+1] != 'e' && path[i+1] != 'w' {
+				return hexTile{}, fmt.Errorf("invalid tile path %q at %d", path, i)
 			}
-		}
-
-		if dir, ok := directionMap[s[i:i+1]]; ok {
-			dirs = append(dirs, dir)
+			switch string(path[i : i+2]) {
+			case "ne":
+				tile.Y--
+			case "sw":
+				tile.Y++
+			case "se":
+				tile.X++
+				tile.Y++
+			case "nw":
+				tile.X--
+				tile.Y--
+			}
 			i++
-		} else {
-			return nil, fmt.Errorf("invalid char '%c' at %d", s[i], i)
+		default:
+			return hexTile{}, fmt.Errorf("invalid tile path %q at %d", path, i)
 		}
 	}
-	return dirs, nil
+	return tile, nil
 }
 
-func findTile(directions []direction) grid.Position2D[int] {
-	return xiter.FromSlice(directions).Reduce(grid.Position2D[int]{}, func(pos grid.Position2D[int], dir direction) grid.Position2D[int] {
-		return pos.Add(directionsOffsets[dir])
-	})
-}
-
-func initialBlackTiles(r io.Reader) (map[grid.Position2D[int]]bool, error) {
-	s := scanner.NewScanner(r, func(b []byte) ([]direction, error) {
-		return parseDirections(string(b))
-	})
-	flipCount := make(map[grid.Position2D[int]]int)
-	for pos := range xiter.From(s.Values()).Map(findTile).All() {
-		flipCount[pos]++
+func initialBlackTiles(r io.Reader) ([]hexTile, error) {
+	s := scanner.NewScanner(r, hexTilePosition)
+	flipped := make(map[hexTile]bool)
+	for tile := range s.Values() {
+		flipped[tile] = !flipped[tile]
 	}
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
-
-	blackTiles := make(map[grid.Position2D[int]]bool)
-	for pos, count := range flipCount {
-		if count%2 == 1 {
-			blackTiles[pos] = true
-		}
+	if len(flipped) == 0 {
+		return nil, fmt.Errorf("no tile paths")
 	}
-
-	return blackTiles, nil
-}
-
-func neighbors(pos grid.Position2D[int]) []grid.Position2D[int] {
-	result := make([]grid.Position2D[int], 0, 6)
-	for _, offset := range directionsOffsets {
-		result = append(result, pos.Add(offset))
-	}
-	return result
-}
-
-func blackNeighborCount(pos grid.Position2D[int], blackTiles map[grid.Position2D[int]]bool) int {
-	count := 0
-	for _, neighbor := range neighbors(pos) {
-		if blackTiles[neighbor] {
-			count++
-		}
-	}
-	return count
-}
-
-func nextDay(blackTiles map[grid.Position2D[int]]bool) map[grid.Position2D[int]]bool {
-	tilesToCheck := make(map[grid.Position2D[int]]bool)
-	for tile := range blackTiles {
-		tilesToCheck[tile] = true
-		for _, neighbor := range neighbors(tile) {
-			tilesToCheck[neighbor] = true
-		}
-	}
-
-	nextBlack := make(map[grid.Position2D[int]]bool)
-	for tile := range tilesToCheck {
-		count := blackNeighborCount(tile, blackTiles)
-		isBlack := blackTiles[tile]
-
+	var black []hexTile
+	for tile, isBlack := range flipped {
 		if isBlack {
-			if count == 1 || count == 2 {
-				nextBlack[tile] = true
-			}
-		} else {
-			if count == 2 {
-				nextBlack[tile] = true
-			}
+			black = append(black, tile)
 		}
 	}
-	return nextBlack
+	return black, nil
 }
 
 func day24p01(r io.Reader) (string, error) {
-	blackTiles, err := initialBlackTiles(r)
+	black, err := initialBlackTiles(r)
 	if err != nil {
 		return "", err
 	}
-
-	return strconv.Itoa(len(blackTiles)), nil
+	return strconv.Itoa(len(black)), nil
 }
 
 func day24p02(r io.Reader) (string, error) {
-	blackTiles, err := initialBlackTiles(r)
+	black, err := initialBlackTiles(r)
 	if err != nil {
 		return "", err
 	}
-
-	for range 100 {
-		blackTiles = nextDay(blackTiles)
+	const days = 100
+	if len(black) == 0 {
+		return "0", nil
 	}
-
-	return strconv.Itoa(len(blackTiles)), nil
+	minX, maxX, minY, maxY := black[0].X, black[0].X, black[0].Y, black[0].Y
+	for _, tile := range black[1:] {
+		minX, maxX = min(minX, tile.X), max(maxX, tile.X)
+		minY, maxY = min(minY, tile.Y), max(maxY, tile.Y)
+	}
+	// The black region grows by at most one tile per day in each direction, so
+	// a margin of days+1 keeps every live tile and its neighbours inside the grid.
+	const margin = days + 1
+	width, height := maxX-minX+1+2*margin, maxY-minY+1+2*margin
+	floor := make([]bool, width*height)
+	for _, tile := range black {
+		floor[(tile.Y-minY+margin)*width+tile.X-minX+margin] = true
+	}
+	neighbours := [6]int{1, -1, -width, width, width + 1, -width - 1}
+	next := make([]bool, len(floor))
+	count := 0
+	for range days {
+		count = 0
+		for y := 1; y < height-1; y++ {
+			for i := y*width + 1; i < (y+1)*width-1; i++ {
+				adjacent := 0
+				for _, offset := range neighbours {
+					if floor[i+offset] {
+						adjacent++
+					}
+				}
+				next[i] = adjacent == 2 || floor[i] && adjacent == 1
+				if next[i] {
+					count++
+				}
+			}
+		}
+		floor, next = next, floor
+	}
+	return strconv.Itoa(count), nil
 }

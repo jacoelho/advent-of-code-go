@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func parseAdapters(r io.Reader) ([]int, error) {
@@ -20,6 +21,9 @@ func parseAdapters(r io.Reader) ([]int, error) {
 	ratings := slices.Collect(s.Values())
 	if err := s.Err(); err != nil {
 		return nil, err
+	}
+	if len(ratings) == 0 {
+		return nil, fmt.Errorf("no adapters")
 	}
 	slices.Sort(ratings)
 	previous := 0
@@ -55,11 +59,16 @@ func day10p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ways := map[int]int64{0: 1}
-	last := 0
+	ways := make([]int64, ratings[len(ratings)-1]+1)
+	ways[0] = 1
 	for _, rating := range ratings {
-		ways[rating] = ways[rating-1] + ways[rating-2] + ways[rating-3]
-		last = rating
+		for gap := 1; gap <= min(3, rating); gap++ {
+			sum, ok := xmath.CheckedAdd(ways[rating], ways[rating-gap])
+			if !ok {
+				return "", fmt.Errorf("adapter arrangements overflow int64 at rating %d", rating)
+			}
+			ways[rating] = sum
+		}
 	}
-	return strconv.FormatInt(ways[last], 10), nil
+	return strconv.FormatInt(ways[len(ways)-1], 10), nil
 }

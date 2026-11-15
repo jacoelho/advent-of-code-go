@@ -249,3 +249,19 @@ Tile 3079:
 	}
 	aoc.AOCTest(t, day20p02, tests)
 }
+
+func TestImageTilesRejectMalformedInput(t *testing.T) {
+	blank := "...\n...\n..."
+	for _, input := range []string{
+		"Tile x:\n" + blank,
+		"Tile 1:\n...\n..\n...",
+		"Tile 1:\n...\n.a.\n...",
+		"Tile 1:\n" + blank + "\n\nTile 1:\n" + blank,
+		"Tile 1:\n" + blank + "\n\nTile 2:\n" + blank,
+		"Tile 1:\n" + blank + "\n\nTile 2:\n" + blank + "\n\nTile 3:\n" + blank + "\n\nTile 4:\n" + blank,
+	} {
+		if _, err := day20p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected malformed-tiles error for %q", input)
+		}
+	}
+}
