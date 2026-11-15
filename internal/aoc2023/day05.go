@@ -1,12 +1,13 @@
 package aoc2023
 
 import (
+	"cmp"
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
@@ -39,47 +40,40 @@ func applyMappings(value int, mappings []mapping) int {
 }
 
 func parseAlmanac(r io.Reader) ([]int, [][]mapping, error) {
-	s := scanner.NewScannerWithSplit(r, scanner.SplitBySeparator([]byte("\n\n")), func(b []byte) (string, error) {
-		return string(b), nil
-	})
-
-	sections := slices.Collect(s.Values())
-	if s.Err() != nil {
-		return nil, nil, s.Err()
+	blocks, err := scanner.ReadBlocks(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(blocks) == 0 || len(blocks[0]) != 1 {
+		return nil, nil, fmt.Errorf("almanac must start with a seeds line")
+	}
+	seedsLine, ok := strings.CutPrefix(blocks[0][0], "seeds:")
+	if !ok {
+		return nil, nil, fmt.Errorf("almanac must start with a seeds line")
+	}
+	seeds, err := parseNaturals(seedsLine)
+	if err != nil {
+		return nil, nil, fmt.Errorf("seeds: %w", err)
+	}
+	if len(seeds) == 0 {
+		return nil, nil, fmt.Errorf("almanac has no seeds")
 	}
 
-	if len(sections) == 0 {
-		return nil, nil, nil
-	}
-
-	seedsLine := strings.TrimPrefix(sections[0], "seeds: ")
-	seedParts := strings.Fields(seedsLine)
-	seeds := make([]int, len(seedParts))
-	for i, part := range seedParts {
-		seeds[i] = aoc.MustAtoi(part)
-	}
-
-	var allMappings [][]mapping
-	for _, section := range sections[1:] {
+	allMappings := make([][]mapping, 0, len(blocks)-1)
+	for _, block := range blocks[1:] {
+		if len(block) < 2 || !strings.HasSuffix(block[0], " map:") {
+			return nil, nil, fmt.Errorf("almanac map needs a header and ranges")
+		}
+		header := block[0]
 		var mappings []mapping
-		for _, line := range strings.Split(section, "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.Contains(line, "map:") {
-				continue
+		for _, line := range block[1:] {
+			values, err := parseNaturals(line)
+			if err != nil || len(values) != 3 {
+				return nil, nil, fmt.Errorf("%s invalid range %q", header, line)
 			}
-
-			parts := strings.Fields(line)
-			if len(parts) == 3 {
-				mappings = append(mappings, mapping{
-					destStart:   aoc.MustAtoi(parts[0]),
-					sourceStart: aoc.MustAtoi(parts[1]),
-					length:      aoc.MustAtoi(parts[2]),
-				})
-			}
+			mappings = append(mappings, mapping{destStart: values[0], sourceStart: values[1], length: values[2]})
 		}
-		if len(mappings) > 0 {
-			allMappings = append(allMappings, mappings)
-		}
+		allMappings = append(allMappings, mappings)
 	}
 
 	return seeds, allMappings, nil
@@ -153,12 +147,18 @@ func day05p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(seeds)%2 != 0 {
+		return "", fmt.Errorf("seed ranges need start and length pairs, got %d values", len(seeds))
+	}
 
 	var intervals []interval
 	for i := 0; i < len(seeds); i += 2 {
-		start := seeds[i]
-		length := seeds[i+1]
-		intervals = append(intervals, interval{start, start + length})
+		if seeds[i+1] > 0 {
+			intervals = append(intervals, interval{seeds[i], seeds[i] + seeds[i+1]})
+		}
+	}
+	if len(intervals) == 0 {
+		return "", fmt.Errorf("seed ranges are all empty")
 	}
 
 	for _, mappings := range allMappings {
@@ -166,7 +166,7 @@ func day05p02(r io.Reader) (string, error) {
 	}
 
 	minLocation := slices.MinFunc(intervals, func(a, b interval) int {
-		return a.start - b.start
+		return cmp.Compare(a.start, b.start)
 	})
 
 	return strconv.Itoa(minLocation.start), nil

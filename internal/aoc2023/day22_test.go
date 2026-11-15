@@ -50,6 +50,17 @@ func Test_day22p02(t *testing.T) {
 	aoc.AOCTest(t, day22p02, tests)
 }
 
+func TestDay22RejectsMalformedBricks(t *testing.T) {
+	requireRejected(t, []string{
+		"0,0,1",
+		"0,0~0,0,1",
+		"0,0,1~0,x,1",
+		"-1,0,1~0,0,1",
+		"0,0,0~0,0,1",
+		"0,0,1~1,1,1",
+	}, day22p01, day22p02)
+}
+
 func TestDay22ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

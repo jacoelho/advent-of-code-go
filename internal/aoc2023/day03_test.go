@@ -79,3 +79,7 @@ func TestDay03ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestDay03RejectsMalformedSchematics(t *testing.T) {
+	requireRejected(t, []string{"", "1*2\n3*", "1 2"}, day03p01, day03p02)
+}

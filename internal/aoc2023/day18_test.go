@@ -60,3 +60,16 @@ U 2 (#7a21e3)`),
 	}
 	aoc.AOCTest(t, day18p02, tests)
 }
+
+func TestDay18RejectsMalformedPlans(t *testing.T) {
+	requireRejected(t, []string{
+		"",
+		"R 6 (#70c710)",
+		"X 6 (#70c710)\nL 6 (#70c712)",
+		"R x (#70c710)\nL 6 (#70c712)",
+		"R -6 (#70c710)\nL -6 (#70c712)",
+		"R 6 (#70c71)\nL 6 (#70c712)",
+		"R 6 (#70c714)\nL 6 (#70c712)",
+		"R 6 #70c710\nL 6 #70c712",
+	}, day18p01, day18p02)
+}

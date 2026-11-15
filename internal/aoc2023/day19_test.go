@@ -95,7 +95,7 @@ func TestWorkflowRangeBounds(t *testing.T) {
 
 func TestWorkflowTinyDomain(t *testing.T) {
 	const definitions = "in{x<3:left,m>3:A,R}\nleft{a>2:A,s<3:A,R}"
-	workflows, err := parseWorkflows(definitions)
+	workflows, err := parseWorkflows(strings.Split(definitions, "\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

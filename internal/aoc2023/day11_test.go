@@ -52,3 +52,7 @@ func Test_day11p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day11p02, tests)
 }
+
+func TestDay11RejectsMalformedImages(t *testing.T) {
+	requireRejected(t, []string{"", "#.\n#", "#.\n.x"}, day11p01, day11p02)
+}

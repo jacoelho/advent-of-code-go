@@ -62,3 +62,13 @@ func Test_day13p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day13p02, tests)
 }
+
+func TestDay13RejectsMalformedPatterns(t *testing.T) {
+	requireRejected(t, []string{
+		"",
+		"##\n#",
+		"#x\n#.",
+		"##\n##\n\n\n##\n##",
+	}, day13p01, day13p02)
+	requireRejected(t, []string{"#.#\n..#\n##."}, day13p01)
+}

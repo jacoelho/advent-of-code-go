@@ -1,63 +1,68 @@
 package aoc2023
 
 import (
+	"fmt"
 	"io"
+	"slices"
 	"strconv"
+	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 func parseSequence(line []byte) ([]int, error) {
-	return convert.ExtractDigits[int](string(line)), nil
-}
-
-func differences(seq []int) []int {
-	if len(seq) <= 1 {
-		return []int{}
+	fields := strings.Fields(string(line))
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("empty sequence")
 	}
-	result := make([]int, len(seq)-1)
-	for i := 0; i < len(seq)-1; i++ {
-		result[i] = seq[i+1] - seq[i]
+	seq := make([]int, len(fields))
+	for i, field := range fields {
+		value, err := strconv.Atoi(field)
+		if err != nil {
+			return nil, fmt.Errorf("sequence %q: %w", line, err)
+		}
+		seq[i] = value
 	}
-	return result
+	return seq, nil
 }
 
-func allZeros(seq []int) bool {
-	return xiter.FromSlice(seq).Every(func(v int) bool { return v == 0 })
-}
-
+// extrapolateForward returns the next value of seq; it overwrites seq with its
+// difference rows.
 func extrapolateForward(seq []int) int {
-	if allZeros(seq) {
-		return 0
+	next := 0
+	for n := len(seq); n > 0; n-- {
+		next += seq[n-1]
+		allZero := true
+		for i := range n - 1 {
+			seq[i] = seq[i+1] - seq[i]
+			allZero = allZero && seq[i] == 0
+		}
+		if allZero {
+			break
+		}
 	}
-	diffs := differences(seq)
-	return seq[len(seq)-1] + extrapolateForward(diffs)
+	return next
 }
 
-func extrapolateBackward(seq []int) int {
-	if allZeros(seq) {
-		return 0
+func extrapolate(r io.Reader, backward bool) (string, error) {
+	s := scanner.NewScanner(r, parseSequence)
+	total := xiter.From(s.Values()).SumBy(func(seq []int) int {
+		if backward {
+			slices.Reverse(seq)
+		}
+		return extrapolateForward(seq)
+	})
+	if err := s.Err(); err != nil {
+		return "", err
 	}
-	diffs := differences(seq)
-	return seq[0] - extrapolateBackward(diffs)
+	return strconv.Itoa(total), nil
 }
 
 func day09p01(r io.Reader) (string, error) {
-	s := scanner.NewScanner(r, parseSequence)
-	total := xiter.From(s.Values()).SumBy(extrapolateForward)
-	if err := s.Err(); err != nil {
-		return "", err
-	}
-	return strconv.Itoa(total), nil
+	return extrapolate(r, false)
 }
 
 func day09p02(r io.Reader) (string, error) {
-	s := scanner.NewScanner(r, parseSequence)
-	total := xiter.From(s.Values()).SumBy(extrapolateBackward)
-	if err := s.Err(); err != nil {
-		return "", err
-	}
-	return strconv.Itoa(total), nil
+	return extrapolate(r, true)
 }

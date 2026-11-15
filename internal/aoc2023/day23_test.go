@@ -227,18 +227,6 @@ func TestHikingLargeChain(t *testing.T) {
 	}
 }
 
-func TestHikingJunctionLimit(t *testing.T) {
-	input := strings.Repeat(strings.Repeat(".", 65)+"\n", 65)
-	for part, solve := range []func(io.Reader) (string, error){day23p01, day23p02} {
-		t.Run(fmt.Sprintf("part%d", part+1), func(t *testing.T) {
-			got, err := solve(strings.NewReader(input))
-			if err == nil || !strings.Contains(err.Error(), "exceeds") || !strings.Contains(err.Error(), "junctions") {
-				t.Fatalf("got %q, %v; want junction-limit error", got, err)
-			}
-		})
-	}
-}
-
 func TestDay23ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

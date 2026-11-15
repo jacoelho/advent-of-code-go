@@ -98,3 +98,16 @@ humidity-to-location map:
 	}
 	aoc.AOCTest(t, day05p02, tests)
 }
+
+func TestDay05RejectsMalformedAlmanacs(t *testing.T) {
+	requireRejected(t, []string{
+		"",
+		"seeds:",
+		"plants: 1 2",
+		"seeds: 1 2\n\nseed-to-soil:\n1 2 3",
+		"seeds: 1 2\n\nseed-to-soil map:\n1 2",
+		"seeds: 1 2\n\nseed-to-soil map:\n1 -2 3",
+		"seeds: 1 x",
+	}, day05p01, day05p02)
+	requireRejected(t, []string{"seeds: 1 2 3", "seeds: 1 0"}, day05p02)
+}

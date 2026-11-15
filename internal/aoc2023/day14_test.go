@@ -52,3 +52,7 @@ O.#..O.#.#
 	}
 	aoc.AOCTest(t, day14p02, tests)
 }
+
+func TestDay14RejectsMalformedPlatforms(t *testing.T) {
+	requireRejected(t, []string{"", "O.\n#", "O.\n#x"}, day14p01, day14p02)
+}

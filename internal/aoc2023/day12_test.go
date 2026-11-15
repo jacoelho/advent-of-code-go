@@ -44,3 +44,14 @@ func Test_day12p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day12p02, tests)
 }
+
+func TestDay12RejectsMalformedRecords(t *testing.T) {
+	requireRejected(t, []string{
+		"???.###",
+		"???.### 1,x",
+		"???.### 1,0",
+		"???.### 1,-1",
+		"??x.### 1,1",
+		" 1,1",
+	}, day12p01, day12p02)
+}

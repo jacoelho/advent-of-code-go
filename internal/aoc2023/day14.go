@@ -2,252 +2,93 @@ package aoc2023
 
 import (
 	"io"
-	"iter"
-	"maps"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-type direction int
-
-const (
-	tiltNorth direction = iota
-	tiltWest
-	tiltSouth
-	tiltEast
-)
-
-type axis int
-
-const (
-	vertical axis = iota
-	horizontal
-)
-
-type directionType int
-
-const (
-	forward  directionType = iota // north/west (min to max)
-	backward                      // south/east (max to min)
-)
-
-type rollDirection struct {
-	axis          axis
-	directionType directionType
+type platform struct {
+	width, height int
+	cells         []byte
 }
 
-func parsePlatform(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]rune, error) {
-		return []rune(string(line)), nil
-	})
-
-	rows := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
+func parsePlatform(r io.Reader) (*platform, error) {
+	g, err := grid.ReadBytes(r, "O#.")
+	if err != nil {
 		return nil, err
 	}
-
-	return grid.NewGrid2D[int](rows), nil
+	return &platform{width: g.Width(), height: g.Height(), cells: g.Cells()}, nil
 }
 
-func tilt(platform grid.Grid2D[int, rune], dir direction) grid.Grid2D[int, rune] {
-	result := maps.Clone(platform)
-	minX, maxX, minY, maxY := platform.Dimensions()
-
-	params := map[direction]rollDirection{
-		tiltNorth: {vertical, forward},
-		tiltSouth: {vertical, backward},
-		tiltWest:  {horizontal, forward},
-		tiltEast:  {horizontal, backward},
-	}[dir]
-
-	if params.axis == vertical {
-		for x := minX; x <= maxX; x++ {
-			var nextY int
-			if params.directionType == backward {
-				nextY = maxY
-			} else {
-				nextY = minY
+// roll moves every round rock towards the start of its lane until it meets a
+// rock. Lane k starts at cell first+k*laneStep and its cells follow by
+// cellStep.
+func (p *platform) roll(lanes, cells, first, laneStep, cellStep int) {
+	for lane := range lanes {
+		i := first + lane*laneStep
+		free := i
+		for range cells {
+			switch p.cells[i] {
+			case '#':
+				free = i + cellStep
+			case 'O':
+				p.cells[i] = '.'
+				p.cells[free] = 'O'
+				free += cellStep
 			}
-
-			var yRange func() iter.Seq[int]
-			if params.directionType == backward {
-				yRange = func() iter.Seq[int] {
-					return func(yield func(int) bool) {
-						for y := maxY; y >= minY; y-- {
-							if !yield(y) {
-								return
-							}
-						}
-					}
-				}
-			} else {
-				yRange = func() iter.Seq[int] {
-					return func(yield func(int) bool) {
-						for y := minY; y <= maxY; y++ {
-							if !yield(y) {
-								return
-							}
-						}
-					}
-				}
-			}
-
-			for y := range yRange() {
-				pos := grid.NewPosition2D(x, y)
-				val := platform[pos]
-				switch val {
-				case '#':
-					if params.directionType == backward {
-						nextY = y - 1
-					} else {
-						nextY = y + 1
-					}
-				case 'O':
-					if y != nextY {
-						result[pos] = '.'
-						result[grid.NewPosition2D(x, nextY)] = 'O'
-					}
-					if params.directionType == backward {
-						nextY--
-					} else {
-						nextY++
-					}
-				}
-			}
-		}
-	} else {
-		for y := minY; y <= maxY; y++ {
-			var nextX int
-			if params.directionType == backward {
-				nextX = maxX
-			} else {
-				nextX = minX
-			}
-
-			var xRange func() iter.Seq[int]
-			if params.directionType == backward {
-				xRange = func() iter.Seq[int] {
-					return func(yield func(int) bool) {
-						for x := maxX; x >= minX; x-- {
-							if !yield(x) {
-								return
-							}
-						}
-					}
-				}
-			} else {
-				xRange = func() iter.Seq[int] {
-					return func(yield func(int) bool) {
-						for x := minX; x <= maxX; x++ {
-							if !yield(x) {
-								return
-							}
-						}
-					}
-				}
-			}
-
-			for x := range xRange() {
-				pos := grid.NewPosition2D(x, y)
-				val := platform[pos]
-				switch val {
-				case '#':
-					if params.directionType == backward {
-						nextX = x - 1
-					} else {
-						nextX = x + 1
-					}
-				case 'O':
-					if x != nextX {
-						result[pos] = '.'
-						result[grid.NewPosition2D(nextX, y)] = 'O'
-					}
-					if params.directionType == backward {
-						nextX--
-					} else {
-						nextX++
-					}
-				}
-			}
+			i += cellStep
 		}
 	}
-
-	return result
 }
 
-func spinCycle(platform grid.Grid2D[int, rune]) grid.Grid2D[int, rune] {
-	platform = tilt(platform, tiltNorth)
-	platform = tilt(platform, tiltWest)
-	platform = tilt(platform, tiltSouth)
-	platform = tilt(platform, tiltEast)
-	return platform
+func (p *platform) tiltNorth() {
+	p.roll(p.width, p.height, 0, 1, p.width)
 }
 
-func calculateLoad(g grid.Grid2D[int, rune]) int {
-	_, _, _, maxY := g.Dimensions()
+func (p *platform) spinCycle() {
+	w, h := p.width, p.height
+	p.tiltNorth()
+	p.roll(h, w, 0, w, 1)
+	p.roll(w, h, (h-1)*w, 1, -w)
+	p.roll(h, w, w-1, w, -1)
+}
+
+func (p *platform) northLoad() int {
 	load := 0
-	for pos, val := range g {
-		if val == 'O' {
-			load += maxY - pos.Y + 1
+	for i, c := range p.cells {
+		if c == 'O' {
+			load += p.height - i/p.width
 		}
 	}
 	return load
 }
 
-func platformState(platform grid.Grid2D[int, rune]) string {
-	minX, maxX, minY, maxY := platform.Dimensions()
-	var sb strings.Builder
-	for y := minY; y <= maxY; y++ {
-		for x := minX; x <= maxX; x++ {
-			sb.WriteRune(platform[grid.NewPosition2D(x, y)])
-		}
-		if y < maxY {
-			sb.WriteRune('\n')
-		}
-	}
-	return sb.String()
-}
-
 func day14p01(r io.Reader) (string, error) {
-	platform, err := parsePlatform(r)
+	p, err := parsePlatform(r)
 	if err != nil {
 		return "", err
 	}
-	platform = tilt(platform, tiltNorth)
-	load := calculateLoad(platform)
-	return strconv.Itoa(load), nil
+	p.tiltNorth()
+	return strconv.Itoa(p.northLoad()), nil
 }
 
 func day14p02(r io.Reader) (string, error) {
-	platform, err := parsePlatform(r)
+	p, err := parsePlatform(r)
 	if err != nil {
 		return "", err
 	}
-
+	const cycles = 1_000_000_000
 	seen := make(map[string]int)
-	cycles := 1000000000
-
-	for i := range cycles {
-		platform = spinCycle(platform)
-		key := platformState(platform)
-
-		if prevI, found := seen[key]; found {
-			cycleLength := i - prevI
-			remaining := cycles - i - 1
-			finalPos := remaining % cycleLength
-
-			for j := 0; j < finalPos; j++ {
-				platform = spinCycle(platform)
+	for i := 0; i < cycles; i++ {
+		p.spinCycle()
+		key := string(p.cells)
+		if previous, found := seen[key]; found {
+			for range (cycles - i - 1) % (i - previous) {
+				p.spinCycle()
 			}
 			break
 		}
 		seen[key] = i
 	}
-
-	load := calculateLoad(platform)
-	return strconv.Itoa(load), nil
+	return strconv.Itoa(p.northLoad()), nil
 }

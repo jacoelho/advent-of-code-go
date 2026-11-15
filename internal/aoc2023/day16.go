@@ -2,140 +2,109 @@ package aoc2023
 
 import (
 	"io"
-	"iter"
-	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-type beam struct {
-	pos position
-	dir position
+// Beam headings in clockwise order: right, down, left, up.
+var (
+	beamDX = [4]int{1, 0, -1, 0}
+	beamDY = [4]int{0, 1, 0, -1}
+)
+
+// contraption reuses its visit marks across beams: a mark counts only when it
+// equals the current generation.
+type contraption struct {
+	width, height int
+	tiles         []byte
+	seenBeam      []uint32
+	seenTile      []uint32
+	generation    uint32
+	stack         []int
 }
 
-var (
-	right = position{X: 1, Y: 0}
-	left  = position{X: -1, Y: 0}
-	up    = position{X: 0, Y: -1}
-	down  = position{X: 0, Y: 1}
-)
-
-func parseContraption(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]rune, error) {
-		return []rune(string(line)), nil
-	})
-
-	rows := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
+func parseContraption(r io.Reader) (*contraption, error) {
+	g, err := grid.ReadBytes(r, `.|-/\`)
+	if err != nil {
 		return nil, err
 	}
-
-	return grid.NewGrid2D[int](rows), nil
+	c := &contraption{width: g.Width(), height: g.Height(), tiles: g.Cells()}
+	c.seenBeam = make([]uint32, 4*len(c.tiles))
+	c.seenTile = make([]uint32, len(c.tiles))
+	return c, nil
 }
 
-func reflect(dir position, mirror rune) position {
-	if mirror == '/' {
-		// right -> up, up -> right, left -> down, down -> left
-		return position{X: -dir.Y, Y: -dir.X}
+// energise returns how many tiles a beam entering x,y with heading lights.
+func (c *contraption) energise(x, y, heading int) int {
+	c.generation++
+	energised := 0
+	c.stack = c.stack[:0]
+	visit := func(x, y, heading int) {
+		if x < 0 || x >= c.width || y < 0 || y >= c.height {
+			return
+		}
+		beam := 4*(y*c.width+x) + heading
+		if c.seenBeam[beam] == c.generation {
+			return
+		}
+		c.seenBeam[beam] = c.generation
+		c.stack = append(c.stack, beam)
 	}
-	// Mirror '\': right -> down, down -> right, left -> up, up -> left
-	return position{X: dir.Y, Y: dir.X}
-}
+	visit(x, y, heading)
 
-func nextBeam(pos, dir position) beam {
-	return beam{pos: pos.Add(dir), dir: dir}
-}
-
-func simulate(g grid.Grid2D[int, rune], start beam) int {
-	children := func(current beam) iter.Seq[beam] {
-		return func(yield func(beam) bool) {
-			switch tile := g[current.pos]; tile {
-			case '.':
-				yield(nextBeam(current.pos, current.dir))
-			case '/', '\\':
-				yield(nextBeam(current.pos, reflect(current.dir, tile)))
-			case '|':
-				if current.dir == left || current.dir == right {
-					if yield(nextBeam(current.pos, up)) {
-						yield(nextBeam(current.pos, down))
-					}
-				} else {
-					yield(nextBeam(current.pos, current.dir))
-				}
-			case '-':
-				if current.dir == up || current.dir == down {
-					if yield(nextBeam(current.pos, left)) {
-						yield(nextBeam(current.pos, right))
-					}
-				} else {
-					yield(nextBeam(current.pos, current.dir))
-				}
+	for len(c.stack) > 0 {
+		beam := c.stack[len(c.stack)-1]
+		c.stack = c.stack[:len(c.stack)-1]
+		tile, heading := beam/4, beam%4
+		x, y := tile%c.width, tile/c.width
+		if c.seenTile[tile] != c.generation {
+			c.seenTile[tile] = c.generation
+			energised++
+		}
+		next := [2]int{heading, -1}
+		switch c.tiles[tile] {
+		case '/':
+			next[0] = heading ^ 3
+		case '\\':
+			next[0] = heading ^ 1
+		case '|':
+			if heading%2 == 0 {
+				next = [2]int{1, 3}
+			}
+		case '-':
+			if heading%2 == 1 {
+				next = [2]int{0, 2}
 			}
 		}
-	}
-	energized := collections.NewSet[position]()
-	for current := range search.DFS(start, children) {
-		if g.Contains(current.pos) {
-			energized.Add(current.pos)
-		}
-	}
-	return energized.Len()
-}
-
-func edgeBeams(g grid.Grid2D[int, rune]) iter.Seq[beam] {
-	return func(yield func(beam) bool) {
-		minX, maxX, minY, maxY := g.Dimensions()
-
-		for x := minX; x <= maxX; x++ {
-			if !yield(beam{pos: position{X: x, Y: minY}, dir: down}) {
-				return
-			}
-		}
-
-		for x := minX; x <= maxX; x++ {
-			if !yield(beam{pos: position{X: x, Y: maxY}, dir: up}) {
-				return
-			}
-		}
-
-		for y := minY; y <= maxY; y++ {
-			if !yield(beam{pos: position{X: minX, Y: y}, dir: right}) {
-				return
-			}
-		}
-
-		for y := minY; y <= maxY; y++ {
-			if !yield(beam{pos: position{X: maxX, Y: y}, dir: left}) {
-				return
+		for _, d := range next {
+			if d >= 0 {
+				visit(x+beamDX[d], y+beamDY[d], d)
 			}
 		}
 	}
+	return energised
 }
 
 func day16p01(r io.Reader) (string, error) {
-	g, err := parseContraption(r)
+	c, err := parseContraption(r)
 	if err != nil {
 		return "", err
 	}
-
-	start := beam{pos: position{X: 0, Y: 0}, dir: right}
-	count := simulate(g, start)
-
-	return strconv.Itoa(count), nil
+	return strconv.Itoa(c.energise(0, 0, 0)), nil
 }
 
 func day16p02(r io.Reader) (string, error) {
-	g, err := parseContraption(r)
+	c, err := parseContraption(r)
 	if err != nil {
 		return "", err
 	}
-
-	maxEnergized := xiter.From(edgeBeams(g)).Map(func(b beam) int { return simulate(g, b) }).Reduce(0, func(maxSoFar, count int) int { return max(maxSoFar, count) })
-
-	return strconv.Itoa(maxEnergized), nil
+	best := 0
+	for x := range c.width {
+		best = max(best, c.energise(x, 0, 1), c.energise(x, c.height-1, 3))
+	}
+	for y := range c.height {
+		best = max(best, c.energise(0, y, 0), c.energise(c.width-1, y, 2))
+	}
+	return strconv.Itoa(best), nil
 }

@@ -1,15 +1,14 @@
 package aoc2023
 
 import (
+	"cmp"
+	"fmt"
 	"io"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
 type handType int
@@ -24,125 +23,94 @@ const (
 	fiveOfKind
 )
 
+const (
+	cardOrder      = "23456789TJQKA"
+	jokerCardOrder = "J23456789TQKA"
+)
+
 type hand struct {
-	cards string
-	bid   int
-	typ   handType
+	strengths [5]int
+	bid       int
+	typ       handType
 }
 
-var cardValues = map[byte]int{
-	'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
-	'9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
-}
-
-func cardValue(card byte, jokerRule bool) int {
-	if jokerRule && card == 'J' {
-		return 1
+func classifyHand(strengths [5]int, jokers int) handType {
+	var counts [len(cardOrder)]int
+	for _, strength := range strengths {
+		counts[strength]++
 	}
-	return cardValues[card]
-}
-
-func classifyHand(cards string, jokerRule bool) handType {
-	jokers := 0
-	filtered := cards
-
-	if jokerRule {
-		jokers = strings.Count(cards, "J")
-		filtered = strings.ReplaceAll(cards, "J", "")
-	}
-
-	frequencies := xiter.Frequencies(slices.Values([]rune(filtered)))
-	counts := slices.Sorted(maps.Values(frequencies))
-	slices.Reverse(counts)
-
-	if len(counts) == 0 {
-		counts = []int{0}
-	}
-	counts[0] += jokers
+	// Jokers have strength 0 under the joker rule; they join the largest group.
+	counts[0] -= jokers
+	slices.Sort(counts[:])
+	largest, second := counts[len(counts)-1]+jokers, counts[len(counts)-2]
 
 	switch {
-	case counts[0] == 5:
+	case largest == 5:
 		return fiveOfKind
-	case counts[0] == 4:
+	case largest == 4:
 		return fourOfKind
-	case counts[0] == 3 && len(counts) > 1 && counts[1] == 2:
+	case largest == 3 && second == 2:
 		return fullHouse
-	case counts[0] == 3:
+	case largest == 3:
 		return threeOfKind
-	case counts[0] == 2 && len(counts) > 1 && counts[1] == 2:
+	case largest == 2 && second == 2:
 		return twoPair
-	case counts[0] == 2:
+	case largest == 2:
 		return onePair
 	default:
 		return highCard
 	}
 }
 
-func compareHands(a, b hand, jokerRule bool) int {
-	if a.typ != b.typ {
-		return int(a.typ) - int(b.typ)
-	}
-
-	for i := 0; i < len(a.cards); i++ {
-		aVal := cardValue(a.cards[i], jokerRule)
-		bVal := cardValue(b.cards[i], jokerRule)
-		if aVal != bVal {
-			return aVal - bVal
-		}
-	}
-	return 0
-}
-
-func parseLine(jokerRule bool) func([]byte) (hand, error) {
+func parseHand(order string, jokerRule bool) func([]byte) (hand, error) {
 	return func(line []byte) (hand, error) {
-		parts := strings.Fields(string(line))
-		if len(parts) != 2 {
-			return hand{}, nil
+		cards, bidText, ok := strings.Cut(string(line), " ")
+		if !ok || len(cards) != 5 {
+			return hand{}, fmt.Errorf("invalid hand %q", line)
 		}
-
-		bid := aoc.MustAtoi(parts[1])
-		return hand{
-			cards: parts[0],
-			bid:   bid,
-			typ:   classifyHand(parts[0], jokerRule),
-		}, nil
+		bid, err := strconv.Atoi(bidText)
+		if err != nil || bid < 0 {
+			return hand{}, fmt.Errorf("invalid bid in %q", line)
+		}
+		var result hand
+		jokers := 0
+		for i := range cards {
+			strength := strings.IndexByte(order, cards[i])
+			if strength < 0 {
+				return hand{}, fmt.Errorf("invalid card %q in %q", cards[i], line)
+			}
+			result.strengths[i] = strength
+			if jokerRule && cards[i] == 'J' {
+				jokers++
+			}
+		}
+		result.bid = bid
+		result.typ = classifyHand(result.strengths, jokers)
+		return result, nil
 	}
 }
 
-func parseHands(r io.Reader, jokerRule bool) ([]hand, error) {
-	s := scanner.NewScanner(r, parseLine(jokerRule))
+func totalWinnings(r io.Reader, order string, jokerRule bool) (string, error) {
+	s := scanner.NewScanner(r, parseHand(order, jokerRule))
 	hands := slices.Collect(s.Values())
-	return hands, s.Err()
-}
+	if err := s.Err(); err != nil {
+		return "", err
+	}
 
-func calculateWinnings(hands []hand, jokerRule bool) int {
 	slices.SortFunc(hands, func(a, b hand) int {
-		return compareHands(a, b, jokerRule)
+		return cmp.Or(cmp.Compare(a.typ, b.typ), slices.Compare(a.strengths[:], b.strengths[:]))
 	})
-
 	total := 0
 	for rank, h := range hands {
 		total += h.bid * (rank + 1)
 	}
-	return total
+	return strconv.Itoa(total), nil
 }
 
 func day07p01(r io.Reader) (string, error) {
-	hands, err := parseHands(r, false)
-	if err != nil {
-		return "", err
-	}
-
-	result := calculateWinnings(hands, false)
-	return strconv.Itoa(result), nil
+	return totalWinnings(r, cardOrder, false)
 }
 
 func day07p02(r io.Reader) (string, error) {
-	hands, err := parseHands(r, true)
-	if err != nil {
-		return "", err
-	}
-
-	result := calculateWinnings(hands, true)
-	return strconv.Itoa(result), nil
+	return totalWinnings(r, jokerCardOrder, true)
 }

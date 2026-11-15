@@ -1,81 +1,52 @@
 package aoc2023
 
 import (
-	"bufio"
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-func parseGalaxies(r io.Reader) ([]grid.Position2D[int], collections.Set[int], collections.Set[int], error) {
-	scanner := bufio.NewScanner(r)
-	var galaxies []grid.Position2D[int]
-	rowsWithGalaxies := collections.NewSet[int]()
-	colsWithGalaxies := collections.NewSet[int]()
-
-	row := 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		for col, ch := range line {
-			if ch == '#' {
-				galaxies = append(galaxies, grid.NewPosition2D(col, row))
-				rowsWithGalaxies.Add(row)
-				colsWithGalaxies.Add(col)
-			}
+// expandedDistanceSum returns the sum of pairwise distances along one axis,
+// where counts[i] galaxies sit at line i and every empty line counts as
+// expansion lines.
+func expandedDistanceSum(counts []int, expansion int) int {
+	sum, seen, coordinateSum, coordinate := 0, 0, 0, 0
+	for _, count := range counts {
+		if count == 0 {
+			coordinate += expansion
+			continue
 		}
-		row++
+		sum += count * (seen*coordinate - coordinateSum)
+		seen += count
+		coordinateSum += count * coordinate
+		coordinate++
 	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, nil, nil, err
-	}
-
-	return galaxies, rowsWithGalaxies, colsWithGalaxies, nil
+	return sum
 }
 
-func countEmptyBetween(start, end int, occupied collections.Set[int]) int {
-	min, max := start, end
-	if start > end {
-		min, max = end, start
+func galaxyDistances(r io.Reader, expansion int) (string, error) {
+	g, err := grid.ReadBytes(r, ".#")
+	if err != nil {
+		return "", err
 	}
-	count := 0
-	for i := min + 1; i < max; i++ {
-		if !occupied.Contains(i) {
-			count++
+	rowCounts := make([]int, g.Height())
+	columnCounts := make([]int, g.Width())
+	for i, c := range g.Cells() {
+		if c == '#' {
+			p := g.Position(i)
+			rowCounts[p.Y]++
+			columnCounts[p.X]++
 		}
 	}
-	return count
-}
-
-func day11(expansionFactor int) func(r io.Reader) (string, error) {
-	return func(r io.Reader) (string, error) {
-		galaxies, rowsWithGalaxies, colsWithGalaxies, err := parseGalaxies(r)
-		if err != nil {
-			return "", err
-		}
-
-		result := xiter.From(xslices.Pairwise(galaxies)).SumBy(func(pair xslices.Pair[grid.Position2D[int], grid.Position2D[int]]) int {
-			g1, g2 := pair.V1, pair.V2
-
-			baseDistance := g1.Distance(g2)
-			emptyRows := countEmptyBetween(g1.Y, g2.Y, rowsWithGalaxies)
-			emptyCols := countEmptyBetween(g1.X, g2.X, colsWithGalaxies)
-
-			return baseDistance + (expansionFactor-1)*emptyRows + (expansionFactor-1)*emptyCols
-		})
-
-		return strconv.Itoa(result), nil
-	}
+	total := expandedDistanceSum(rowCounts, expansion) + expandedDistanceSum(columnCounts, expansion)
+	return strconv.Itoa(total), nil
 }
 
 func day11p01(r io.Reader) (string, error) {
-	return day11(2)(r)
+	return galaxyDistances(r, 2)
 }
 
 func day11p02(r io.Reader) (string, error) {
-	return day11(1000000)(r)
+	return galaxyDistances(r, 1000000)
 }

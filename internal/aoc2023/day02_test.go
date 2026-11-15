@@ -42,3 +42,14 @@ Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green`),
 	}
 	aoc.AOCTest(t, day02p02, tests)
 }
+
+func TestDay02RejectsMalformedGames(t *testing.T) {
+	requireRejected(t, []string{
+		"Game x: 1 red",
+		"Gam 1: 1 red",
+		"Game 1: -1 red",
+		"Game 1: 1 red, 2 red",
+		"Game 1: 1 purple",
+		"Game 1 1 red",
+	}, day02p01, day02p02)
+}

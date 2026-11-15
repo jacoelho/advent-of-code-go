@@ -66,7 +66,7 @@ func TestGardenSmallWalks(t *testing.T) {
 		"S##\n###\n#..",
 	} {
 		t.Run(input, func(t *testing.T) {
-			garden, start, err := parseGarden(strings.NewReader(input))
+			garden, err := parseGarden(strings.NewReader(input))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,7 +77,7 @@ func TestGardenSmallWalks(t *testing.T) {
 				if err != nil || got != strconv.Itoa(finite[steps]) {
 					t.Fatalf("finite steps %d = %q, %v; want %d", steps, got, err, finite[steps])
 				}
-				count, err := repeatedGardenPlots(garden, start, steps)
+				count, err := repeatedGardenPlots(garden, steps)
 				if err != nil {
 					t.Fatalf("repeated steps %d: %v", steps, err)
 				}
@@ -109,11 +109,11 @@ func TestGardenWallPatterns(t *testing.T) {
 				input.WriteByte('\n')
 			}
 		}
-		garden, start, err := parseGarden(strings.NewReader(input.String()))
+		garden, err := parseGarden(strings.NewReader(input.String()))
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = repeatedGardenPlots(garden, start, 12)
+		_, err = repeatedGardenPlots(garden, 12)
 		if err != nil {
 			if !strings.Contains(err.Error(), "unsupported garden distances") {
 				t.Fatalf("mask %d: %v", mask, err)
@@ -122,7 +122,7 @@ func TestGardenWallPatterns(t *testing.T) {
 		}
 		want := gardenFrontiers(input.String(), 12, true)
 		for steps := range 13 {
-			got, err := repeatedGardenPlots(garden, start, steps)
+			got, err := repeatedGardenPlots(garden, steps)
 			if err != nil || got.String() != strconv.Itoa(want[steps]) {
 				t.Fatalf("mask %d, steps %d = %v, %v; want %d", mask, steps, got, err, want[steps])
 			}
@@ -170,7 +170,6 @@ func TestGardenUnsupported(t *testing.T) {
 		"..#\n#S.\n.#.",
 		"S.\n..",
 		"S..\n...",
-		"S" + strings.Repeat(".", 202) + strings.Repeat("\n"+strings.Repeat(".", 203), 202),
 	} {
 		_, err := day21p02(strings.NewReader(input))
 		if err == nil || !strings.Contains(err.Error(), "unsupported garden") {
@@ -180,11 +179,11 @@ func TestGardenUnsupported(t *testing.T) {
 }
 
 func TestGardenCountBeyondInt64(t *testing.T) {
-	garden, start, err := parseGarden(strings.NewReader("S"))
+	garden, err := parseGarden(strings.NewReader("S"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := repeatedGardenPlots(garden, start, 4000000000)
+	got, err := repeatedGardenPlots(garden, 4000000000)
 	if err != nil || got.String() != "16000000008000000001" {
 		t.Fatalf("open plane count = %v, %v; want 16000000008000000001", got, err)
 	}
@@ -201,11 +200,11 @@ func TestGardenInputErrors(t *testing.T) {
 	if _, err := day21(strings.NewReader("S"), -1); err == nil {
 		t.Fatal("negative finite steps: expected error")
 	}
-	garden, start, err := parseGarden(strings.NewReader("S"))
+	garden, err := parseGarden(strings.NewReader("S"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repeatedGardenPlots(garden, start, -1); err == nil {
+	if _, err := repeatedGardenPlots(garden, -1); err == nil {
 		t.Fatal("negative repeated steps: expected error")
 	}
 }

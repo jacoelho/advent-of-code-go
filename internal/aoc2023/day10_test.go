@@ -92,3 +92,21 @@ L7JLJL-JLJLJL--JLJ.L`),
 	}
 	aoc.AOCTest(t, day10p02, tests)
 }
+
+func TestDay10SmallestLoop(t *testing.T) {
+	aoc.AOCTest(t, day10p01, []aoc.TestInput{{Input: strings.NewReader("S7\nLJ"), Want: "2"}})
+	aoc.AOCTest(t, day10p02, []aoc.TestInput{{Input: strings.NewReader("S7\nLJ"), Want: "0"}})
+}
+
+func TestDay10RejectsMalformedMaps(t *testing.T) {
+	requireRejected(t, []string{
+		"",
+		"F7\nLJ",
+		"S7\nLS",
+		"S7\nLJ.",
+		"S7\nLX",
+		"S7\n|J",
+		"S.\n..",
+		".|.\n-S-\n.|.",
+	}, day10p01, day10p02)
+}

@@ -68,6 +68,10 @@ func TestLensFocalErrors(t *testing.T) {
 	}
 }
 
+func TestDay15RejectsMalformedSteps(t *testing.T) {
+	requireRejected(t, []string{"", "\n", "rn", "rn=1,,qp-", "=1", "-", "rn=1,qp+3"}, day15p01, day15p02)
+}
+
 func TestDay15ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

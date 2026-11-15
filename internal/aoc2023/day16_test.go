@@ -52,3 +52,7 @@ func Test_day16p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day16p02, tests)
 }
+
+func TestDay16RejectsMalformedContraptions(t *testing.T) {
+	requireRejected(t, []string{"", "..\n.", "./x"}, day16p01, day16p02)
+}

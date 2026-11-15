@@ -3,206 +3,102 @@ package aoc2023
 import (
 	"fmt"
 	"io"
-	"iter"
-	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
 )
 
-type position = grid.Position2D[int]
+type pipeDirection struct {
+	dx, dy int
+}
 
 var (
-	north = position{X: 0, Y: -1}
-	south = position{X: 0, Y: 1}
-	east  = position{X: 1, Y: 0}
-	west  = position{X: -1, Y: 0}
+	pipeNorth = pipeDirection{0, -1}
+	pipeSouth = pipeDirection{0, 1}
+	pipeEast  = pipeDirection{1, 0}
+	pipeWest  = pipeDirection{-1, 0}
 )
 
-func parseGrid(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]rune, error) {
-		return []rune(string(line)), nil
-	})
-
-	rows := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
-		return nil, err
-	}
-
-	return grid.NewGrid2D[int, rune](rows), nil
+var pipeEnds = map[byte][2]pipeDirection{
+	'|': {pipeNorth, pipeSouth},
+	'-': {pipeEast, pipeWest},
+	'L': {pipeNorth, pipeEast},
+	'J': {pipeNorth, pipeWest},
+	'7': {pipeSouth, pipeWest},
+	'F': {pipeSouth, pipeEast},
 }
 
-func findStart(g grid.Grid2D[int, rune]) (position, bool) {
-	for pos, ch := range g {
-		if ch == 'S' {
-			return pos, true
-		}
-	}
-	return position{}, false
+func (d pipeDirection) reverse() pipeDirection {
+	return pipeDirection{-d.dx, -d.dy}
 }
 
-func connects(g grid.Grid2D[int, rune], pos position, dir position) bool {
-	ch, exists := g[pos]
-	if !exists {
+func pipeOpensTo(rows [][]byte, x, y int, d pipeDirection) bool {
+	if y < 0 || y >= len(rows) || x < 0 || x >= len(rows[y]) {
 		return false
 	}
+	ends, ok := pipeEnds[rows[y][x]]
+	return ok && (ends[0] == d || ends[1] == d)
+}
 
-	switch dir {
-	case north:
-		return ch == '|' || ch == 'L' || ch == 'J' || ch == 'S'
-	case south:
-		return ch == '|' || ch == '7' || ch == 'F' || ch == 'S'
-	case east:
-		return ch == '-' || ch == 'L' || ch == 'F' || ch == 'S'
-	case west:
-		return ch == '-' || ch == 'J' || ch == '7' || ch == 'S'
-	default:
-		return false
+// pipeLoop returns the number of tiles in the loop through S and the area the
+// loop's tile centres enclose.
+func pipeLoop(r io.Reader) (length, area int, err error) {
+	g, err := grid.ReadBytes(r, "|-LJ7F.S")
+	if err != nil {
+		return 0, 0, err
 	}
-}
-
-func determineStartPipe(g grid.Grid2D[int, rune], start position) rune {
-	n := connects(g, start.Add(north), south)
-	s := connects(g, start.Add(south), north)
-	e := connects(g, start.Add(east), west)
-	w := connects(g, start.Add(west), east)
-
-	switch {
-	case n && s:
-		return '|'
-	case e && w:
-		return '-'
-	case n && e:
-		return 'L'
-	case n && w:
-		return 'J'
-	case s && w:
-		return '7'
-	case s && e:
-		return 'F'
-	default:
-		return 'S'
+	start, err := g.Find('S')
+	if err != nil {
+		return 0, 0, err
 	}
-}
+	rows, startX, startY := g.Rows(), start.X, start.Y
 
-var pipeConnections = map[rune][]position{
-	'|': {north, south},
-	'-': {east, west},
-	'L': {north, east},
-	'J': {north, west},
-	'7': {south, west},
-	'F': {south, east},
-}
-
-var oppositeDir = map[position]position{
-	north: south,
-	south: north,
-	east:  west,
-	west:  east,
-}
-
-func neighbors(g grid.Grid2D[int, rune], pos position) iter.Seq[position] {
-	return func(yield func(position) bool) {
-		ch := g[pos]
-		dirs, ok := pipeConnections[ch]
-		if !ok {
-			return
-		}
-
-		for _, dir := range dirs {
-			neighbor := pos.Add(dir)
-			if connects(g, neighbor, oppositeDir[dir]) {
-				if !yield(neighbor) {
-					return
-				}
-			}
+	var exits []pipeDirection
+	for _, d := range []pipeDirection{pipeNorth, pipeSouth, pipeEast, pipeWest} {
+		if pipeOpensTo(rows, startX+d.dx, startY+d.dy, d.reverse()) {
+			exits = append(exits, d)
 		}
 	}
+	if len(exits) != 2 {
+		return 0, 0, fmt.Errorf("start at %d,%d connects to %d pipes, want 2", startX, startY, len(exits))
+	}
+
+	x, y, heading := startX, startY, exits[0]
+	twiceArea := 0
+	for {
+		nextX, nextY := x+heading.dx, y+heading.dy
+		twiceArea += x*nextY - nextX*y
+		x, y = nextX, nextY
+		length++
+		if x == startX && y == startY {
+			break
+		}
+		if !pipeOpensTo(rows, x, y, heading.reverse()) {
+			return 0, 0, fmt.Errorf("loop breaks at %d,%d", x, y)
+		}
+		ends := pipeEnds[rows[y][x]]
+		if ends[0] == heading.reverse() {
+			heading = ends[1]
+		} else {
+			heading = ends[0]
+		}
+	}
+	return length, max(twiceArea, -twiceArea) / 2, nil
 }
 
 func day10p01(r io.Reader) (string, error) {
-	g, err := parseGrid(r)
+	length, _, err := pipeLoop(r)
 	if err != nil {
 		return "", err
 	}
-
-	start, found := findStart(g)
-	if !found {
-		return "", fmt.Errorf("start position not found")
-	}
-
-	g[start] = determineStartPipe(g, start)
-
-	maxDist := search.BFSMaxDistance(start, func(pos position) iter.Seq[position] {
-		return neighbors(g, pos)
-	})
-
-	return strconv.Itoa(maxDist), nil
-}
-
-func getLoopPositions(g grid.Grid2D[int, rune], start position) collections.Set[position] {
-	bfs := search.BFS(start, func(pos position) iter.Seq[position] {
-		return neighbors(g, pos)
-	})
-
-	loopSet := collections.NewSet[position]()
-	for pos := range bfs {
-		loopSet.Add(pos)
-	}
-	return loopSet
+	return strconv.Itoa(length / 2), nil
 }
 
 func day10p02(r io.Reader) (string, error) {
-	g, err := parseGrid(r)
+	length, area, err := pipeLoop(r)
 	if err != nil {
 		return "", err
 	}
-
-	start, found := findStart(g)
-	if !found {
-		return "", fmt.Errorf("start position not found")
-	}
-
-	g[start] = determineStartPipe(g, start)
-
-	loopPositions := getLoopPositions(g, start)
-
-	minX, maxX, minY, maxY := g.Dimensions()
-
-	enclosed := 0
-	for y := minY; y <= maxY; y++ {
-		inside := false
-		entryBend := ' '
-
-		for x := minX; x <= maxX; x++ {
-			pos := position{X: x, Y: y}
-
-			if loopPositions.Contains(pos) {
-				ch := g[pos]
-
-				switch ch {
-				case '|':
-					inside = !inside
-				case 'F', 'L':
-					entryBend = ch
-				case '7', 'J':
-					// F---7: both point down, doesn't cross (same side)
-					// L---J: both point up, doesn't cross (same side)
-					// F---J: F points down, J points up, crosses
-					// L---7: L points up, 7 points down, crosses
-					if (entryBend == 'F' && ch == 'J') || (entryBend == 'L' && ch == '7') {
-						inside = !inside
-					}
-					entryBend = ' '
-				}
-			} else if inside {
-				enclosed++
-			}
-		}
-	}
-
-	return strconv.Itoa(enclosed), nil
+	// Pick's theorem: interior points = area - boundary/2 + 1.
+	return strconv.Itoa(area - length/2 + 1), nil
 }

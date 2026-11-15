@@ -42,3 +42,14 @@ QQQJA 483`),
 	}
 	aoc.AOCTest(t, day07p02, tests)
 }
+
+func TestDay07RejectsMalformedHands(t *testing.T) {
+	requireRejected(t, []string{
+		"32T3K",
+		"32T3K x",
+		"32T3K -1",
+		"32T3 765",
+		"32T3KK 765",
+		"32T3X 765",
+	}, day07p01, day07p02)
+}

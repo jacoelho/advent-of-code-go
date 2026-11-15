@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
-
-const maxWorkflowSteps = 1_000_000
 
 type ratingPart [4]int64
 
@@ -73,7 +72,7 @@ func ratingCategory(name string) (int, error) {
 }
 
 func workflowName(name string) bool {
-	if len(name) == 0 || len(name) > 128 {
+	if len(name) == 0 {
 		return false
 	}
 	for _, c := range name {
@@ -84,10 +83,9 @@ func workflowName(name string) bool {
 	return true
 }
 
-func parseWorkflows(input string) (workflowSet, error) {
+func parseWorkflows(lines []string) (workflowSet, error) {
 	workflows := make(workflowSet)
-	ruleCount := 0
-	for line := range strings.SplitSeq(strings.TrimSpace(input), "\n") {
+	for _, line := range lines {
 		name, body, ok := strings.Cut(strings.TrimSpace(line), "{")
 		if !ok || !workflowName(name) {
 			return nil, fmt.Errorf("invalid workflow declaration %q", line)
@@ -99,16 +97,9 @@ func parseWorkflows(input string) (workflowSet, error) {
 		if _, exists := workflows[name]; exists {
 			return nil, fmt.Errorf("duplicate workflow %q", name)
 		}
-		if len(workflows) == 1024 {
-			return nil, fmt.Errorf("too many workflows")
-		}
 		texts := strings.Split(body, ",")
 		var rules []workflowRule
 		for i, text := range texts {
-			ruleCount++
-			if ruleCount > 16_384 {
-				return nil, fmt.Errorf("too many workflow rules")
-			}
 			condition, destination, conditional := strings.Cut(strings.TrimSpace(text), ":")
 			rule := workflowRule{category: -1, destination: condition}
 			if conditional {
@@ -191,48 +182,35 @@ func parseRatingPart(line string) (ratingPart, error) {
 }
 
 func parseWorkflowInput(r io.Reader) (workflowSet, []ratingPart, error) {
-	const inputLimit = 4 << 20
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	blocks, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(data) > inputLimit {
-		return nil, nil, fmt.Errorf("workflow input exceeds 4 MiB")
-	}
-	input := strings.ReplaceAll(string(data), "\r\n", "\n")
-	definitions, ratings, ok := strings.Cut(strings.TrimSpace(input), "\n\n")
-	if !ok {
+	if len(blocks) != 2 || len(blocks[1]) == 0 {
 		return nil, nil, fmt.Errorf("expected workflow and part sections")
 	}
-	workflows, err := parseWorkflows(definitions)
+	workflows, err := parseWorkflows(blocks[0])
 	if err != nil {
 		return nil, nil, err
 	}
 	var parts []ratingPart
-	for line := range strings.SplitSeq(ratings, "\n") {
+	for _, line := range blocks[1] {
 		part, err := parseRatingPart(line)
 		if err != nil {
 			return nil, nil, err
-		}
-		if len(parts) == 100_000 {
-			return nil, nil, fmt.Errorf("too many rating parts")
 		}
 		parts = append(parts, part)
 	}
 	return workflows, parts, nil
 }
 
-func processPart(part ratingPart, workflows workflowSet, remaining *int) (bool, error) {
+func processPart(part ratingPart, workflows workflowSet) (bool, error) {
 	name := "in"
 	for range len(workflows) + 1 {
 		if name == "A" || name == "R" {
 			return name == "A", nil
 		}
 		for _, rule := range workflows[name] {
-			if *remaining == 0 {
-				return false, fmt.Errorf("workflow rule limit exceeded")
-			}
-			*remaining -= 1
 			if rule.category == -1 || rule.operator == '<' && part[rule.category] < rule.value || rule.operator == '>' && part[rule.category] > rule.value {
 				name = rule.destination
 				break
@@ -250,7 +228,6 @@ func countAccepted(workflows workflowSet, limit int64) (int64, error) {
 	for i := range initial {
 		initial[i] = ratingInterval{min: 1, max: limit}
 	}
-	remaining := maxWorkflowSteps
 	active := make(map[string]bool)
 	var visit func(ratingRanges, string) (int64, error)
 	visit = func(current ratingRanges, name string) (int64, error) {
@@ -268,10 +245,6 @@ func countAccepted(workflows workflowSet, limit int64) (int64, error) {
 		defer delete(active, name)
 		var total int64
 		for _, rule := range workflows[name] {
-			if remaining == 0 {
-				return 0, fmt.Errorf("workflow rule limit exceeded")
-			}
-			remaining--
 			if rule.category == -1 {
 				count, err := visit(current, rule.destination)
 				return total + count, err
@@ -301,10 +274,9 @@ func day19p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	remaining := maxWorkflowSteps
 	var total int64
 	for _, part := range parts {
-		accepted, err := processPart(part, workflows, &remaining)
+		accepted, err := processPart(part, workflows)
 		if err != nil {
 			return "", err
 		}

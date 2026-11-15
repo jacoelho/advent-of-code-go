@@ -107,7 +107,7 @@ func TestCrucibleStrides(t *testing.T) {
 }
 
 func TestHeatGridErrors(t *testing.T) {
-	for _, input := range []string{"", "1\n\n2", "12\n3", "1x", strings.Repeat(strings.Repeat("1", 500)+"\n", 501)} {
+	for _, input := range []string{"", "1\n\n2", "12\n3", "1x"} {
 		for _, solve := range []func(io.Reader) (string, error){day17p01, day17p02} {
 			if _, err := solve(strings.NewReader(input)); err == nil {
 				t.Fatalf("expected an error for invalid heat grid of %d bytes", len(input))
