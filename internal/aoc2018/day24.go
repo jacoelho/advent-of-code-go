@@ -2,6 +2,7 @@ package aoc2018
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"io"
 	"regexp"
@@ -55,16 +56,17 @@ func parseArmies(r io.Reader) ([]armyGroup, error) {
 		if fields == nil || side == noArmy {
 			return nil, fmt.Errorf("invalid army group %q", line)
 		}
+		// int32 values keep every product of two values, and the boost bound, within int64.
 		var values [4]int64
 		for i, field := range []string{fields[1], fields[2], fields[4], fields[6]} {
-			value, err := convert.ScanNumber[int64]([]byte(field))
+			value, err := convert.ScanNumber[int32]([]byte(field))
 			if err != nil {
 				return nil, err
 			}
-			if value > 1_000_000_000 || value == 0 && i != 2 {
-				return nil, fmt.Errorf("army group values must be positive and at most 1000000000, except damage may be zero")
+			if value < 0 || value == 0 && i != 2 {
+				return nil, fmt.Errorf("army group %q: values must be positive, except damage may be zero", line)
 			}
-			values[i] = value
+			values[i] = int64(value)
 		}
 		group := armyGroup{
 			side: side, units: values[0], hitPoints: values[1], damage: values[2], initiative: int(values[3]),
@@ -89,9 +91,6 @@ func parseArmies(r io.Reader) ([]armyGroup, error) {
 			}
 		}
 		groups = append(groups, group)
-		if len(groups) > 128 {
-			return nil, fmt.Errorf("army battle supports at most 128 groups")
-		}
 	}
 	if err := s.Err(); err != nil {
 		return nil, err
@@ -121,7 +120,7 @@ func (group armyGroup) damageTo(target armyGroup) int64 {
 	return group.power()
 }
 
-func fightArmies(initial []armyGroup, boost int64, work *int) (armySide, int64, error) {
+func fightArmies(initial []armyGroup, boost int64) (armySide, int64) {
 	groups := slices.Clone(initial)
 	order := make([]int, len(groups))
 	for i := range groups {
@@ -133,9 +132,9 @@ func fightArmies(initial []armyGroup, boost int64, work *int) (armySide, int64, 
 	attackOrder := slices.Clone(order)
 	initiativeOrder := func(a, b int) int {
 		if groups[a].initiative != groups[b].initiative {
-			return groups[b].initiative - groups[a].initiative
+			return cmp.Compare(groups[b].initiative, groups[a].initiative)
 		}
-		return a - b
+		return cmp.Compare(a, b)
 	}
 	slices.SortFunc(attackOrder, initiativeOrder)
 	targets := make([]int, len(groups))
@@ -147,25 +146,14 @@ func fightArmies(initial []armyGroup, boost int64, work *int) (armySide, int64, 
 			units[group.side] += group.units
 		}
 		if units[immuneArmy] == 0 {
-			return infectionArmy, units[infectionArmy], nil
+			return infectionArmy, units[infectionArmy]
 		}
 		if units[infectionArmy] == 0 {
-			return immuneArmy, units[immuneArmy], nil
-		}
-		*work += len(groups)*len(groups) + len(groups)
-		if *work > 50_000_000 {
-			return noArmy, 0, fmt.Errorf("army search exceeded 50000000 operations")
+			return immuneArmy, units[immuneArmy]
 		}
 
 		slices.SortFunc(order, func(a, b int) int {
-			left, right := groups[a].power(), groups[b].power()
-			if left > right {
-				return -1
-			}
-			if left < right {
-				return 1
-			}
-			return initiativeOrder(a, b)
+			return cmp.Or(cmp.Compare(groups[b].power(), groups[a].power()), initiativeOrder(a, b))
 		})
 		clear(selected)
 		for i := range targets {
@@ -209,7 +197,7 @@ func fightArmies(initial []armyGroup, boost int64, work *int) (armySide, int64, 
 			killed += losses
 		}
 		if killed == 0 {
-			return noArmy, units[immuneArmy] + units[infectionArmy], nil
+			return noArmy, units[immuneArmy] + units[infectionArmy]
 		}
 	}
 }
@@ -219,11 +207,7 @@ func day24p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	work := 0
-	winner, units, err := fightArmies(groups, 0, &work)
-	if err != nil {
-		return "", err
-	}
+	winner, units := fightArmies(groups, 0)
 	if winner == noArmy {
 		return "", fmt.Errorf("army battle is a stalemate")
 	}
@@ -236,16 +220,22 @@ func day24p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	work := 0
-	for boost := int64(0); boost <= 100_000; boost++ {
-		winner, units, err := fightArmies(groups, boost, &work)
-		if err != nil {
-			return "", err
+	// From this boost on, every landed immune attack destroys its target and the
+	// ranking of immune groups by effective power follows units then damage, so
+	// larger boosts replay the same battle.
+	var finalBoost int64
+	for _, group := range groups {
+		if group.side == immuneArmy {
+			finalBoost = max(finalBoost, group.units*group.damage)
+		} else {
+			finalBoost = max(finalBoost, group.units*group.hitPoints)
 		}
-		if winner == immuneArmy {
+	}
+	for boost := range finalBoost + 1 {
+		if winner, units := fightArmies(groups, boost); winner == immuneArmy {
 			return strconv.FormatInt(units, 10), nil
 		}
 	}
 
-	return "", fmt.Errorf("no immune victory through boost 100000")
+	return "", fmt.Errorf("no boost lets the immune system win")
 }

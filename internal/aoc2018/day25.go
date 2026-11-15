@@ -4,18 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"iter"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func day25p01(r io.Reader) (string, error) {
-	type point [4]int32
+	type point [4]int64
 	s := scanner.NewScanner(r, func(line []byte) (point, error) {
 		fields := bytes.Split(line, []byte(","))
 		if len(fields) != 4 {
@@ -27,44 +24,48 @@ func day25p01(r io.Reader) (string, error) {
 			if err != nil {
 				return point{}, err
 			}
-			result[i] = value
+			result[i] = int64(value)
 		}
 		return result, nil
 	})
-	points := collections.NewSet[point]()
+	var points []point
 	for p := range s.Values() {
-		points.Add(p)
-		if len(points) > 5000 {
-			return "", fmt.Errorf("constellation search supports at most 5000 points")
-		}
+		points = append(points, p)
 	}
 	if err := s.Err(); err != nil {
 		return "", err
 	}
+	if len(points) == 0 {
+		return "", fmt.Errorf("no constellation points")
+	}
 
-	neighbours := func(from point) iter.Seq[point] {
-		return func(yield func(point) bool) {
-			for to := range points {
-				var distance int64
-				for axis := range 4 {
-					distance += xmath.Abs(int64(from[axis]) - int64(to[axis]))
-				}
-				if distance <= 3 && !yield(to) {
-					return
-				}
+	parent := make([]int, len(points))
+	for i := range parent {
+		parent[i] = i
+	}
+	var root func(int) int
+	root = func(i int) int {
+		if parent[i] != i {
+			parent[i] = root(parent[i])
+		}
+		return parent[i]
+	}
+	constellations := len(points)
+	for i, from := range points {
+		for j, to := range points[:i] {
+			var distance int64
+			for axis := range from {
+				distance += xmath.Abs(from[axis] - to[axis])
+			}
+			if distance > 3 {
+				continue
+			}
+			if a, b := root(i), root(j); a != b {
+				parent[a] = b
+				constellations--
 			}
 		}
 	}
-	visited := collections.NewSet[point]()
-	count := 0
-	for p := range points {
-		if visited.Contains(p) {
-			continue
-		}
-		for range search.BFSWithVisited(p, visited, neighbours) {
-		}
-		count++
-	}
 
-	return strconv.Itoa(count), nil
+	return strconv.Itoa(constellations), nil
 }

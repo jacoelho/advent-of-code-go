@@ -26,6 +26,16 @@ func TestArmyImmunityOverridesWeakness(t *testing.T) {
 	if _, err := day24p01(strings.NewReader(input)); err == nil {
 		t.Fatal("expected mutually immune armies to reach a stalemate")
 	}
+	if _, err := day24p02(strings.NewReader(input)); err == nil {
+		t.Fatal("expected no boost to win against an immune infection")
+	}
+}
+
+func TestArmyRejectsValuesBeyondInt32(t *testing.T) {
+	input := "Immune System:\n3000000000 units each with 10 hit points with an attack that does 10 fire damage at initiative 2\n\nInfection:\n1 units each with 10 hit points with an attack that does 10 cold damage at initiative 1"
+	if _, err := day24p01(strings.NewReader(input)); err == nil {
+		t.Fatal("expected out-of-range unit count error")
+	}
 }
 
 func Test_day24p01(t *testing.T) {

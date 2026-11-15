@@ -81,7 +81,7 @@ func Test_day10p02(t *testing.T) {
 }
 
 func TestSkyErrors(t *testing.T) {
-	for _, input := range []string{"", "position 1,2", "position=<0,0> velocity=<0,0>\nposition=<3000000,0> velocity=<-1,0>"} {
+	for _, input := range []string{"", "position 1,2"} {
 		if _, err := day10p02(strings.NewReader(input)); err == nil {
 			t.Errorf("expected error for %q", input)
 		}

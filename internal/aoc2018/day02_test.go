@@ -66,6 +66,8 @@ func TestDay02InvalidInput(t *testing.T) {
 		input string
 	}{
 		{name: "unequal box IDs", solve: day02p02, input: "ab\nacd"},
+		{name: "empty input", solve: day02p01, input: ""},
+		{name: "invalid box ID character", solve: day02p01, input: "abc\naB1"},
 	}
 
 	for _, tt := range tests {

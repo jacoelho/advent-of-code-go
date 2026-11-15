@@ -1,10 +1,10 @@
 package aoc2018
 
 import (
-	"fmt"
 	"io"
-	"math"
 	"strconv"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type divisorRegisters struct {
@@ -47,17 +47,13 @@ func recognizeDivisorLoop(program elfProgram) (divisorRegisters, bool) {
 	return roles, true
 }
 
-func (machine *elfMachine) skipDivisorLoop(roles divisorRegisters, remaining *int) (bool, error) {
+func (machine *elfMachine) skipDivisorLoop(roles divisorRegisters) bool {
 	target := machine.registers[roles.target]
-	if target <= 0 || target > math.MaxInt64/target {
-		return false, nil
+	if _, ok := xmath.CheckedMul(target, target); target <= 0 || !ok {
+		return false
 	}
 	var sum int64
 	for divisor := int64(1); divisor <= target/divisor; divisor++ {
-		if *remaining == 0 {
-			return false, fmt.Errorf("program exhausts divisor work budget")
-		}
-		*remaining--
 		if target%divisor != 0 {
 			continue
 		}
@@ -66,41 +62,25 @@ func (machine *elfMachine) skipDivisorLoop(roles divisorRegisters, remaining *in
 			sum += other
 		}
 	}
-	if machine.registers[0] > math.MaxInt64-sum {
-		return false, nil
+	total, ok := xmath.CheckedAdd(machine.registers[0], sum)
+	if !ok {
+		return false
 	}
-	machine.registers[0] += sum
+	machine.registers[0] = total
 	machine.registers[roles.outer], machine.registers[roles.inner] = target+1, target+1
 	machine.registers[roles.scratch] = 1
 	// Resume at the loop's exit so the supplied program still owns its final result.
 	machine.registers[machine.program.ipRegister] = 15
 	machine.ip = 16
-	return true, nil
+	return true
 }
 
-func runDivisorProgram(program elfProgram, initial int64, limit int) (int64, error) {
+func runDivisorProgram(program elfProgram, initial int64) (int64, error) {
 	roles, recognized := recognizeDivisorLoop(program)
 	machine := elfMachine{program: program, registers: [6]int64{initial}}
-	if !recognized {
-		if err := machine.run(limit); err != nil {
-			return 0, err
-		}
-		return machine.registers[0], nil
-	}
-	remaining := limit
 	for machine.running() {
-		if remaining == 0 {
-			return 0, fmt.Errorf("program exhausts execution work budget")
-		}
-		remaining--
-		if machine.ip == 1 {
-			skipped, err := machine.skipDivisorLoop(roles, &remaining)
-			if err != nil {
-				return 0, err
-			}
-			if skipped {
-				continue
-			}
+		if recognized && machine.ip == 1 && machine.skipDivisorLoop(roles) {
+			continue
 		}
 		if err := machine.step(); err != nil {
 			return 0, err
@@ -114,7 +94,7 @@ func divisorProgramResult(r io.Reader, initial int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	result, err := runDivisorProgram(program, initial, elfStepLimit)
+	result, err := runDivisorProgram(program, initial)
 	if err != nil {
 		return "", err
 	}

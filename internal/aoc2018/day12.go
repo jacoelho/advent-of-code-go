@@ -21,12 +21,13 @@ func plantPots(r io.Reader, generations int64) (string, error) {
 		return "", fmt.Errorf("invalid initial plant state")
 	}
 
+	if s.Scan() && s.Text() != "" {
+		return "", fmt.Errorf("expected a blank line after the initial plant state, got %q", s.Text())
+	}
+
 	var rules, seenRules [32]bool
 	for s.Scan() {
 		line := s.Text()
-		if line == "" {
-			continue
-		}
 		if len(line) != 10 || line[5:9] != " => " || strings.Trim(line[:5], ".#") != "" || line[9] != '.' && line[9] != '#' {
 			return "", fmt.Errorf("invalid plant rule %q", line)
 		}
@@ -54,7 +55,6 @@ func plantPots(r io.Reader, generations int64) (string, error) {
 	}
 	seen := make(map[string]occurrence)
 	origin, generation := int64(0), int64(0)
-	updates, storedBytes := 0, 0
 	for generation < generations {
 		first := strings.IndexByte(state, '#')
 		if first < 0 {
@@ -72,16 +72,8 @@ func plantPots(r io.Reader, generations int64) (string, error) {
 				continue
 			}
 		} else {
-			storedBytes += len(state)
-			if storedBytes > 64_000_000 {
-				return "", fmt.Errorf("plant cycle history exceeds 64000000 bytes")
-			}
 			seen[state] = occurrence{generation, origin}
 		}
-		if updates == 100_000 || len(state) > 1_000_000 {
-			return "", fmt.Errorf("plant simulation exceeded its generation or width limit")
-		}
-		updates++
 
 		padded := "...." + state + "...."
 		next := make([]byte, len(state)+4)

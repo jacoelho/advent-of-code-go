@@ -2,6 +2,7 @@ package aoc2018
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"io"
 	"slices"
@@ -60,9 +61,6 @@ func parseCaveBattle(r io.Reader) (caveBattle, error) {
 			}
 		}
 		battle.height++
-		if len(battle.open) > 100_000 {
-			return battle, fmt.Errorf("combat map exceeds 100000 cells")
-		}
 	}
 	if err := s.Err(); err != nil {
 		return battle, err
@@ -159,7 +157,7 @@ func (battle caveBattle) moveTarget(unit caveUnit, units []caveUnit, occupied []
 	return unit.position
 }
 
-func fightCave(battle caveBattle, elfPower int, policy elfLossPolicy) (caveOutcome, error) {
+func fightCave(battle caveBattle, elfPower int, policy elfLossPolicy) caveOutcome {
 	units := slices.Clone(battle.units)
 	occupied := make([]int, len(battle.open))
 	for i := range occupied {
@@ -171,14 +169,14 @@ func fightCave(battle caveBattle, elfPower int, policy elfLossPolicy) (caveOutco
 		counts[unit.kind]++
 	}
 	elfDied := false
-	for round := 0; round < 100_000; round++ {
+	for round := 0; ; round++ {
 		order := make([]int, 0, len(units))
 		for id, unit := range units {
 			if unit.health > 0 {
 				order = append(order, id)
 			}
 		}
-		slices.SortFunc(order, func(a, b int) int { return units[a].position - units[b].position })
+		slices.SortFunc(order, func(a, b int) int { return cmp.Compare(units[a].position, units[b].position) })
 		changed := false
 		for _, id := range order {
 			unit := &units[id]
@@ -194,7 +192,7 @@ func fightCave(battle caveBattle, elfPower int, policy elfLossPolicy) (caveOutco
 				for _, survivor := range units {
 					health += max(0, survivor.health)
 				}
-				return caveOutcome{score: round * health, winner: unit.kind, elfDied: elfDied}, nil
+				return caveOutcome{score: round * health, winner: unit.kind, elfDied: elfDied}
 			}
 
 			target := battle.attackTarget(*unit, units, occupied)
@@ -223,17 +221,15 @@ func fightCave(battle caveBattle, elfPower int, policy elfLossPolicy) (caveOutco
 				if units[target].kind == 'E' {
 					elfDied = true
 					if policy == stopOnElfLoss {
-						return caveOutcome{elfDied: true}, nil
+						return caveOutcome{elfDied: true}
 					}
 				}
 			}
 		}
 		if !changed {
-			return caveOutcome{stalemate: true, elfDied: elfDied}, nil
+			return caveOutcome{stalemate: true, elfDied: elfDied}
 		}
 	}
-
-	return caveOutcome{}, fmt.Errorf("combat exceeds 100000 rounds")
 }
 
 func day15p01(r io.Reader) (string, error) {
@@ -242,10 +238,7 @@ func day15p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	result, err := fightCave(battle, 3, allowElfLoss)
-	if err != nil {
-		return "", err
-	}
+	result := fightCave(battle, 3, allowElfLoss)
 	if result.stalemate {
 		return "", fmt.Errorf("combat ended in stalemate")
 	}
@@ -261,10 +254,7 @@ func day15p02(r io.Reader) (string, error) {
 
 	// At 200 power every goblin dies in one hit; larger powers cannot change a battle.
 	for power := 3; power <= 200; power++ {
-		result, err := fightCave(battle, power, stopOnElfLoss)
-		if err != nil {
-			return "", err
-		}
+		result := fightCave(battle, power, stopOnElfLoss)
 		if result.winner == 'E' && !result.elfDied {
 			return strconv.Itoa(result.score), nil
 		}

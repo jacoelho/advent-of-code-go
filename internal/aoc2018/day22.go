@@ -42,24 +42,14 @@ func parseRescueCave(r io.Reader) (*rescueCave, error) {
 			if !ok {
 				return nil, fmt.Errorf("missing cave target")
 			}
-			fields := bytes.Split(text, []byte(","))
-			if len(fields) != 2 {
-				return nil, fmt.Errorf("expected two cave target coordinates")
+			target, err := grid.ParsePosition2D[int32](string(text))
+			if err != nil {
+				return nil, fmt.Errorf("cave target: %w", err)
 			}
-			for i, field := range fields {
-				value, err := convert.ScanNumber[int32](field)
-				if err != nil {
-					return nil, err
-				}
-				if value < 0 || value > 100_000 {
-					return nil, fmt.Errorf("cave coordinates must be between 0 and 100000")
-				}
-				if i == 0 {
-					cave.target.X = int(value)
-				} else {
-					cave.target.Y = int(value)
-				}
+			if target.X < 0 || target.Y < 0 {
+				return nil, fmt.Errorf("negative cave target %q", text)
 			}
+			cave.target = grid.Position2D[int]{X: int(target.X), Y: int(target.Y)}
 		default:
 			return nil, fmt.Errorf("unexpected cave input %q", s.Text())
 		}
@@ -75,16 +65,13 @@ func parseRescueCave(r io.Reader) (*rescueCave, error) {
 	return cave, nil
 }
 
-func (cave *rescueCave) region(pos grid.Position2D[int]) (int, error) {
+func (cave *rescueCave) region(pos grid.Position2D[int]) int {
 	if pos.Y < len(cave.erosion) && pos.X < len(cave.erosion[pos.Y]) {
-		return int(cave.erosion[pos.Y][pos.X] % 3), nil
+		return int(cave.erosion[pos.Y][pos.X] % 3)
 	}
 	width, height := pos.X+1, max(pos.Y+1, len(cave.erosion))
 	if len(cave.erosion) != 0 {
 		width = max(width, len(cave.erosion[0]))
-	}
-	if width > 4_000_000/height {
-		return 0, fmt.Errorf("cave exploration exceeded 4000000 erosion cells")
 	}
 	for len(cave.erosion) < height {
 		cave.erosion = append(cave.erosion, nil)
@@ -106,7 +93,7 @@ func (cave *rescueCave) region(pos grid.Position2D[int]) (int, error) {
 		}
 	}
 
-	return int(cave.erosion[pos.Y][pos.X] % 3), nil
+	return int(cave.erosion[pos.Y][pos.X] % 3)
 }
 
 func day22p01(r io.Reader) (string, error) {
@@ -114,9 +101,7 @@ func day22p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := cave.region(cave.target); err != nil {
-		return "", err
-	}
+	cave.region(cave.target)
 
 	risk := 0
 	for _, row := range cave.erosion {
@@ -143,10 +128,7 @@ func day22p02(r io.Reader) (string, error) {
 		tool int
 	}
 	edges := func(current state, yield func(state, int) bool) error {
-		region, err := cave.region(current.pos)
-		if err != nil {
-			return err
-		}
+		region := cave.region(current.pos)
 		for tool := range 3 {
 			if tool != current.tool && tool != region {
 				if !yield(state{pos: current.pos, tool: tool}, 7) {
@@ -158,11 +140,7 @@ func day22p02(r io.Reader) (string, error) {
 			if pos.X < 0 || pos.Y < 0 {
 				continue
 			}
-			region, err := cave.region(pos)
-			if err != nil {
-				return err
-			}
-			if current.tool != region {
+			if current.tool != cave.region(pos) {
 				if !yield(state{pos: pos, tool: current.tool}, 1) {
 					return nil
 				}
@@ -179,7 +157,7 @@ func day22p02(r io.Reader) (string, error) {
 	}
 	minutes, found, err := search.AStarDistance(state{tool: torch}, func(current state) bool {
 		return current.pos == cave.target && current.tool == torch
-	}, edges, heuristic, search.Limits{MaxExpanded: 1_000_000})
+	}, edges, heuristic, search.Limits{})
 	if err != nil {
 		return "", fmt.Errorf("cave search: %w", err)
 	}

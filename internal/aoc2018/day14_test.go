@@ -93,6 +93,9 @@ func TestRecipeErrors(t *testing.T) {
 			t.Errorf("expected error for %q", input)
 		}
 	}
+	if _, err := day14p01(strings.NewReader("9223372036854775807")); err == nil {
+		t.Error("expected recipe count overflow error")
+	}
 }
 
 func TestDay14ReadErrors(t *testing.T) {

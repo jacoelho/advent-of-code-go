@@ -59,6 +59,7 @@ func TestDay03InvalidInput(t *testing.T) {
 		input string
 	}{
 		{name: "invalid fabric claim", solve: day03p01, input: "#1 @ 0,0: -1x2"},
+		{name: "empty input", solve: day03p01, input: ""},
 	}
 
 	for _, tt := range tests {

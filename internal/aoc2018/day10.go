@@ -5,11 +5,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math/bits"
 	"regexp"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type skyPoint struct {
@@ -34,9 +34,6 @@ func parseSky(r io.Reader) ([]skyPoint, error) {
 			values[i] = value
 		}
 		points = append(points, skyPoint{values[0], values[1], values[2], values[3]})
-		if len(points) > 2000 {
-			return nil, fmt.Errorf("sky contains more than 2000 points")
-		}
 	}
 	if err := s.Err(); err != nil {
 		return nil, err
@@ -60,37 +57,21 @@ func skyBounds(points []skyPoint, time int64) (left, top, right, bottom int64) {
 	return left, top, right, bottom
 }
 
-func skyAlignment(points []skyPoint) (int64, error) {
-	var horizon int64
-	for i, first := range points {
-		for _, second := range points[i+1:] {
-			for _, axis := range [][2]int64{{second.x - first.x, first.dx - second.dx}, {second.y - first.y, first.dy - second.dy}} {
-				distance, velocity := axis[0], axis[1]
-				if velocity < 0 {
-					distance, velocity = -distance, -velocity
-				}
-				if velocity > 0 && distance > 0 {
-					horizon = max(horizon, (distance+velocity-1)/velocity)
-				}
-			}
-		}
-	}
-	if horizon > 2_000_000 || (horizon+1)*int64(len(points)) > 100_000_000 {
-		return 0, fmt.Errorf("sky alignment exceeds its time or point-evaluation limit")
-	}
+func skySpan(points []skyPoint, time int64) int64 {
+	left, top, right, bottom := skyBounds(points, time)
+	return right - left + bottom - top
+}
 
-	// After the final pairwise crossing, both bounding dimensions are nondecreasing.
-	bestTime := int64(0)
-	bestHigh, bestLow := ^uint64(0), ^uint64(0)
-	for time := int64(0); time <= horizon; time++ {
-		left, top, right, bottom := skyBounds(points, time)
-		high, low := bits.Mul64(uint64(right-left+1), uint64(bottom-top+1))
-		if high < bestHigh || high == bestHigh && low < bestLow {
-			bestTime, bestHigh, bestLow = time, high, low
-		}
+// skyAlignment returns the first second at which width plus height of the
+// bounding box is smallest. Each dimension is a maximum minus a minimum of
+// linear functions of time, so the sum is convex: the first second that does
+// not improve on the next one is a global minimum.
+func skyAlignment(points []skyPoint) int64 {
+	time := int64(0)
+	for skySpan(points, time+1) < skySpan(points, time) {
+		time++
 	}
-
-	return bestTime, nil
+	return time
 }
 
 func day10p01(r io.Reader) (string, error) {
@@ -98,17 +79,15 @@ func day10p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	time, err := skyAlignment(points)
-	if err != nil {
-		return "", err
-	}
+	time := skyAlignment(points)
 
 	left, top, right, bottom := skyBounds(points, time)
 	width, height := right-left+1, bottom-top+1
-	if width > 1_000_000 || height > 1_000_000 || width > 1_000_000/height {
-		return "", fmt.Errorf("aligned sky raster exceeds 1000000 pixels")
+	area, ok := xmath.CheckedMul(width, height)
+	if !ok {
+		return "", fmt.Errorf("aligned sky raster %dx%d overflows int", width, height)
 	}
-	pixels := bytes.Repeat([]byte{'.'}, int(width*height))
+	pixels := bytes.Repeat([]byte{'.'}, int(area))
 	for _, point := range points {
 		x, y := point.x+time*point.dx-left, point.y+time*point.dy-top
 		pixels[y*width+x] = '#'
@@ -130,10 +109,6 @@ func day10p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	time, err := skyAlignment(points)
-	if err != nil {
-		return "", err
-	}
 
-	return strconv.FormatInt(time, 10), nil
+	return strconv.FormatInt(skyAlignment(points), 10), nil
 }

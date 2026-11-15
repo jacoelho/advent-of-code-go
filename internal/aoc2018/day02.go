@@ -5,15 +5,29 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 func boxIDs(r io.Reader) ([]string, error) {
 	s := bufio.NewScanner(r)
 	var ids []string
 	for s.Scan() {
-		ids = append(ids, s.Text())
+		id := s.Text()
+		if len(id) == 0 || strings.IndexFunc(id, func(r rune) bool { return r < 'a' || r > 'z' }) >= 0 {
+			return nil, fmt.Errorf("invalid box ID %q", id)
+		}
+		if len(ids) > 0 && len(id) != len(ids[0]) {
+			return nil, fmt.Errorf("box ID %q differs in length from %q", id, ids[0])
+		}
+		ids = append(ids, id)
 	}
-	return ids, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no box IDs")
+	}
+	return ids, nil
 }
 
 func day02p01(r io.Reader) (string, error) {
@@ -51,9 +65,6 @@ func day02p02(r io.Reader) (string, error) {
 
 	for i, left := range ids {
 		for _, right := range ids[i+1:] {
-			if len(left) != len(right) {
-				continue
-			}
 			difference := -1
 			for j := range len(left) {
 				if left[j] == right[j] {

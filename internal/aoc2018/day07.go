@@ -24,7 +24,13 @@ func stepDependencies(r io.Reader) (map[byte]uint32, error) {
 		}
 		dependencies[after] |= 1 << (before - 'A')
 	}
-	return dependencies, s.Err()
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(dependencies) == 0 {
+		return nil, fmt.Errorf("no step dependencies")
+	}
+	return dependencies, nil
 }
 
 func day07p01(r io.Reader) (string, error) {

@@ -7,8 +7,6 @@ import (
 	"strconv"
 )
 
-const elfComparisonLimit = 1_000_000
-
 type haltingRecurrence struct {
 	initial, seed, orMask, byteMask, valueMask, multiplier, base int64
 }
@@ -130,9 +128,6 @@ func day21p02(r io.Reader) (string, error) {
 		value := recurrence.next(previous)
 		if seen[value] {
 			return strconv.FormatInt(previous, 10), nil
-		}
-		if len(seen) == elfComparisonLimit {
-			return "", fmt.Errorf("halting sequence exceeds %d distinct comparisons", elfComparisonLimit)
 		}
 		seen[value] = true
 		previous = value

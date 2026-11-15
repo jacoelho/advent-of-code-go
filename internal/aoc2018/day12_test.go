@@ -70,7 +70,7 @@ func Test_day12p02(t *testing.T) {
 }
 
 func TestPlantErrors(t *testing.T) {
-	for _, input := range []string{"", "initial state: x", "initial state: #\n..... => #", "initial state: #\n## => ."} {
+	for _, input := range []string{"", "initial state: x", "initial state: #\n\n..... => #", "initial state: #\n\n## => .", "initial state: #\n.#... => #", "initial state: #\n\n.#... => #\n\n#.... => #"} {
 		if _, err := day12p02(strings.NewReader(input)); err == nil {
 			t.Errorf("expected error for %q", input)
 		}

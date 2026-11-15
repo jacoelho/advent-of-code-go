@@ -104,6 +104,9 @@ func parseOpcodeInput(r io.Reader) ([]opcodeSample, [][4]int, error) {
 		samples = append(samples, opcodeSample{before: before, after: after, instruction: instruction})
 		i += 3
 	}
+	if len(samples) == 0 {
+		return nil, nil, fmt.Errorf("no opcode samples")
+	}
 	return samples, program, nil
 }
 
