@@ -22,3 +22,11 @@ func Test_day25p01(t *testing.T) {
 
 	aoc.AOCTest(t, day25p01, tests)
 }
+
+func TestPublicKeysRejectMalformedInput(t *testing.T) {
+	for _, input := range []string{"5764801", "1\n2\n3", "0\n17807724", "5764801\n20201227", "x\n1"} {
+		if _, err := day25p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected malformed-key error for %q", input)
+		}
+	}
+}

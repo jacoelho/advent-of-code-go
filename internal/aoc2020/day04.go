@@ -12,28 +12,24 @@ import (
 
 func parsePassports(r io.Reader) ([]map[string]string, error) {
 	var passports []map[string]string
-	fields := make(map[string]string)
-	s := scanner.NewScanner(r, func(line []byte) (string, error) { return string(line), nil })
-	for line := range s.Values() {
-		if strings.TrimSpace(line) == "" {
-			if len(fields) > 0 {
-				passports = append(passports, fields)
-				fields = make(map[string]string)
-			}
+	s := scanner.NewScanner(r, func(line []byte) (string, error) { return strings.TrimSpace(string(line)), nil })
+	for block := range xiter.Blocks(s.Values()) {
+		if len(block) == 0 {
 			continue
 		}
-		for field := range strings.FieldsSeq(line) {
-			key, value, ok := strings.Cut(field, ":")
-			if !ok || key == "" || value == "" {
-				return nil, fmt.Errorf("invalid passport field %q", field)
+		fields := make(map[string]string)
+		for _, line := range block {
+			for field := range strings.FieldsSeq(line) {
+				key, value, ok := strings.Cut(field, ":")
+				if !ok || key == "" || value == "" {
+					return nil, fmt.Errorf("invalid passport field %q", field)
+				}
+				if _, exists := fields[key]; exists {
+					return nil, fmt.Errorf("duplicate passport field %q", key)
+				}
+				fields[key] = value
 			}
-			if _, exists := fields[key]; exists {
-				return nil, fmt.Errorf("duplicate passport field %q", key)
-			}
-			fields[key] = value
 		}
-	}
-	if len(fields) > 0 {
 		passports = append(passports, fields)
 	}
 	return passports, s.Err()

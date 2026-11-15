@@ -11,7 +11,16 @@ import (
 )
 
 func parseExpenses(r io.Reader) ([]int, error) {
-	s := scanner.NewScanner[int](r, convert.ScanNumber)
+	s := scanner.NewScanner(r, func(line []byte) (int, error) {
+		expense, err := convert.ScanNumber[int](line)
+		if err != nil {
+			return 0, err
+		}
+		if expense < 0 {
+			return 0, fmt.Errorf("negative expense %d", expense)
+		}
+		return expense, nil
+	})
 	expenses := slices.Collect(s.Values())
 	slices.Sort(expenses)
 	return expenses, s.Err()

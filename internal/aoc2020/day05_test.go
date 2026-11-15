@@ -71,6 +71,8 @@ func TestDay05MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"boarding pass", "FBFBBFFRLF", day05p01},
+		{"duplicate seat", "FBFBBFFRLR\nFBFBBFFRLR", day05p01},
+		{"no passes", "", day05p02},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {

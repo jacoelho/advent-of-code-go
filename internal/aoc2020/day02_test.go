@@ -58,6 +58,7 @@ func TestDay02MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"policy", "0-2 a: ab", day02p02},
+		{"password character", "1-2 a: aB", day02p01},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {

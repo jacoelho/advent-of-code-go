@@ -54,3 +54,11 @@ func TestAllergenAssignmentErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestFoodListRejectsMalformedInput(t *testing.T) {
+	for _, input := range []string{"", "a B (contains x)", "a (contains x,y)", "a b"} {
+		if _, err := day21p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected malformed-input error for %q", input)
+		}
+	}
+}

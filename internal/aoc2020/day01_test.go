@@ -71,6 +71,7 @@ func TestDay01MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"expense", "not a number", day01p01},
+		{"negative expense", "2021\n-1", day01p01},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {

@@ -1,77 +1,74 @@
 package aoc2020
 
 import (
-	"bufio"
+	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
 )
 
-func parseCups(r io.Reader) ([]int, error) {
-	sc := bufio.NewScanner(r)
-	if !sc.Scan() {
-		if err := sc.Err(); err != nil {
-			return nil, err
-		}
-		return nil, nil
+// parseCups returns cup labels, which form a permutation of 1..n with n >= 5 so
+// that each move can pick up three cups and still find a destination.
+func parseCups(r io.Reader) ([]int32, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
 	}
-	line := sc.Bytes()
-	cups := make([]int, 0, len(line))
-	for _, b := range line {
-		if b >= '0' && b <= '9' {
-			cups = append(cups, int(b-'0'))
+	line := strings.TrimSpace(string(data))
+	if len(line) < 5 {
+		return nil, fmt.Errorf("need at least 5 cups, got %d", len(line))
+	}
+	seen := make([]bool, len(line)+1)
+	cups := make([]int32, len(line))
+	for i, c := range []byte(line) {
+		label := int(c - '0')
+		if c < '1' || c > '9' || label > len(line) {
+			return nil, fmt.Errorf("invalid cup label %q: labels must be 1..%d", c, len(line))
 		}
+		if seen[label] {
+			return nil, fmt.Errorf("duplicate cup label %d", label)
+		}
+		seen[label] = true
+		cups[i] = int32(label)
 	}
 	return cups, nil
 }
 
-// cupRing returns a successor table indexed by cup label and the initial current cup.
-// When extending the ring, it appends consecutive labels after the largest
-// input label through total.
-func cupRing(cups []int, total int) ([]int, int) {
-	next := make([]int, total+1)
-	for i := 0; i < len(cups)-1; i++ {
-		next[cups[i]] = cups[i+1]
-	}
+// playCups plays moves on a ring of total cups, the given cups followed by
+// labels len(cups)+1..total, and returns the successor of each cup label.
+func playCups(cups []int32, total int32, moves int) []int32 {
+	next := make([]int32, total+1)
 	last := cups[len(cups)-1]
-	maxCup := slices.Max(cups)
-	if total > len(cups) {
-		next[last] = maxCup + 1
-		for x := maxCup + 1; x < total; x++ {
-			next[x] = x + 1
-		}
-		next[total] = cups[0]
-	} else {
-		next[last] = cups[0]
+	for i, cup := range cups[:len(cups)-1] {
+		next[cup] = cups[i+1]
 	}
-	return next, cups[0]
-}
+	for cup := int32(len(cups)) + 1; cup <= total; cup++ {
+		next[last] = cup
+		last = cup
+	}
+	next[last] = cups[0]
 
-// simulate updates next in place by playing the requested Crab Cups moves from current.
-func simulate(next []int, current, moves, maxCup int) {
-	for i := 0; i < moves; i++ {
+	current := cups[0]
+	for range moves {
 		a := next[current]
 		b := next[a]
 		c := next[b]
-
 		next[current] = next[c]
-
-		dest := current - 1
-		if dest == 0 {
-			dest = maxCup
-		}
-		for dest == a || dest == b || dest == c {
-			dest--
-			if dest == 0 {
-				dest = maxCup
+		destination := current
+		for {
+			destination--
+			if destination == 0 {
+				destination = total
+			}
+			if destination != a && destination != b && destination != c {
+				break
 			}
 		}
-
-		next[c] = next[dest]
-		next[dest] = a
+		next[c] = next[destination]
+		next[destination] = a
 		current = next[current]
 	}
+	return next
 }
 
 func day23p01(r io.Reader) (string, error) {
@@ -79,17 +76,10 @@ func day23p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(cups) == 0 {
-		return "", nil
-	}
-
-	total := len(cups)
-	next, current := cupRing(cups, total)
-	simulate(next, current, 100, total)
-
+	next := playCups(cups, int32(len(cups)), 100)
 	var b strings.Builder
-	for x := next[1]; x != 1; x = next[x] {
-		b.WriteString(strconv.Itoa(x))
+	for cup := next[1]; cup != 1; cup = next[cup] {
+		b.WriteByte(byte('0' + cup))
 	}
 	return b.String(), nil
 }
@@ -99,20 +89,7 @@ func day23p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(cups) == 0 {
-		return "", nil
-	}
-
-	const (
-		total = 1_000_000
-		moves = 10_000_000
-	)
-
-	next, current := cupRing(cups, total)
-	simulate(next, current, moves, total)
-
-	x := next[1]
-	y := next[x]
-	prod := uint64(x) * uint64(y)
-	return strconv.FormatUint(prod, 10), nil
+	next := playCups(cups, 1_000_000, 10_000_000)
+	first := next[1]
+	return strconv.FormatInt(int64(first)*int64(next[first]), 10), nil
 }

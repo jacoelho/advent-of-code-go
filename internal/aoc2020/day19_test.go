@@ -106,7 +106,7 @@ func TestRecursiveMessageGrammar(t *testing.T) {
 }
 
 func TestMessageGrammarErrors(t *testing.T) {
-	for _, input := range []string{"0: 1\n\na", "1: \"a\"\n\na", "0: 1 |\n1: \"a\"\n\na", "0: \"ab\"\n\na", "0: \"a\"\n0: \"b\"\n\na"} {
+	for _, input := range []string{"0: 1\n\na", "1: \"a\"\n\na", "0: 1 |\n1: \"a\"\n\na", "0: \"ab\"\n\na", "0: \"a\"\n0: \"b\"\n\na", "0: \"a\"\n\na1", "0: \"a\"\n\na\n\na"} {
 		if _, err := day19p01(strings.NewReader(input)); err == nil {
 			t.Errorf("expected grammar error for %q", input)
 		}

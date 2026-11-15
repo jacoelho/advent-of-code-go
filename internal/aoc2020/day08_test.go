@@ -78,6 +78,7 @@ func TestDay08MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"boot", "mul +1", day08p01},
+		{"empty boot code", "", day08p01},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {

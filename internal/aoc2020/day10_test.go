@@ -3,6 +3,7 @@ package aoc2020
 import (
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -145,11 +146,22 @@ func TestDay10MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"adapters", "-1", day10p01},
+		{"no adapters", "", day10p01},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := tt.solve(strings.NewReader(tt.input)); err == nil {
 				t.Fatal("expected malformed-input error")
 			}
 		})
+	}
+}
+
+func TestAdapterArrangementsRejectOverflow(t *testing.T) {
+	var ratings []string
+	for rating := 1; rating <= 100; rating++ {
+		ratings = append(ratings, strconv.Itoa(rating))
+	}
+	if _, err := day10p02(strings.NewReader(strings.Join(ratings, "\n"))); err == nil {
+		t.Fatal("expected overflow error")
 	}
 }
