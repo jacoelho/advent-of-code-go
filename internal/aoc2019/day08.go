@@ -1,6 +1,8 @@
 package aoc2019
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"math"
 	"strconv"
@@ -9,94 +11,80 @@ import (
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 )
 
-func parseImageLayers(r io.Reader, width, height int) ([]string, error) {
+const (
+	imageWidth  = 25
+	imageHeight = 6
+)
+
+func parseImageLayers(r io.Reader, width, height int) ([][]byte, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-
-	input := strings.TrimSpace(string(data))
+	data = bytes.TrimSpace(data)
 	layerSize := width * height
-
-	var layers []string
-	for i := 0; i < len(input); i += layerSize {
-		if i+layerSize <= len(input) {
-			layers = append(layers, input[i:i+layerSize])
-		}
+	if len(data) == 0 || len(data)%layerSize != 0 {
+		return nil, fmt.Errorf("image has %d pixels, want a positive multiple of %d", len(data), layerSize)
+	}
+	if i := bytes.IndexFunc(data, func(c rune) bool { return c < '0' || c > '2' }); i >= 0 {
+		return nil, fmt.Errorf("invalid pixel %q at %d", data[i], i)
 	}
 
+	var layers [][]byte
+	for i := 0; i < len(data); i += layerSize {
+		layers = append(layers, data[i:i+layerSize])
+	}
 	return layers, nil
 }
 
-func countDigits(layer string) map[rune]int {
-	freq := make(map[rune]int)
-	for _, ch := range layer {
-		freq[ch]++
-	}
-	return freq
-}
-
 func day08p01(r io.Reader) (string, error) {
-	layers, err := parseImageLayers(r, 25, 6)
+	layers, err := parseImageLayers(r, imageWidth, imageHeight)
 	if err != nil {
 		return "", err
 	}
 
 	minZeros := math.MaxInt
 	checksum := 0
-
 	for _, layer := range layers {
-		freq := countDigits(layer)
-		if freq['0'] < minZeros {
-			minZeros = freq['0']
-			checksum = freq['1'] * freq['2']
+		var counts [3]int
+		for _, pixel := range layer {
+			counts[pixel-'0']++
+		}
+		if counts[0] < minZeros {
+			minZeros = counts[0]
+			checksum = counts[1] * counts[2]
 		}
 	}
-
 	return strconv.Itoa(checksum), nil
 }
 
-func decodeImage(layers []string, width, height int) []byte {
-	size := width * height
-	result := make([]byte, size)
-
-	for i := range size {
-		for _, layer := range layers {
-			if layer[i] != '2' {
-				result[i] = layer[i]
-				break
-			}
-		}
-	}
-
-	return result
-}
-
-func renderImage(pixels []byte, width, height int) string {
-	var sb strings.Builder
-	for row := range height {
-		for col := range width {
-			idx := row*width + col
-			if pixels[idx] == '1' {
-				sb.WriteByte('#')
-			} else {
-				sb.WriteByte(' ')
-			}
-		}
-		if row < height-1 {
-			sb.WriteByte('\n')
-		}
-	}
-	return sb.String()
-}
-
 func day08p02(r io.Reader) (string, error) {
-	layers, err := parseImageLayers(r, 25, 6)
+	layers, err := parseImageLayers(r, imageWidth, imageHeight)
 	if err != nil {
 		return "", err
 	}
 
-	image := decodeImage(layers, 25, 6)
-	rendered := renderImage(image, 25, 6)
-	return aoc.Decode6RowDisplay(strings.Split(rendered, "\n"), 5)
+	rows := make([]string, imageHeight)
+	for y := range imageHeight {
+		var row strings.Builder
+		for x := range imageWidth {
+			i := y*imageWidth + x
+			pixel := byte('2')
+			for _, layer := range layers {
+				if pixel = layer[i]; pixel != '2' {
+					break
+				}
+			}
+			switch pixel {
+			case '1':
+				row.WriteByte('#')
+			case '0':
+				row.WriteByte(' ')
+			default:
+				return "", fmt.Errorf("pixel (%d,%d) is transparent in every layer", x, y)
+			}
+		}
+		rows[y] = row.String()
+	}
+	return aoc.Decode6RowDisplay(rows, 5)
 }

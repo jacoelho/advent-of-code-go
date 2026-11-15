@@ -25,14 +25,10 @@ func (cabinet *arcadeCabinet) update(output []int) error {
 			cabinet.score = tile
 			continue
 		}
-		if x < 0 || y < 0 || x > 1_000_000 || y > 1_000_000 || tile < 0 || tile > 4 {
+		if x < 0 || y < 0 || tile < 0 || tile > 4 {
 			return fmt.Errorf("invalid arcade tile (%d,%d,%d)", x, y, tile)
 		}
-		position := grid.Position2D[int]{X: x, Y: y}
-		if _, exists := cabinet.tiles[position]; !exists && len(cabinet.tiles) == 100_000 {
-			return fmt.Errorf("arcade exceeds 100000 tile positions")
-		}
-		cabinet.tiles[position] = tile
+		cabinet.tiles[grid.Position2D[int]{X: x, Y: y}] = tile
 		switch tile {
 		case 3:
 			cabinet.paddleX = x
@@ -51,17 +47,11 @@ func playArcade(program []int, freePlay bool) (arcadeCabinet, error) {
 			return arcadeCabinet{}, err
 		}
 	}
-	updates := 0
-	for range 100_000 {
+	for {
 		if err := computer.Run(); err != nil {
 			return arcadeCabinet{}, err
 		}
-		output := computer.GetOutput()
-		updates += len(output) / 3
-		if updates > 1_000_000 {
-			return arcadeCabinet{}, fmt.Errorf("arcade exceeds one million updates")
-		}
-		if err := cabinet.update(output); err != nil {
+		if err := cabinet.update(computer.GetOutput()); err != nil {
 			return arcadeCabinet{}, err
 		}
 		if computer.IsHalted() {
@@ -72,7 +62,6 @@ func playArcade(program []int, freePlay bool) (arcadeCabinet, error) {
 		}
 		computer.AddInput(cmp.Compare(cabinet.ballX, cabinet.paddleX))
 	}
-	return arcadeCabinet{}, fmt.Errorf("arcade exceeds 100000 input requests")
 }
 
 func day13p01(r io.Reader) (string, error) {

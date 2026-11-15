@@ -12,6 +12,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/graph"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type chemical struct {
@@ -38,8 +39,8 @@ func parseChemical(s string) (chemical, error) {
 	if err != nil {
 		return chemical{}, err
 	}
-	if quantity <= 0 || len(parts[1]) > 128 {
-		return chemical{}, fmt.Errorf("chemical needs a positive quantity and bounded name")
+	if quantity <= 0 {
+		return chemical{}, fmt.Errorf("chemical %q needs a positive quantity", s)
 	}
 	for _, c := range parts[1] {
 		if c < 'A' || c > 'Z' {
@@ -70,31 +71,21 @@ func parseReaction(line string) (reaction, error) {
 }
 
 func parseReactions(r io.Reader) (reactionSystem, error) {
-	const inputLimit = 4 << 20
-	limited := &io.LimitedReader{R: r, N: inputLimit + 1}
-	s := scanner.NewScanner(limited, func(line []byte) (reaction, error) {
+	s := scanner.NewScanner(r, func(line []byte) (reaction, error) {
 		return parseReaction(string(line))
 	})
 	system := reactionSystem{recipes: make(map[string]reaction)}
 	var names []string
-	ingredients := 0
 	for recipe := range s.Values() {
 		name := recipe.output.name
 		if _, exists := system.recipes[name]; exists || name == "ORE" {
 			return reactionSystem{}, fmt.Errorf("duplicate or invalid recipe for %s", name)
-		}
-		ingredients += len(recipe.inputs)
-		if len(names) == 4096 || ingredients > 65_536 {
-			return reactionSystem{}, fmt.Errorf("reaction system exceeds recipe or ingredient limit")
 		}
 		system.recipes[name] = recipe
 		names = append(names, name)
 	}
 	if err := s.Err(); err != nil {
 		return reactionSystem{}, err
-	}
-	if limited.N == 0 {
-		return reactionSystem{}, fmt.Errorf("reactions exceed 4 MiB")
 	}
 	if _, exists := system.recipes["FUEL"]; !exists {
 		return reactionSystem{}, fmt.Errorf("missing FUEL recipe")
@@ -138,14 +129,15 @@ func (system reactionSystem) oreForFuel(fuel int64) (int64, error) {
 			batches++
 		}
 		for _, ingredient := range recipe.inputs {
-			if batches > math.MaxInt64/ingredient.quantity {
+			quantity, ok := xmath.CheckedMul(batches, ingredient.quantity)
+			if !ok {
 				return 0, fmt.Errorf("reaction demand for %s overflows int64", ingredient.name)
 			}
-			quantity := batches * ingredient.quantity
-			if needed[ingredient.name] > math.MaxInt64-quantity {
+			demand, ok := xmath.CheckedAdd(needed[ingredient.name], quantity)
+			if !ok {
 				return 0, fmt.Errorf("reaction demand for %s overflows int64", ingredient.name)
 			}
-			needed[ingredient.name] += quantity
+			needed[ingredient.name] = demand
 		}
 	}
 	return needed["ORE"], nil

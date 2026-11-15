@@ -5,176 +5,123 @@ import (
 	"io"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
-	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
-// Moon is a moon's position and velocity.
-type Moon struct {
-	x, y, z    int
-	vx, vy, vz int
-}
-
-func parseMoon(line []byte) (*Moon, error) {
-	coords := convert.ExtractDigits[int](string(line))
-	if len(coords) != 3 {
-		return nil, fmt.Errorf("expected 3 coordinates, got %d", len(coords))
-	}
-	return &Moon{x: coords[0], y: coords[1], z: coords[2]}, nil
-}
-
-func parseMoons(r io.Reader) ([]*Moon, error) {
-	s := scanner.NewScanner(r, parseMoon)
-	return slices.Collect(s.Values()), s.Err()
-}
-
-func applyGravityAxis(pos1, pos2 int) (delta1, delta2 int) {
-	switch {
-	case pos1 < pos2:
-		return 1, -1
-	case pos1 > pos2:
-		return -1, 1
-	default:
-		return 0, 0
-	}
-}
-
-func applyGravity(moons []*Moon) {
-	for pair := range xslices.Pairwise(moons) {
-		m1, m2 := pair.V1, pair.V2
-
-		dx1, dx2 := applyGravityAxis(m1.x, m2.x)
-		m1.vx += dx1
-		m2.vx += dx2
-
-		dy1, dy2 := applyGravityAxis(m1.y, m2.y)
-		m1.vy += dy1
-		m2.vy += dy2
-
-		dz1, dz2 := applyGravityAxis(m1.z, m2.z)
-		m1.vz += dz1
-		m2.vz += dz2
-	}
-}
-
-func applyVelocity(moons []*Moon) {
-	for _, m := range moons {
-		m.x += m.vx
-		m.y += m.vy
-		m.z += m.vz
-	}
-}
-
-func simulate(moons []*Moon, steps int) {
-	for range steps {
-		applyGravity(moons)
-		applyVelocity(moons)
-	}
-}
-
-func totalEnergy(moons []*Moon) int {
-	return xiter.FromSlice(moons).SumBy(func(m *Moon) int {
-		potentialEnergy := xmath.Abs(m.x) + xmath.Abs(m.y) + xmath.Abs(m.z)
-		kineticEnergy := xmath.Abs(m.vx) + xmath.Abs(m.vy) + xmath.Abs(m.vz)
-		return potentialEnergy * kineticEnergy
-	})
-}
-
-func day12p01(r io.Reader) (string, error) {
-	moons, err := parseMoons(r)
-	if err != nil {
-		return "", err
-	}
-
-	simulate(moons, 1000)
-	energy := totalEnergy(moons)
-
-	return strconv.Itoa(energy), nil
-}
-
-type axisState struct {
+// moonAxis holds every moon's position and velocity along one axis. Gravity
+// on an axis depends only on positions along that axis, so axes evolve
+// independently.
+type moonAxis struct {
 	positions  []int
 	velocities []int
 }
 
-func (a axisState) equals(other axisState) bool {
-	return slices.Equal(a.positions, other.positions) && slices.Equal(a.velocities, other.velocities)
+func parseMoon(line []byte) ([3]int, error) {
+	var moon [3]int
+	text, hasOpen := strings.CutPrefix(string(line), "<")
+	text, hasClose := strings.CutSuffix(text, ">")
+	if !hasOpen || !hasClose {
+		return moon, fmt.Errorf("invalid moon %q", line)
+	}
+	fields := strings.Split(text, ", ")
+	if len(fields) != 3 {
+		return moon, fmt.Errorf("invalid moon %q", line)
+	}
+	for axis, name := range []string{"x=", "y=", "z="} {
+		value, ok := strings.CutPrefix(fields[axis], name)
+		if !ok {
+			return moon, fmt.Errorf("invalid moon %q", line)
+		}
+		position, err := convert.ScanNumber[int]([]byte(value))
+		if err != nil {
+			return moon, fmt.Errorf("moon %q: %w", line, err)
+		}
+		moon[axis] = position
+	}
+	return moon, nil
 }
 
-func getAxisState(moons []*Moon, axis int) axisState {
-	n := len(moons)
-	state := axisState{
-		positions:  make([]int, n),
-		velocities: make([]int, n),
-	}
-
-	for i, m := range moons {
-		switch axis {
-		case 0:
-			state.positions[i] = m.x
-			state.velocities[i] = m.vx
-		case 1:
-			state.positions[i] = m.y
-			state.velocities[i] = m.vy
-		case 2:
-			state.positions[i] = m.z
-			state.velocities[i] = m.vz
+func parseMoons(r io.Reader) ([3]moonAxis, error) {
+	var axes [3]moonAxis
+	s := scanner.NewScanner(r, parseMoon)
+	for moon := range s.Values() {
+		for axis, position := range moon {
+			axes[axis].positions = append(axes[axis].positions, position)
+			axes[axis].velocities = append(axes[axis].velocities, 0)
 		}
 	}
-
-	return state
+	if err := s.Err(); err != nil {
+		return axes, err
+	}
+	if len(axes[0].positions) == 0 {
+		return axes, fmt.Errorf("no moons")
+	}
+	return axes, nil
 }
 
-func applyGravityAxis1D(state *axisState) {
-	n := len(state.positions)
-	for i := range n {
-		for j := i + 1; j < n; j++ {
-			dv1, dv2 := applyGravityAxis(state.positions[i], state.positions[j])
-			state.velocities[i] += dv1
-			state.velocities[j] += dv2
+func (a *moonAxis) step() {
+	for i, pi := range a.positions {
+		for j := i + 1; j < len(a.positions); j++ {
+			pull := 0
+			switch pj := a.positions[j]; {
+			case pi < pj:
+				pull = 1
+			case pi > pj:
+				pull = -1
+			}
+			a.velocities[i] += pull
+			a.velocities[j] -= pull
 		}
 	}
-}
-
-func applyVelocityAxis1D(state *axisState) {
-	for i := range state.positions {
-		state.positions[i] += state.velocities[i]
+	for i, v := range a.velocities {
+		a.positions[i] += v
 	}
 }
 
-func findAxisCycle(moons []*Moon, axis int) int {
-	initial := getAxisState(moons, axis)
-	current := axisState{
-		positions:  slices.Clone(initial.positions),
-		velocities: slices.Clone(initial.velocities),
-	}
-
-	steps := 0
-	for {
-		steps++
-		applyGravityAxis1D(&current)
-		applyVelocityAxis1D(&current)
-		if current.equals(initial) {
+// period returns the number of steps until the axis first returns to its
+// starting state. The simulation is reversible, so the starting state is the
+// first to repeat.
+func (a moonAxis) period() int {
+	current := moonAxis{positions: slices.Clone(a.positions), velocities: slices.Clone(a.velocities)}
+	for steps := 1; ; steps++ {
+		current.step()
+		if slices.Equal(current.positions, a.positions) && slices.Equal(current.velocities, a.velocities) {
 			return steps
 		}
 	}
 }
 
-func day12p02(r io.Reader) (string, error) {
-	moons, err := parseMoons(r)
+func day12p01(r io.Reader) (string, error) {
+	axes, err := parseMoons(r)
 	if err != nil {
 		return "", err
 	}
+	for axis := range axes {
+		for range 1000 {
+			axes[axis].step()
+		}
+	}
 
-	cycleX := findAxisCycle(moons, 0)
-	cycleY := findAxisCycle(moons, 1)
-	cycleZ := findAxisCycle(moons, 2)
+	energy := 0
+	for moon := range axes[0].positions {
+		potential, kinetic := 0, 0
+		for _, a := range axes {
+			potential += xmath.Abs(a.positions[moon])
+			kinetic += xmath.Abs(a.velocities[moon])
+		}
+		energy += potential * kinetic
+	}
+	return strconv.Itoa(energy), nil
+}
 
-	result := xmath.LCM(cycleX, cycleY, cycleZ)
-
-	return strconv.Itoa(result), nil
+func day12p02(r io.Reader) (string, error) {
+	axes, err := parseMoons(r)
+	if err != nil {
+		return "", err
+	}
+	return strconv.Itoa(xmath.LCM(axes[0].period(), axes[1].period(), axes[2].period())), nil
 }

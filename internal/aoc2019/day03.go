@@ -4,148 +4,100 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-type direction uint8
-
-const (
-	directionUp direction = iota
-	directionDown
-	directionLeft
-	directionRight
-)
-
-var directionMap = map[byte]direction{
-	'U': directionUp,
-	'D': directionDown,
-	'L': directionLeft,
-	'R': directionRight,
+type wireSegment struct {
+	offset   grid.Position2D[int]
+	distance int
 }
 
-var directionsOffsets = map[direction]grid.Position2D[int]{
-	directionUp:    {X: 0, Y: -1},
-	directionDown:  {X: 0, Y: 1},
-	directionLeft:  {X: -1, Y: 0},
-	directionRight: {X: 1, Y: 0},
-}
-
-type instruction struct {
-	direction direction
-	distance  int
-}
-
-func parseWirePath(line string) ([]instruction, error) {
-	segments := strings.Split(strings.TrimSpace(line), ",")
-	instructions := make([]instruction, 0, len(segments))
-
-	for _, seg := range segments {
-		if len(seg) < 2 {
-			return nil, fmt.Errorf("invalid segment: %s", seg)
+func parseWirePath(line []byte) ([]wireSegment, error) {
+	var segments []wireSegment
+	for token := range strings.SplitSeq(strings.TrimSpace(string(line)), ",") {
+		if len(token) < 2 || token[1] < '0' || token[1] > '9' {
+			return nil, fmt.Errorf("invalid wire segment %q", token)
 		}
-
-		dir, ok := directionMap[seg[0]]
-		if !ok {
-			return nil, fmt.Errorf("invalid direction: %c", seg[0])
+		var offset grid.Position2D[int]
+		switch token[0] {
+		case 'U':
+			offset = grid.Position2D[int]{Y: -1}
+		case 'D':
+			offset = grid.Position2D[int]{Y: 1}
+		case 'L':
+			offset = grid.Position2D[int]{X: -1}
+		case 'R':
+			offset = grid.Position2D[int]{X: 1}
+		default:
+			return nil, fmt.Errorf("invalid direction in wire segment %q", token)
 		}
-
-		distance, err := strconv.Atoi(seg[1:])
+		distance, err := convert.ScanNumber[int]([]byte(token[1:]))
 		if err != nil {
-			return nil, fmt.Errorf("invalid distance in segment %s: %w", seg, err)
+			return nil, fmt.Errorf("wire segment %q: %w", token, err)
 		}
-
-		instructions = append(instructions, instruction{direction: dir, distance: distance})
+		segments = append(segments, wireSegment{offset: offset, distance: distance})
 	}
-
-	return instructions, nil
+	return segments, nil
 }
 
-func parseWiresPaths(r io.Reader) ([]instruction, []instruction, error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]instruction, error) {
-		return parseWirePath(string(line))
-	})
-
-	wires := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
-		return nil, nil, err
-	}
-
-	if len(wires) != 2 {
-		return nil, nil, fmt.Errorf("expected 2 wires, got %d", len(wires))
-	}
-
-	return wires[0], wires[1], nil
-}
-
-func traceWire(instructions []instruction) map[grid.Position2D[int]]int {
+// traceWire maps every point the wire visits, except the central port, to the
+// steps taken to first reach it.
+func traceWire(segments []wireSegment) map[grid.Position2D[int]]int {
 	steps := make(map[grid.Position2D[int]]int)
-	current := grid.Position2D[int]{X: 0, Y: 0}
+	var current grid.Position2D[int]
 	stepCount := 0
-
-	for _, inst := range instructions {
-		offset := directionsOffsets[inst.direction]
-		for range inst.distance {
-			current = current.Add(offset)
+	for _, segment := range segments {
+		for range segment.distance {
+			current = current.Add(segment.offset)
 			stepCount++
-			if current == (grid.Position2D[int]{}) {
-				continue
-			}
-			if _, exists := steps[current]; !exists {
+			if _, seen := steps[current]; !seen && current != (grid.Position2D[int]{}) {
 				steps[current] = stepCount
 			}
 		}
 	}
-
 	return steps
 }
 
-func day03p01(r io.Reader) (string, error) {
-	wire1, wire2, err := parseWiresPaths(r)
-	if err != nil {
+// closestCrossing returns the lowest cost over the points both wires visit.
+func closestCrossing(r io.Reader, cost func(pos grid.Position2D[int], steps1, steps2 int) int) (string, error) {
+	s := scanner.NewScanner(r, parseWirePath)
+	var wires [][]wireSegment
+	for wire := range s.Values() {
+		wires = append(wires, wire)
+	}
+	if err := s.Err(); err != nil {
 		return "", err
 	}
+	if len(wires) != 2 {
+		return "", fmt.Errorf("expected 2 wires, got %d", len(wires))
+	}
 
-	wire1Steps := traceWire(wire1)
-	wire2Steps := traceWire(wire2)
-
-	origin := grid.Position2D[int]{}
-	minDistance := math.MaxInt
-
-	for pos := range wire1Steps {
-		if _, exists := wire2Steps[pos]; exists {
-			minDistance = min(minDistance, origin.Distance(pos))
+	steps1, steps2 := traceWire(wires[0]), traceWire(wires[1])
+	best := math.MaxInt
+	for pos, s1 := range steps1 {
+		if s2, ok := steps2[pos]; ok {
+			best = min(best, cost(pos, s1, s2))
 		}
 	}
-
-	if minDistance == math.MaxInt {
+	if best == math.MaxInt {
 		return "", fmt.Errorf("wires do not intersect outside the central port")
 	}
-	return strconv.Itoa(minDistance), nil
+	return strconv.Itoa(best), nil
+}
+
+func day03p01(r io.Reader) (string, error) {
+	return closestCrossing(r, func(pos grid.Position2D[int], _, _ int) int {
+		return pos.Distance(grid.Position2D[int]{})
+	})
 }
 
 func day03p02(r io.Reader) (string, error) {
-	wire1, wire2, err := parseWiresPaths(r)
-	if err != nil {
-		return "", err
-	}
-
-	wire1Steps := traceWire(wire1)
-	wire2Steps := traceWire(wire2)
-
-	minSteps := math.MaxInt
-	for pos, steps1 := range wire1Steps {
-		if steps2, exists := wire2Steps[pos]; exists {
-			minSteps = min(minSteps, steps1+steps2)
-		}
-	}
-
-	if minSteps == math.MaxInt {
-		return "", fmt.Errorf("wires do not intersect outside the central port")
-	}
-	return strconv.Itoa(minSteps), nil
+	return closestCrossing(r, func(_ grid.Position2D[int], steps1, steps2 int) int {
+		return steps1 + steps2
+	})
 }

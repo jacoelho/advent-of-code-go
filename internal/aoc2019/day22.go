@@ -3,13 +3,13 @@ package aoc2019
 import (
 	"fmt"
 	"io"
-	"math/big"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type shuffleOp int
@@ -26,57 +26,93 @@ type shuffle struct {
 }
 
 func parseShuffle(line []byte) (shuffle, error) {
-	s := string(line)
-
-	switch {
-	case s == "deal into new stack":
+	text := string(line)
+	if text == "deal into new stack" {
 		return shuffle{op: dealNewStack}, nil
-	case strings.Contains(s, "cut"):
-		nums := convert.ExtractDigits[int](s)
-		if len(nums) == 0 {
-			return shuffle{}, fmt.Errorf("no number found in cut instruction")
-		}
-		return shuffle{op: cut, n: nums[0]}, nil
-	case strings.Contains(s, "deal with increment"):
-		nums := convert.ExtractDigits[int](s)
-		if len(nums) == 0 {
-			return shuffle{}, fmt.Errorf("no number found in deal with increment instruction")
-		}
-		return shuffle{op: dealIncrement, n: nums[0]}, nil
-	default:
-		return shuffle{}, fmt.Errorf("unknown instruction: %s", s)
 	}
+	if arg, ok := strings.CutPrefix(text, "cut "); ok {
+		n, err := convert.ScanNumber[int]([]byte(arg))
+		if err != nil {
+			return shuffle{}, fmt.Errorf("shuffle %q: %w", text, err)
+		}
+		return shuffle{op: cut, n: n}, nil
+	}
+	if arg, ok := strings.CutPrefix(text, "deal with increment "); ok {
+		n, err := convert.ScanNumber[int]([]byte(arg))
+		if err != nil {
+			return shuffle{}, fmt.Errorf("shuffle %q: %w", text, err)
+		}
+		if n <= 0 {
+			return shuffle{}, fmt.Errorf("shuffle %q needs a positive increment", text)
+		}
+		return shuffle{op: dealIncrement, n: n}, nil
+	}
+	return shuffle{}, fmt.Errorf("unknown shuffle %q", text)
 }
 
 func parseShuffleInstructions(r io.Reader) ([]shuffle, error) {
-	const inputLimit = 4 << 20
-	limited := &io.LimitedReader{R: r, N: inputLimit + 1}
-	s := scanner.NewScanner(limited, parseShuffle)
+	s := scanner.NewScanner(r, parseShuffle)
 	instructions := slices.Collect(s.Values())
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
-	if limited.N == 0 || len(instructions) > 100_000 {
-		return nil, fmt.Errorf("shuffle input exceeds byte or instruction limit")
-	}
 	return instructions, nil
 }
 
-func trackCardPosition(instructions []shuffle, deckSize, cardNumber int) int {
-	pos := cardNumber
+// cardMap is the affine map x -> a*x + b modulo a deck size below 2^63; every
+// shuffle moves the card at position x to position a*x + b.
+type cardMap struct {
+	a, b, mod uint64
+}
 
+func (f cardMap) apply(x uint64) uint64 {
+	return (xmath.MulMod(f.a, x, f.mod) + f.b) % f.mod
+}
+
+// then returns the map that applies f and then g.
+func (f cardMap) then(g cardMap) cardMap {
+	return cardMap{a: xmath.MulMod(g.a, f.a, f.mod), b: g.apply(f.b), mod: f.mod}
+}
+
+func (f cardMap) pow(n uint64) cardMap {
+	result := cardMap{a: 1 % f.mod, mod: f.mod}
+	for ; n > 0; n >>= 1 {
+		if n&1 != 0 {
+			result = result.then(f)
+		}
+		f = f.then(f)
+	}
+	return result
+}
+
+func (f cardMap) inverse() (cardMap, error) {
+	inv, ok := xmath.ModInverse(f.a, f.mod)
+	if !ok {
+		return cardMap{}, fmt.Errorf("shuffle is not invertible for a deck of %d cards", f.mod)
+	}
+	return cardMap{a: inv, b: xmath.MulMod(inv, (f.mod-f.b)%f.mod, f.mod), mod: f.mod}, nil
+}
+
+// shuffleMap returns the map from a card's position before the instructions
+// to its position after them, for a deck of size cards.
+func shuffleMap(instructions []shuffle, size uint64) (cardMap, error) {
+	f := cardMap{a: 1 % size, mod: size}
 	for _, inst := range instructions {
+		var step cardMap
 		switch inst.op {
 		case dealNewStack:
-			pos = deckSize - 1 - pos
+			step = cardMap{a: size - 1, b: size - 1, mod: size}
 		case cut:
-			pos = (pos - inst.n + deckSize) % deckSize
+			step = cardMap{a: 1, b: (size - uint64(xmath.Modulo(inst.n, int(size)))) % size, mod: size}
 		case dealIncrement:
-			pos = (pos * inst.n) % deckSize
+			step = cardMap{a: uint64(xmath.Modulo(inst.n, int(size))), mod: size}
+			if _, ok := xmath.ModInverse(step.a, size); !ok {
+				return cardMap{}, fmt.Errorf("increment %d does not permute a deck of %d cards", inst.n, size)
+			}
 		}
+		f = f.then(step)
 	}
-
-	return pos
+	return f, nil
 }
 
 func day22p01(r io.Reader) (string, error) {
@@ -84,106 +120,11 @@ func day22p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	position := trackCardPosition(instructions, 10007, 2019)
-	return strconv.Itoa(position), nil
-}
-
-func bigMod(a, m *big.Int) *big.Int {
-	result := new(big.Int).Mod(a, m)
-	if result.Sign() < 0 {
-		result.Add(result, m)
+	f, err := shuffleMap(instructions, 10007)
+	if err != nil {
+		return "", err
 	}
-	return result
-}
-
-func modInv(a, m *big.Int) *big.Int {
-	return new(big.Int).ModInverse(a, m)
-}
-
-// linearFunc represents f(x) = (a*x + b) mod m.
-type linearFunc struct {
-	a, b, mod *big.Int
-}
-
-func (f linearFunc) apply(x *big.Int) *big.Int {
-	ax := new(big.Int).Mul(f.a, x)
-	result := new(big.Int).Add(ax, f.b)
-	return bigMod(result, f.mod)
-}
-
-// compose returns f(g(x)).
-func (f linearFunc) compose(g linearFunc) linearFunc {
-	newA := new(big.Int).Mul(f.a, g.a)
-	newA.Mod(newA, f.mod)
-
-	temp := new(big.Int).Mul(f.a, g.b)
-	newB := new(big.Int).Add(temp, f.b)
-	newB.Mod(newB, f.mod)
-
-	return linearFunc{a: newA, b: newB, mod: f.mod}
-}
-
-func (f linearFunc) pow(n uint64) linearFunc {
-	result := linearFunc{a: big.NewInt(1), b: big.NewInt(0), mod: f.mod}
-	for n > 0 {
-		if n&1 != 0 {
-			result = result.compose(f)
-		}
-		n >>= 1
-		if n > 0 {
-			f = f.compose(f)
-		}
-	}
-	return result
-}
-
-// shuffleToLinear returns the inverse of s as an affine transformation modulo mod.
-func shuffleToLinear(s shuffle, mod *big.Int) (linearFunc, error) {
-	switch s.op {
-	// f(x) = -x-1 is self-inverse, so f^-1(x) = -x-1
-	case dealNewStack:
-		return linearFunc{
-			a:   big.NewInt(-1),
-			b:   big.NewInt(-1),
-			mod: mod,
-		}, nil
-	// f(x) = x-n, so f^-1(x) = x+n
-	case cut:
-		return linearFunc{
-			a:   big.NewInt(1),
-			b:   big.NewInt(int64(s.n)),
-			mod: mod,
-		}, nil
-	// f(x) = n*x, so f^-1(x) = modinv(n)*x
-	case dealIncrement:
-		n := big.NewInt(int64(s.n))
-		invN := modInv(n, mod)
-		if invN == nil {
-			return linearFunc{}, fmt.Errorf("increment %d is not invertible modulo %s", s.n, mod)
-		}
-		return linearFunc{a: invN, b: big.NewInt(0), mod: mod}, nil
-	default:
-		return linearFunc{}, fmt.Errorf("unknown shuffle operation")
-	}
-}
-
-// composeInverse returns the inverse of the instruction sequence.
-// Since the inverse of g(f(x)) is f^-1(g^-1(x)), it composes inverses in input order.
-func composeInverse(instructions []shuffle, mod *big.Int) (linearFunc, error) {
-	f := linearFunc{
-		a:   big.NewInt(1),
-		b:   big.NewInt(0),
-		mod: mod,
-	}
-	for _, inst := range instructions {
-		operation, err := shuffleToLinear(inst, mod)
-		if err != nil {
-			return linearFunc{}, err
-		}
-		f = f.compose(operation)
-	}
-	return f, nil
+	return strconv.FormatUint(f.apply(2019), 10), nil
 }
 
 func day22p02(r io.Reader) (string, error) {
@@ -191,17 +132,13 @@ func day22p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	deckSize := big.NewInt(119315717514047)
-	iterations := uint64(101741582076661)
-	position := big.NewInt(2020)
-
-	fInverse, err := composeInverse(instructions, deckSize)
+	f, err := shuffleMap(instructions, 119315717514047)
 	if err != nil {
 		return "", err
 	}
-	fInversePow := fInverse.pow(iterations)
-	result := fInversePow.apply(position)
-
-	return result.String(), nil
+	inverse, err := f.pow(101741582076661).inverse()
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(inverse.apply(2020), 10), nil
 }

@@ -4,17 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
+	"maps"
 	"slices"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
-)
-
-const (
-	maxIntcodeInput  = 16 << 20
-	maxIntcodeMemory = 1_000_000
-	maxIntcodeOutput = 1_000_000
-	maxIntcodeSteps  = 10_000_000
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 // Opcode is the operation encoded in the two lowest decimal digits of an
@@ -45,41 +39,41 @@ const (
 	ModeRelative  Mode = 2
 )
 
-// IntcodeComputer runs an Intcode program with buffered input and output.
-// Memory grows on write up to a fixed word limit.
+// denseGrowthSlack bounds how far past the dense memory a write may land and
+// still extend it; farther writes go to a sparse map so a single large address
+// cannot force a huge allocation.
+const denseGrowthSlack = 1 << 16
+
+var modeDivisors = [3]int{100, 1000, 10000}
+
+// IntcodeComputer runs an Intcode program synchronously with buffered input
+// and output. Run executes until the program halts or needs input it does not
+// have; the caller owns the machine and resumes it explicitly.
 type IntcodeComputer struct {
 	memory       []int
+	far          map[int]int
 	ip           int
+	relativeBase int
 	input        []int
 	output       []int
 	halted       bool
 	waiting      bool
-	relativeBase int
 }
 
 // New snapshots program so each machine owns its memory.
 func New(program []int) *IntcodeComputer {
-	return &IntcodeComputer{
-		memory: slices.Clone(program),
-	}
+	return &IntcodeComputer{memory: slices.Clone(program)}
 }
 
 // ParseIntcodeInput parses a comma-separated Intcode program, trimming space
-// around each word. Empty or invalid words and input beyond the size limits
-// return an error.
+// around each word. Empty input or an empty or invalid word returns an error.
 func ParseIntcodeInput(r io.Reader) ([]int, error) {
-	data, err := io.ReadAll(io.LimitReader(r, maxIntcodeInput+1))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > maxIntcodeInput {
-		return nil, fmt.Errorf("intcode input exceeds 16 MiB")
-	}
 	var program []int
 	for token := range bytes.SplitSeq(data, []byte(",")) {
-		if len(program) == maxIntcodeMemory {
-			return nil, fmt.Errorf("intcode program exceeds %d words", maxIntcodeMemory)
-		}
 		value, err := convert.ScanNumber[int](bytes.TrimSpace(token))
 		if err != nil {
 			return nil, fmt.Errorf("intcode word %d: %w", len(program), err)
@@ -89,118 +83,121 @@ func ParseIntcodeInput(r io.Reader) ([]int, error) {
 	return program, nil
 }
 
-// readMemory returns zero for unwritten nonnegative addresses without growing memory.
-func (c *IntcodeComputer) readMemory(addr int) (int, error) {
-	if addr < 0 {
-		return 0, fmt.Errorf("memory read out of bounds: address %d", addr)
+func (c *IntcodeComputer) load(addr int) int {
+	if uint(addr) < uint(len(c.memory)) {
+		return c.memory[addr]
 	}
-	if addr >= len(c.memory) {
-		return 0, nil
-	}
-	return c.memory[addr], nil
+	return c.far[addr]
 }
 
-func (c *IntcodeComputer) writeMemory(addr, value int) error {
-	if addr < 0 {
-		return fmt.Errorf("memory write out of bounds: address %d", addr)
+func (c *IntcodeComputer) store(addr, value int) {
+	switch {
+	case addr < len(c.memory):
+		c.memory[addr] = value
+	case addr-len(c.memory) < denseGrowthSlack:
+		c.memory = slices.Grow(c.memory, max(addr+1, 2*len(c.memory))-len(c.memory))
+		c.memory = c.memory[:cap(c.memory)]
+		for at, v := range c.far {
+			if at < len(c.memory) {
+				c.memory[at] = v
+				delete(c.far, at)
+			}
+		}
+		c.memory[addr] = value
+	default:
+		if c.far == nil {
+			c.far = make(map[int]int)
+		}
+		c.far[addr] = value
 	}
-	if addr >= maxIntcodeMemory {
-		return fmt.Errorf("memory write exceeds %d words: address %d", maxIntcodeMemory, addr)
-	}
-	if addr >= len(c.memory) {
-		newMemory := make([]int, addr+1)
-		copy(newMemory, c.memory)
-		c.memory = newMemory
-	}
-	c.memory[addr] = value
-	return nil
-}
-
-func parseOpcode(value int) Opcode {
-	return Opcode(value % 100)
-}
-
-func parseMode(instruction int, paramPos int) Mode {
-	divisor := 100
-	for range paramPos {
-		divisor *= 10
-	}
-	return Mode((instruction / divisor) % 10)
 }
 
 func relativeAddress(base, offset int) (int, error) {
-	if offset > 0 && base > math.MaxInt-offset || offset < 0 && base < math.MinInt-offset {
+	address, ok := xmath.CheckedAdd(base, offset)
+	if !ok {
 		return 0, fmt.Errorf("relative address overflows: base %d, offset %d", base, offset)
 	}
-	return base + offset, nil
+	return address, nil
 }
 
-func (c *IntcodeComputer) getParameter(mode Mode, offset int) (int, error) {
-	param, err := c.readMemory(c.ip + offset)
-	if err != nil {
-		return 0, err
-	}
-
-	switch mode {
+// address resolves parameter n of the current instruction to a nonnegative
+// memory address.
+func (c *IntcodeComputer) address(instruction, n int) (int, error) {
+	param := c.load(c.ip + 1 + n)
+	addr := param
+	switch mode := Mode(instruction / modeDivisors[n] % 10); mode {
 	case ModePosition:
-		return c.readMemory(param)
-	case ModeImmediate:
-		return param, nil
 	case ModeRelative:
-		address, err := relativeAddress(c.relativeBase, param)
-		if err != nil {
+		var err error
+		if addr, err = relativeAddress(c.relativeBase, param); err != nil {
 			return 0, err
 		}
-		return c.readMemory(address)
+	case ModeImmediate:
+		return 0, fmt.Errorf("immediate mode for write parameter at position %d", c.ip)
 	default:
-		return 0, fmt.Errorf("unknown parameter mode: %d", mode)
+		return 0, fmt.Errorf("unknown parameter mode %d at position %d", mode, c.ip)
 	}
+	if addr < 0 {
+		return 0, fmt.Errorf("negative memory address %d at position %d", addr, c.ip)
+	}
+	return addr, nil
 }
 
-func (c *IntcodeComputer) getWriteAddress(mode Mode, offset int) (int, error) {
-	param, err := c.readMemory(c.ip + offset)
+func (c *IntcodeComputer) value(instruction, n int) (int, error) {
+	if Mode(instruction/modeDivisors[n]%10) == ModeImmediate {
+		return c.load(c.ip + 1 + n), nil
+	}
+	addr, err := c.address(instruction, n)
 	if err != nil {
 		return 0, err
 	}
-
-	switch mode {
-	case ModePosition:
-		return param, nil
-	case ModeRelative:
-		return relativeAddress(c.relativeBase, param)
-	case ModeImmediate:
-		return 0, fmt.Errorf("immediate mode not supported for write operations")
-	default:
-		return 0, fmt.Errorf("unknown parameter mode: %d", mode)
-	}
+	return c.load(addr), nil
 }
 
-// SetInput snapshots the replacement input; later caller mutations cannot change it.
+func (c *IntcodeComputer) operands(instruction int) (int, int, error) {
+	a, err := c.value(instruction, 0)
+	if err != nil {
+		return 0, 0, err
+	}
+	b, err := c.value(instruction, 1)
+	return a, b, err
+}
+
+func (c *IntcodeComputer) jump(target int) error {
+	if target < 0 {
+		return fmt.Errorf("jump to negative address %d at position %d", target, c.ip)
+	}
+	c.ip = target
+	return nil
+}
+
+// SetInput replaces the pending input with a copy of values.
 func (c *IntcodeComputer) SetInput(values ...int) {
 	c.input = slices.Clone(values)
 	c.waiting = false
 }
 
-// AddInput appends values to the pending input and clears the waiting state.
+// AddInput appends values to the pending input.
 func (c *IntcodeComputer) AddInput(values ...int) {
 	c.input = append(c.input, values...)
 	c.waiting = false
 }
 
-// GetOutput returns a copy of the buffered output and clears the buffer.
+// GetOutput returns the buffered output and clears the buffer.
 func (c *IntcodeComputer) GetOutput() []int {
-	output := slices.Clone(c.output)
+	output := c.output
 	c.output = nil
 	return output
 }
 
-// LastOutput consumes all buffered output and returns its last value.
-func (c *IntcodeComputer) LastOutput() (int, error) {
+// ReadOutputString consumes the buffered output as bytes.
+func (c *IntcodeComputer) ReadOutputString() string {
 	output := c.GetOutput()
-	if len(output) == 0 {
-		return 0, fmt.Errorf("no output produced")
+	result := make([]byte, len(output))
+	for i, value := range output {
+		result[i] = byte(value)
 	}
-	return output[len(output)-1], nil
+	return string(result)
 }
 
 // IsHalted reports whether the program has executed its halt instruction.
@@ -208,10 +205,128 @@ func (c *IntcodeComputer) IsHalted() bool {
 	return c.halted
 }
 
-// IsWaiting reports whether Run stopped at an input instruction with no pending
-// input. SetInput and AddInput clear it.
+// IsWaiting reports whether Run stopped at an input instruction with no
+// pending input. SetInput and AddInput clear it.
 func (c *IntcodeComputer) IsWaiting() bool {
 	return c.waiting
+}
+
+// ReadMemory returns the word at addr; unwritten addresses hold zero.
+func (c *IntcodeComputer) ReadMemory(addr int) (int, error) {
+	if addr < 0 {
+		return 0, fmt.Errorf("negative memory address %d", addr)
+	}
+	return c.load(addr), nil
+}
+
+// SetMemory writes value at addr.
+func (c *IntcodeComputer) SetMemory(addr, value int) error {
+	if addr < 0 {
+		return fmt.Errorf("negative memory address %d", addr)
+	}
+	c.store(addr, value)
+	return nil
+}
+
+// Clone returns an independent copy of the machine state.
+func (c *IntcodeComputer) Clone() *IntcodeComputer {
+	clone := *c
+	clone.memory = slices.Clone(c.memory)
+	clone.far = maps.Clone(c.far)
+	clone.input = slices.Clone(c.input)
+	clone.output = slices.Clone(c.output)
+	return &clone
+}
+
+// RunToHalt runs the program and returns an error if it stops to wait for
+// input instead of halting.
+func (c *IntcodeComputer) RunToHalt() error {
+	if err := c.Run(); err != nil {
+		return err
+	}
+	if !c.halted {
+		return fmt.Errorf("intcode program requested input at position %d after its input ran out", c.ip)
+	}
+	return nil
+}
+
+// Run executes until the program halts, needs input it does not have, or
+// fails.
+func (c *IntcodeComputer) Run() error {
+	for !c.halted {
+		instruction := c.load(c.ip)
+		switch opcode := Opcode(instruction % 100); opcode {
+		case OpAdd, OpMul, OpLessThan, OpEquals:
+			a, b, err := c.operands(instruction)
+			if err != nil {
+				return err
+			}
+			target, err := c.address(instruction, 2)
+			if err != nil {
+				return err
+			}
+			var result int
+			switch opcode {
+			case OpAdd:
+				result = a + b
+			case OpMul:
+				result = a * b
+			case OpLessThan:
+				result = boolToInt(a < b)
+			case OpEquals:
+				result = boolToInt(a == b)
+			}
+			c.store(target, result)
+			c.ip += 4
+		case OpInput:
+			if len(c.input) == 0 {
+				c.waiting = true
+				return nil
+			}
+			target, err := c.address(instruction, 0)
+			if err != nil {
+				return err
+			}
+			c.store(target, c.input[0])
+			c.input = c.input[1:]
+			c.ip += 2
+		case OpOutput:
+			value, err := c.value(instruction, 0)
+			if err != nil {
+				return err
+			}
+			c.output = append(c.output, value)
+			c.ip += 2
+		case OpJumpIfTrue, OpJumpIfFalse:
+			condition, target, err := c.operands(instruction)
+			if err != nil {
+				return err
+			}
+			if (condition != 0) == (opcode == OpJumpIfTrue) {
+				if err := c.jump(target); err != nil {
+					return err
+				}
+			} else {
+				c.ip += 3
+			}
+		case OpRelativeBase:
+			offset, err := c.value(instruction, 0)
+			if err != nil {
+				return err
+			}
+			base, err := relativeAddress(c.relativeBase, offset)
+			if err != nil {
+				return err
+			}
+			c.relativeBase = base
+			c.ip += 2
+		case OpHalt:
+			c.halted = true
+		default:
+			return fmt.Errorf("unknown opcode: %d at position %d", opcode, c.ip)
+		}
+	}
+	return nil
 }
 
 func boolToInt(b bool) int {
@@ -221,227 +336,14 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-func (c *IntcodeComputer) execBinaryOp(instruction int, op func(int, int) int) error {
-	val1, err := c.getParameter(parseMode(instruction, 0), 1)
-	if err != nil {
-		return err
-	}
-
-	val2, err := c.getParameter(parseMode(instruction, 1), 2)
-	if err != nil {
-		return err
-	}
-
-	pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
-	if err != nil {
-		return err
-	}
-
-	if err := c.writeMemory(pos3, op(val1, val2)); err != nil {
-		return err
-	}
-
-	c.ip += 4
-	return nil
-}
-
-func (c *IntcodeComputer) execComparisonOp(instruction int, cmp func(int, int) bool) error {
-	val1, err := c.getParameter(parseMode(instruction, 0), 1)
-	if err != nil {
-		return err
-	}
-
-	val2, err := c.getParameter(parseMode(instruction, 1), 2)
-	if err != nil {
-		return err
-	}
-
-	pos3, err := c.getWriteAddress(parseMode(instruction, 2), 3)
-	if err != nil {
-		return err
-	}
-
-	if err := c.writeMemory(pos3, boolToInt(cmp(val1, val2))); err != nil {
-		return err
-	}
-
-	c.ip += 4
-	return nil
-}
-
-func (c *IntcodeComputer) executeInstruction() (bool, error) {
-	instruction, err := c.readMemory(c.ip)
-	if err != nil {
-		return false, err
-	}
-	opcode := parseOpcode(instruction)
-
-	switch opcode {
-	case OpHalt:
-		c.halted = true
-		return true, nil
-
-	case OpAdd:
-		return false, c.execBinaryOp(instruction, func(a, b int) int { return a + b })
-
-	case OpMul:
-		return false, c.execBinaryOp(instruction, func(a, b int) int { return a * b })
-
-	case OpInput:
-		if len(c.input) == 0 {
-			c.waiting = true
-			return true, nil
-		}
-		inputVal := c.input[0]
-
-		pos, err := c.getWriteAddress(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-		if err := c.writeMemory(pos, inputVal); err != nil {
-			return false, err
-		}
-		c.input = c.input[1:]
-
-		c.ip += 2
-		return false, nil
-
-	case OpOutput:
-		val, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		if len(c.output) == maxIntcodeOutput {
-			return false, fmt.Errorf("intcode output exceeds %d words", maxIntcodeOutput)
-		}
-		c.output = append(c.output, val)
-
-		c.ip += 2
-		return false, nil
-
-	case OpJumpIfTrue:
-		val, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		target, err := c.getParameter(parseMode(instruction, 1), 2)
-		if err != nil {
-			return false, err
-		}
-
-		if val != 0 {
-			c.ip = target
-		} else {
-			c.ip += 3
-		}
-		return false, nil
-
-	case OpJumpIfFalse:
-		val, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		target, err := c.getParameter(parseMode(instruction, 1), 2)
-		if err != nil {
-			return false, err
-		}
-
-		if val == 0 {
-			c.ip = target
-		} else {
-			c.ip += 3
-		}
-		return false, nil
-
-	case OpLessThan:
-		return false, c.execComparisonOp(instruction, func(a, b int) bool { return a < b })
-
-	case OpEquals:
-		return false, c.execComparisonOp(instruction, func(a, b int) bool { return a == b })
-
-	case OpRelativeBase:
-		val, err := c.getParameter(parseMode(instruction, 0), 1)
-		if err != nil {
-			return false, err
-		}
-
-		base, err := relativeAddress(c.relativeBase, val)
-		if err != nil {
-			return false, err
-		}
-		c.relativeBase = base
-		c.ip += 2
-		return false, nil
-
-	default:
-		return false, fmt.Errorf("unknown opcode: %d at position %d", opcode, c.ip)
-	}
-}
-
-// Run executes until halt, missing input, or an error.
-// It returns an error if a resource limit or the per-call instruction budget is exceeded.
-func (c *IntcodeComputer) Run() error {
-	if len(c.memory) > maxIntcodeMemory || len(c.input) > maxIntcodeMemory {
-		return fmt.Errorf("intcode memory or input exceeds %d words", maxIntcodeMemory)
-	}
-	for range maxIntcodeSteps {
-		halt, err := c.executeInstruction()
-		if err != nil {
-			return err
-		}
-		if halt {
-			return nil
-		}
-	}
-	return fmt.Errorf("intcode execution exceeds %d instructions without pausing", maxIntcodeSteps)
-}
-
-// Memory returns a copy of the current memory state.
-func (c *IntcodeComputer) Memory() []int {
-	return slices.Clone(c.memory)
-}
-
-// SetMemory writes value at addr, growing memory as needed. A negative address
-// or one beyond the memory limit returns an error.
-func (c *IntcodeComputer) SetMemory(addr, value int) error {
-	return c.writeMemory(addr, value)
-}
-
-// ReadOutputString drains the output buffer, converting each value to a byte.
-func (c *IntcodeComputer) ReadOutputString() string {
-	output := c.GetOutput()
-	var result []byte
-	for _, val := range output {
-		result = append(result, byte(val))
-	}
-	return string(result)
-}
-
-// Clone creates a deep copy of the computer state.
-func (c *IntcodeComputer) Clone() *IntcodeComputer {
-	return &IntcodeComputer{
-		memory:       slices.Clone(c.memory),
-		ip:           c.ip,
-		input:        slices.Clone(c.input),
-		output:       slices.Clone(c.output),
-		halted:       c.halted,
-		waiting:      c.waiting,
-		relativeBase: c.relativeBase,
-	}
-}
-
-// StringsToASCII appends the rune values in each line followed by a newline.
-// It does not validate that the input is ASCII.
+// StringsToASCII returns the bytes of each line followed by a newline.
 func StringsToASCII(lines ...string) []int {
 	var result []int
 	for _, line := range lines {
-		for _, ch := range line {
-			result = append(result, int(ch))
+		for i := range len(line) {
+			result = append(result, int(line[i]))
 		}
-		result = append(result, 10)
+		result = append(result, '\n')
 	}
 	return result
 }

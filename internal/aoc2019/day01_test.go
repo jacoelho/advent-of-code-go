@@ -57,3 +57,11 @@ func TestDay01ReaderErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestDay01RejectsNegativeMass(t *testing.T) {
+	for _, solve := range []func(io.Reader) (string, error){day01p01, day01p02} {
+		if _, err := solve(strings.NewReader("12\n-5\n")); err == nil {
+			t.Fatal("expected negative mass error")
+		}
+	}
+}

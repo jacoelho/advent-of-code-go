@@ -11,18 +11,29 @@ import (
 )
 
 func TestScaffoldAlignment(t *testing.T) {
-	scaffold, err := parseScaffoldGrid(strings.NewReader(`..#..........
+	scaffold, err := parseScaffold(`..#..........
 ..#..........
 #######...###
 #.#...#...#.#
 #############
 ..#...#...#..
-..#####...^..`))
+..#####...^..`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := calculateAlignmentSum(scaffold); got != 76 {
 		t.Fatalf("alignment sum = %d, want 76", got)
+	}
+}
+
+func TestCameraViewErrors(t *testing.T) {
+	for _, view := range []string{"", "\n", "#.\n#", "#?"} {
+		if _, err := parseScaffold(view); err == nil {
+			t.Errorf("expected camera view error for %q", view)
+		}
+	}
+	if _, err := day17p01(strings.NewReader("104,291,99")); err == nil {
+		t.Error("expected error for non-ASCII camera output")
 	}
 }
 
@@ -75,7 +86,7 @@ func TestGenerateScaffoldPath(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			scaffold, err := parseScaffoldGrid(strings.NewReader(tt.grid))
+			scaffold, err := parseScaffold(tt.grid)
 			if err != nil {
 				t.Fatal(err)
 			}
