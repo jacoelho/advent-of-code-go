@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type caveSystem struct {
@@ -53,10 +53,11 @@ func parseCaves(r io.Reader) (caveSystem, error) {
 	caves.small = make([]uint64, len(names))
 	bits := 0
 	for i, name := range names {
-		if name != strings.ToLower(name) && name != strings.ToUpper(name) {
-			return caves, fmt.Errorf("mixed-case cave name %q", name)
+		lower := strings.Trim(name, "abcdefghijklmnopqrstuvwxyz") == ""
+		if !lower && strings.Trim(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != "" {
+			return caves, fmt.Errorf("cave name %q must be all lowercase or all uppercase letters", name)
 		}
-		if i != caves.start && i != caves.end && name == strings.ToLower(name) {
+		if i != caves.start && i != caves.end && lower {
 			if bits == 64 {
 				return caves, fmt.Errorf("cave system exceeds 64 small caves")
 			}
@@ -83,7 +84,6 @@ func cavePaths(r io.Reader, smallVisitLimit int) (uint64, error) {
 	ids := map[caveVisit]int{initial: 0}
 	parents := [][]int{nil}
 	var endings []int
-	edges := 0
 	for index := 0; index < len(states); index++ {
 		current := states[index]
 		if current.cave == caves.end {
@@ -108,19 +108,12 @@ func cavePaths(r io.Reader, smallVisitLimit int) (uint64, error) {
 			}
 			target, known := ids[visit]
 			if !known {
-				if len(states) == 1_000_000 {
-					return 0, fmt.Errorf("cave paths exceed state budget")
-				}
 				target = len(states)
 				ids[visit] = target
 				states = append(states, visit)
 				parents = append(parents, nil)
 			}
-			if edges == 8_000_000 {
-				return 0, fmt.Errorf("cave paths exceed transition budget")
-			}
 			parents[target] = append(parents[target], index)
-			edges++
 		}
 	}
 
@@ -161,10 +154,11 @@ func cavePaths(r io.Reader, smallVisitLimit int) (uint64, error) {
 			if !useful[parent] {
 				continue
 			}
-			if paths[parent] > math.MaxUint64-paths[child] {
+			sum, ok := xmath.CheckedAdd(paths[parent], paths[child])
+			if !ok {
 				return 0, fmt.Errorf("cave path count overflows uint64")
 			}
-			paths[parent] += paths[child]
+			paths[parent] = sum
 			pending[parent]--
 			if pending[parent] == 0 {
 				queue = append(queue, parent)

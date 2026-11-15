@@ -11,13 +11,13 @@ import (
 )
 
 func probeTrajectories(r io.Reader) (int64, int64, error) {
-	data, err := io.ReadAll(io.LimitReader(r, 1025))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return 0, 0, err
 	}
 	pattern := regexp.MustCompile(`^target area: x=(-?\d+)\.\.(-?\d+), y=(-?\d+)\.\.(-?\d+)$`)
 	match := pattern.FindSubmatch(bytes.TrimSpace(data))
-	if len(data) > 1024 || match == nil {
+	if match == nil {
 		return 0, 0, fmt.Errorf("invalid target area")
 	}
 	var bounds [4]int64
@@ -38,19 +38,11 @@ func probeTrajectories(r io.Reader) (int64, int64, error) {
 	// An initial vertical velocity of -ymin or more returns through y=0,
 	// then falls below ymin in its next step.
 	vxmin, vxmax := min(int64(0), xmin), max(int64(0), xmax)
-	if vxmax-vxmin+1 > 5_000_000/(-2*ymin) {
-		return 0, 0, fmt.Errorf("probe search exceeds 5000000 velocities")
-	}
 	var highest, hits int64
-	work := 0
 	for vx := vxmin; vx <= vxmax; vx++ {
 		for vy := ymin; vy < -ymin; vy++ {
 			x, y, dx, dy := int64(0), int64(0), vx, vy
 			for {
-				work++
-				if work > 50_000_000 {
-					return 0, 0, fmt.Errorf("probe search exceeds 50000000 steps")
-				}
 				x, y = x+dx, y+dy
 				if dx > 0 {
 					dx--

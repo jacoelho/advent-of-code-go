@@ -55,9 +55,9 @@ func TestDay05MalformedEndpoint(t *testing.T) {
 	}
 }
 
-func TestDay05RasterLimit(t *testing.T) {
-	if _, err := day05p02(strings.NewReader("-9223372036854775808,0 -> 9223372036854775807,0")); err == nil {
-		t.Fatal("expected raster limit error")
+func TestDay05NegativeCoordinate(t *testing.T) {
+	if _, err := day05p01(strings.NewReader("0,-1 -> 0,2")); err == nil {
+		t.Fatal("expected negative coordinate error")
 	}
 }
 

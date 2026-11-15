@@ -78,6 +78,20 @@ func TestDay04IncompleteBoard(t *testing.T) {
 	}
 }
 
+func TestDay04NegativeNumber(t *testing.T) {
+	input := strings.Replace(day04Example, "22 13 17 11  0", "22 13 17 11 -1", 1)
+	if _, err := day04p01(strings.NewReader(input)); err == nil {
+		t.Fatal("expected negative number error")
+	}
+}
+
+func TestDay04BlankLineInsideBoard(t *testing.T) {
+	input := strings.Replace(day04Example, " 8  2 23  4 24\n", " 8  2 23  4 24\n\n", 1)
+	if _, err := day04p01(strings.NewReader(input)); err == nil {
+		t.Fatal("expected blank line inside board error")
+	}
+}
+
 func TestDay04ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

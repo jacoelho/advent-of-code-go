@@ -90,6 +90,7 @@ func TestScannerErrors(t *testing.T) {
 		"--- scanner 0 ---\n0,0,0\n\n--- scanner 1 ---\n1,1,1",
 		"--- scanner 0 ---\n0,0,0\n\n--- scanner 0 ---\n1,1,1",
 		"--- scanner 0 ---\n0,1",
+		"--- scanner 0 ---\n0,0,0\n\n1,1,1",
 		"--- scanner 0 ---",
 	} {
 		if _, err := day19p01(strings.NewReader(input)); err == nil {

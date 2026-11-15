@@ -1,43 +1,32 @@
 package aoc2021
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strconv"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-func diagnosticReport(r io.Reader) ([]string, error) {
-	s := bufio.NewScanner(r)
-	var rows []string
-	for s.Scan() {
-		row := s.Text()
-		if len(row) == 0 || len(row) > 64 || len(rows) > 0 && len(row) != len(rows[0]) {
-			return nil, fmt.Errorf("invalid diagnostic row width")
-		}
-		for _, bit := range row {
-			if bit != '0' && bit != '1' {
-				return nil, fmt.Errorf("invalid diagnostic bit %q", bit)
-			}
-		}
-		rows = append(rows, row)
-	}
-	if err := s.Err(); err != nil {
+func diagnosticReport(r io.Reader) ([][]byte, error) {
+	report, err := grid.ReadBytes(r, "01")
+	if err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 {
-		return nil, fmt.Errorf("empty diagnostic report")
+	if report.Width() > 64 {
+		return nil, fmt.Errorf("diagnostic rows have %d bits, want at most 64", report.Width())
 	}
-	return rows, nil
+	return report.Rows(), nil
 }
 
 func diagnosticProduct(a, b uint64) (string, error) {
-	if b != 0 && a > math.MaxUint64/b {
+	product, ok := xmath.CheckedMul(a, b)
+	if !ok {
 		return "", fmt.Errorf("diagnostic product overflows uint64")
 	}
-	return strconv.FormatUint(a*b, 10), nil
+	return strconv.FormatUint(product, 10), nil
 }
 
 func day03p01(r io.Reader) (string, error) {
@@ -70,7 +59,7 @@ const (
 	carbonDioxide
 )
 
-func gasRating(report []string, gas diagnosticGas) uint64 {
+func gasRating(report [][]byte, gas diagnosticGas) uint64 {
 	rows := slices.Clone(report)
 	for bit := 0; bit < len(report[0]) && len(rows) > 1; bit++ {
 		ones := 0
@@ -92,7 +81,7 @@ func gasRating(report []string, gas diagnosticGas) uint64 {
 		}
 		rows = kept
 	}
-	value, _ := strconv.ParseUint(rows[0], 2, 64)
+	value, _ := strconv.ParseUint(string(rows[0]), 2, 64)
 	return value
 }
 

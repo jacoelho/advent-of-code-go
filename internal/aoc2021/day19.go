@@ -4,21 +4,27 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
+
+const sharedBeacons = 12
 
 func parseScanners(r io.Reader) ([][]grid.Position3D[int64], error) {
 	s := bufio.NewScanner(r)
 	var scanners [][]grid.Position3D[int64]
 	ids := make(map[int]bool)
 	var seen map[grid.Position3D[int64]]bool
+	separated := false
 	for s.Scan() {
 		line := s.Text()
 		if line == "" {
+			separated = true
 			continue
 		}
 		if id, ok := strings.CutPrefix(line, "--- scanner "); ok {
@@ -30,16 +36,17 @@ func parseScanners(r io.Reader) ([][]grid.Position3D[int64], error) {
 			if err != nil || n < 0 || ids[n] {
 				return nil, fmt.Errorf("invalid or duplicate scanner ID %q", id)
 			}
-			if len(scanners) == 128 || len(scanners) > 0 && len(scanners[len(scanners)-1]) == 0 {
-				return nil, fmt.Errorf("empty scanner or more than 128 scanners")
+			if len(scanners) > 0 && len(scanners[len(scanners)-1]) == 0 {
+				return nil, fmt.Errorf("scanner %d has no beacons", len(scanners)-1)
 			}
 			ids[n] = true
 			scanners = append(scanners, nil)
 			seen = make(map[grid.Position3D[int64]]bool)
+			separated = false
 			continue
 		}
-		if len(scanners) == 0 {
-			return nil, fmt.Errorf("beacon before first scanner header")
+		if len(scanners) == 0 || separated {
+			return nil, fmt.Errorf("beacon %q outside a scanner section", line)
 		}
 		parts := strings.Split(line, ",")
 		if len(parts) != 3 {
@@ -59,9 +66,6 @@ func parseScanners(r io.Reader) ([][]grid.Position3D[int64], error) {
 		}
 		seen[point] = true
 		last := len(scanners) - 1
-		if len(scanners[last]) == 512 {
-			return nil, fmt.Errorf("scanner exceeds 512 beacons")
-		}
 		scanners[last] = append(scanners[last], point)
 	}
 	if err := s.Err(); err != nil {
@@ -110,37 +114,69 @@ func rotateBeacon(point grid.Position3D[int64], rotation [3]int) grid.Position3D
 	return grid.NewPosition3D(result[0], result[1], result[2])
 }
 
-func locateScanner(known, scanner []grid.Position3D[int64], work *int) (grid.Position3D[int64], []grid.Position3D[int64], bool, error) {
-	if len(known) < 12 || len(scanner) < 12 {
-		return grid.Position3D[int64]{}, nil, false, nil
+// beaconSpan is the sorted absolute per-axis delta between two beacons of one
+// scanner, which no rotation or translation of that scanner changes.
+type beaconSpan [3]int64
+
+// scannerFingerprint returns the sorted multiset of spans between all beacon
+// pairs of a scanner.
+func scannerFingerprint(beacons []grid.Position3D[int64]) []beaconSpan {
+	spans := make([]beaconSpan, 0, len(beacons)*(len(beacons)-1)/2)
+	for i, a := range beacons {
+		for _, b := range beacons[i+1:] {
+			span := beaconSpan{xmath.Abs(a.X - b.X), xmath.Abs(a.Y - b.Y), xmath.Abs(a.Z - b.Z)}
+			slices.Sort(span[:])
+			spans = append(spans, span)
+		}
 	}
-	if len(known)*len(scanner) > 2_000_000 {
-		return grid.Position3D[int64]{}, nil, false, fmt.Errorf("scanner alignment exceeds 2000000 translation candidates")
+	slices.SortFunc(spans, func(a, b beaconSpan) int { return slices.Compare(a[:], b[:]) })
+	return spans
+}
+
+// sharedSpans counts the multiset intersection of two fingerprints. Scanners
+// sharing n beacons share at least n(n-1)/2 spans, so a lower count rules out
+// an overlap without trying any rotation.
+func sharedSpans(a, b []beaconSpan) int {
+	shared := 0
+	for len(a) > 0 && len(b) > 0 {
+		switch c := slices.Compare(a[0][:], b[0][:]); {
+		case c < 0:
+			a = a[1:]
+		case c > 0:
+			b = b[1:]
+		default:
+			shared++
+			a, b = a[1:], b[1:]
+		}
 	}
+	return shared
+}
+
+// locateScanner finds the rotation and translation that place at least
+// sharedBeacons of scanner onto known, returning the scanner position and its
+// beacons in the frame of known.
+func locateScanner(known, scanner []grid.Position3D[int64]) (grid.Position3D[int64], []grid.Position3D[int64], bool) {
 	rotated := make([]grid.Position3D[int64], len(scanner))
+	translations := make(map[grid.Position3D[int64]]int)
 	for _, rotation := range scannerRotations() {
 		for i, point := range scanner {
 			rotated[i] = rotateBeacon(point, rotation)
 		}
-		translations := make(map[grid.Position3D[int64]]int)
+		clear(translations)
 		for _, fixed := range known {
 			for _, point := range rotated {
-				*work++
-				if *work > 100_000_000 {
-					return grid.Position3D[int64]{}, nil, false, fmt.Errorf("scanner alignment exceeds 100000000 comparisons")
-				}
 				offset := fixed.Sub(point)
 				translations[offset]++
-				if translations[offset] == 12 {
+				if translations[offset] == sharedBeacons {
 					for i, beacon := range rotated {
 						rotated[i] = beacon.Add(offset)
 					}
-					return offset, rotated, true, nil
+					return offset, rotated, true
 				}
 			}
 		}
 	}
-	return grid.Position3D[int64]{}, nil, false, nil
+	return grid.Position3D[int64]{}, nil, false
 }
 
 func alignScanners(r io.Reader) (int, int64, error) {
@@ -148,39 +184,35 @@ func alignScanners(r io.Reader) (int, int64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	known := scanners[0]
-	beacons := make(map[grid.Position3D[int64]]bool, len(known))
-	for _, point := range known {
-		beacons[point] = true
+	fingerprints := make([][]beaconSpan, len(scanners))
+	for i, beacons := range scanners {
+		fingerprints[i] = scannerFingerprint(beacons)
 	}
-	positions := []grid.Position3D[int64]{{}}
-	aligned := make([]bool, len(scanners))
-	aligned[0] = true
-	work := 0
-	for len(positions) < len(scanners) {
-		progress := false
+	placed := make([][]grid.Position3D[int64], len(scanners))
+	positions := make([]grid.Position3D[int64], len(scanners))
+	placed[0] = scanners[0]
+	queue := []int{0}
+	for head := 0; head < len(queue); head++ {
+		anchor := queue[head]
 		for i, scanner := range scanners {
-			if aligned[i] {
+			if placed[i] != nil || sharedSpans(fingerprints[anchor], fingerprints[i]) < sharedBeacons*(sharedBeacons-1)/2 {
 				continue
 			}
-			position, moved, found, err := locateScanner(known, scanner, &work)
-			if err != nil {
-				return 0, 0, err
-			}
+			position, moved, found := locateScanner(placed[anchor], scanner)
 			if !found {
 				continue
 			}
-			for _, beacon := range moved {
-				if !beacons[beacon] {
-					beacons[beacon] = true
-					known = append(known, beacon)
-				}
-			}
-			positions = append(positions, position)
-			aligned[i], progress = true, true
+			placed[i], positions[i] = moved, position
+			queue = append(queue, i)
 		}
-		if !progress {
-			return 0, 0, fmt.Errorf("cannot align %d scanners with 12 distinct overlapping beacons", len(scanners)-len(positions))
+	}
+	if len(queue) != len(scanners) {
+		return 0, 0, fmt.Errorf("cannot align %d scanners: each needs %d beacons in common with an aligned scanner", len(scanners)-len(queue), sharedBeacons)
+	}
+	beacons := make(map[grid.Position3D[int64]]struct{})
+	for _, moved := range placed {
+		for _, beacon := range moved {
+			beacons[beacon] = struct{}{}
 		}
 	}
 	var distance int64
@@ -189,7 +221,7 @@ func alignScanners(r io.Reader) (int, int64, error) {
 			distance = max(distance, left.Distance(right))
 		}
 	}
-	return len(known), distance, nil
+	return len(beacons), distance, nil
 }
 
 func day19p01(r io.Reader) (string, error) {

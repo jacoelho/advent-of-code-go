@@ -15,19 +15,12 @@ type riskLocation struct {
 }
 
 func lowestRisk(r io.Reader, factor int) (int, error) {
-	base, err := parseDigitGrid(r)
+	base, err := grid.ReadBytes(r, "123456789")
 	if err != nil {
 		return 0, err
 	}
-	for _, risk := range base.values {
-		if risk == 0 {
-			return 0, fmt.Errorf("risk values must be between one and nine")
-		}
-	}
-	if factor < 1 || len(base.values) > maxDigitGridCells/factor/factor {
-		return 0, fmt.Errorf("expanded risk grid exceeds %d cells", maxDigitGridCells)
-	}
-	width, height := base.width*factor, base.height*factor
+	baseRisks, baseWidth, baseHeight := base.Cells(), base.Width(), base.Height()
+	width, height := baseWidth*factor, baseHeight*factor
 	distances := make([]int, width*height)
 	for i := range distances {
 		distances[i] = math.MaxInt
@@ -48,7 +41,7 @@ func lowestRisk(r io.Reader, factor int) (int, error) {
 				continue
 			}
 			index := next.Y*width + next.X
-			risk := (int(base.values[(next.Y%base.height)*base.width+next.X%base.width])+next.X/base.width+next.Y/base.height-1)%9 + 1
+			risk := (int(baseRisks[(next.Y%baseHeight)*baseWidth+next.X%baseWidth]-'0')+next.X/baseWidth+next.Y/baseHeight-1)%9 + 1
 			cost := current.cost + risk
 			if cost < distances[index] {
 				distances[index] = cost

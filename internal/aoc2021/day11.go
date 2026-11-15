@@ -1,35 +1,46 @@
 package aoc2021
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
-func octopusStep(energy digitGrid) int {
+func octopusEnergy(r io.Reader) (grid.Bytes, error) {
+	energy, err := grid.ReadBytes(r, "0123456789")
+	if err != nil {
+		return grid.Bytes{}, err
+	}
+	cells := energy.Cells()
+	for i, c := range cells {
+		cells[i] = c - '0'
+	}
+	return energy, nil
+}
+
+func octopusStep(energy grid.Bytes) int {
+	levels := energy.Cells()
 	var queue []int
-	for i := range energy.values {
-		energy.values[i]++
-		if energy.values[i] == 10 {
+	for i := range levels {
+		levels[i]++
+		if levels[i] == 10 {
 			queue = append(queue, i)
 		}
 	}
 	for head := 0; head < len(queue); head++ {
 		index := queue[head]
-		energy.values[index] = 0
-		point := grid.Position2D[int]{X: index % energy.width, Y: index / energy.width}
-		for neighbour := range grid.Neighbours8(point) {
-			if !neighbour.Within(energy.width, energy.height) {
+		levels[index] = 0
+		for neighbour := range energy.Neighbours8(energy.Position(index)) {
+			next := energy.Index(neighbour)
+			if levels[next] == 0 {
 				continue
 			}
-			next := neighbour.Y*energy.width + neighbour.X
-			if energy.values[next] == 0 {
-				continue
-			}
-			energy.values[next]++
-			if energy.values[next] == 10 {
+			levels[next]++
+			if levels[next] == 10 {
 				queue = append(queue, next)
 			}
 		}
@@ -38,7 +49,7 @@ func octopusStep(energy digitGrid) int {
 }
 
 func day11p01(r io.Reader) (string, error) {
-	energy, err := parseDigitGrid(r)
+	energy, err := octopusEnergy(r)
 	if err != nil {
 		return "", err
 	}
@@ -50,24 +61,23 @@ func day11p01(r io.Reader) (string, error) {
 }
 
 func day11p02(r io.Reader) (string, error) {
-	energy, err := parseDigitGrid(r)
+	energy, err := octopusEnergy(r)
 	if err != nil {
 		return "", err
 	}
-	seen := map[string]bool{string(energy.values): true}
-	stored := len(energy.values)
-	for step := 1; ; step++ {
-		if octopusStep(energy) == len(energy.values) {
+	// Brent's cycle detection: the step is deterministic, so revisiting the
+	// saved state proves the octopuses never synchronize.
+	saved := slices.Clone(energy.Cells())
+	for step, power := 1, 1; ; step++ {
+		if octopusStep(energy) == len(saved) {
 			return strconv.Itoa(step), nil
 		}
-		state := string(energy.values)
-		if seen[state] {
-			return "", fmt.Errorf("octopus energy cycles without synchronization")
+		if bytes.Equal(saved, energy.Cells()) {
+			return "", fmt.Errorf("octopus energy cycles without synchronization after %d steps", step)
 		}
-		if len(seen) == 1_000_000 || stored > 64<<20-len(state) {
-			return "", fmt.Errorf("octopus synchronization exceeds state budget")
+		if step == power {
+			copy(saved, energy.Cells())
+			power *= 2
 		}
-		seen[state] = true
-		stored += len(state)
 	}
 }

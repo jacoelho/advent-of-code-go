@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"strings"
 
@@ -66,11 +65,11 @@ func day21p02(r io.Reader) (string, error) {
 		return "", err
 	}
 	memo := new([10][10][21][21][2]uint64)
-	var wins func(int, int, int, int) ([2]uint64, error)
-	wins = func(position, otherPosition, score, otherScore int) ([2]uint64, error) {
+	var wins func(int, int, int, int) [2]uint64
+	wins = func(position, otherPosition, score, otherScore int) [2]uint64 {
 		cached := &memo[position-1][otherPosition-1][score][otherScore]
 		if *cached != [2]uint64{} {
-			return *cached, nil
+			return *cached
 		}
 		var result [2]uint64
 		for i, frequency := range [...]uint64{1, 3, 6, 7, 6, 3, 1} {
@@ -80,23 +79,14 @@ func day21p02(r io.Reader) (string, error) {
 				result[0] += frequency
 				continue
 			}
-			next, err := wins(otherPosition, nextPosition, otherScore, nextScore)
-			if err != nil {
-				return result, err
-			}
+			next := wins(otherPosition, nextPosition, otherScore, nextScore)
 			for player := range 2 {
-				if next[1-player] > (math.MaxUint64-result[player])/frequency {
-					return result, fmt.Errorf("dirac universe count exceeds uint64")
-				}
 				result[player] += frequency * next[1-player]
 			}
 		}
 		*cached = result
-		return result, nil
+		return result
 	}
-	result, err := wins(positions[0], positions[1], 0, 0)
-	if err != nil {
-		return "", err
-	}
+	result := wins(positions[0], positions[1], 0, 0)
 	return strconv.FormatUint(max(result[0], result[1]), 10), nil
 }

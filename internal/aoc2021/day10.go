@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type syntaxLine struct {
@@ -69,10 +69,13 @@ func day10p02(r io.Reader) (string, error) {
 		var score uint64
 		for i := len(line.unmatched) - 1; i >= 0; i-- {
 			value := uint64(line.unmatched[i] + 1)
-			if score > (math.MaxUint64-value)/5 {
+			scaled, ok := xmath.CheckedMul(score, 5)
+			if ok {
+				score, ok = xmath.CheckedAdd(scaled, value)
+			}
+			if !ok {
 				return "", fmt.Errorf("completion score overflows uint64")
 			}
-			score = score*5 + value
 		}
 		scores = append(scores, score)
 	}

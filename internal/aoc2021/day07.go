@@ -33,10 +33,11 @@ func day07p01(r io.Reader) (string, error) {
 	var fuel int64
 	for _, position := range positions {
 		distance := xmath.Abs(position - target)
-		if fuel > math.MaxInt64-distance {
+		sum, ok := xmath.CheckedAdd(fuel, distance)
+		if !ok {
 			return "", fmt.Errorf("crab fuel overflows int64")
 		}
-		fuel += distance
+		fuel = sum
 	}
 	return strconv.FormatInt(fuel, 10), nil
 }
@@ -54,10 +55,13 @@ func triangularFuel(positions []int64, target int64) (int64, error) {
 		} else {
 			b /= 2
 		}
-		if a > math.MaxInt64/b || fuel > math.MaxInt64-a*b {
+		cost, ok := xmath.CheckedMul(a, b)
+		if ok {
+			fuel, ok = xmath.CheckedAdd(fuel, cost)
+		}
+		if !ok {
 			return 0, fmt.Errorf("crab fuel overflows int64")
 		}
-		fuel += a * b
 	}
 	return fuel, nil
 }
@@ -69,10 +73,11 @@ func day07p02(r io.Reader) (string, error) {
 	}
 	var total int64
 	for _, position := range positions {
-		if total > math.MaxInt64-position {
+		sum, ok := xmath.CheckedAdd(total, position)
+		if !ok {
 			return "", fmt.Errorf("crab position sum overflows int64")
 		}
-		total += position
+		total = sum
 	}
 	target := total / int64(len(positions))
 	lower, err := triangularFuel(positions, target)

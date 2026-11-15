@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func commaSeparatedNumbers(r io.Reader) ([]int64, error) {
@@ -44,17 +44,19 @@ func lanternfishPopulation(r io.Reader, days int) (uint64, error) {
 		births := population[0]
 		copy(population[:8], population[1:])
 		population[8] = births
-		if population[6] > math.MaxUint64-births {
+		resetting, ok := xmath.CheckedAdd(population[6], births)
+		if !ok {
 			return 0, fmt.Errorf("lanternfish population overflows uint64")
 		}
-		population[6] += births
+		population[6] = resetting
 	}
 	var total uint64
 	for _, count := range population {
-		if total > math.MaxUint64-count {
+		sum, ok := xmath.CheckedAdd(total, count)
+		if !ok {
 			return 0, fmt.Errorf("lanternfish population overflows uint64")
 		}
-		total += count
+		total = sum
 	}
 	return total, nil
 }

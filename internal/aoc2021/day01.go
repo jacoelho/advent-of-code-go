@@ -1,6 +1,7 @@
 package aoc2021
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 
@@ -9,7 +10,13 @@ import (
 )
 
 func depthIncreases(r io.Reader, window int) (int, error) {
-	s := scanner.NewScanner(r, convert.ScanNumber[int64])
+	s := scanner.NewScanner(r, func(line []byte) (int64, error) {
+		depth, err := convert.ScanNumber[int64](line)
+		if err == nil && depth < 0 {
+			err = fmt.Errorf("negative depth %d", depth)
+		}
+		return depth, err
+	})
 	previous := make([]int64, window)
 	position, filled, increases := 0, 0, 0
 	for depth := range s.Values() {

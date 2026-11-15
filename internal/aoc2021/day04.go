@@ -16,6 +16,17 @@ type bingoBoard struct {
 	won    bool
 }
 
+func bingoNumber(text string) (int64, error) {
+	value, err := convert.ScanNumber[int64]([]byte(text))
+	if err != nil {
+		return 0, err
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("negative bingo number %d", value)
+	}
+	return value, nil
+}
+
 func bingoInput(r io.Reader) ([]int64, []bingoBoard, error) {
 	s := bufio.NewScanner(r)
 	if !s.Scan() {
@@ -26,7 +37,7 @@ func bingoInput(r io.Reader) ([]int64, []bingoBoard, error) {
 	}
 	var draws []int64
 	for field := range strings.SplitSeq(s.Text(), ",") {
-		value, err := convert.ScanNumber[int64]([]byte(strings.TrimSpace(field)))
+		value, err := bingoNumber(strings.TrimSpace(field))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -38,13 +49,16 @@ func bingoInput(r io.Reader) ([]int64, []bingoBoard, error) {
 	for s.Scan() {
 		fields := strings.Fields(s.Text())
 		if len(fields) == 0 {
+			if row != 0 {
+				return nil, nil, fmt.Errorf("blank line inside bingo board %d", len(boards)+1)
+			}
 			continue
 		}
 		if len(fields) != 5 {
 			return nil, nil, fmt.Errorf("bingo row must contain five numbers")
 		}
 		for column, field := range fields {
-			value, err := convert.ScanNumber[int64]([]byte(field))
+			value, err := bingoNumber(field)
 			if err != nil {
 				return nil, nil, err
 			}

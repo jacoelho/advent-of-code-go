@@ -37,7 +37,6 @@ func TestProbeErrors(t *testing.T) {
 		"target area: x=1..2, y=0..1",
 		"target area: x=2..1, y=-2..-1",
 		"target area: x=1..2, y=-1..-2",
-		"target area: x=-2147483648..2147483647, y=-2147483648..-1",
 		"target area: x=1..2, y=invalid",
 	} {
 		if _, err := day17p02(strings.NewReader(input)); err == nil {

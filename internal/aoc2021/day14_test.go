@@ -63,6 +63,18 @@ AB -> CD`)); err == nil {
 	}
 }
 
+func TestDay14MissingSeparator(t *testing.T) {
+	if _, err := day14p01(strings.NewReader("AB\nAB -> C")); err == nil {
+		t.Fatal("expected missing separator error")
+	}
+}
+
+func TestDay14BlankLineInRules(t *testing.T) {
+	if _, err := day14p01(strings.NewReader("AB\n\nAB -> C\n\nBC -> A")); err == nil {
+		t.Fatal("expected blank line in rules error")
+	}
+}
+
 func TestDay14ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {
@@ -78,5 +90,14 @@ func TestDay14ReaderErrors(t *testing.T) {
 				t.Fatalf("got %v; want input read failure", err)
 			}
 		})
+	}
+}
+
+func TestDay14RejectsOnlyCountsBeyondUint64(t *testing.T) {
+	if _, err := polymerDifference(strings.NewReader("NN\n\nNN -> N\n"), 64); err == nil || !strings.Contains(err.Error(), "overflows") {
+		t.Fatalf("got %v; want overflow error", err)
+	}
+	if got, err := polymerDifference(strings.NewReader("NN\n\nNN -> N\n"), 63); err != nil || got != 0 {
+		t.Fatalf("got %d, %v; want 0", got, err)
 	}
 }
