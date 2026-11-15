@@ -69,6 +69,8 @@ func TestDay08MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"screen bounds", "rect 51x1", day08p01},
+		{"trailing text", "rect 3x2 now", day08p01},
+		{"negative rotation", "rotate row y=0 by -1", day08p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

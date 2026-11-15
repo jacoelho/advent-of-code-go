@@ -2,12 +2,16 @@ package aoc2016
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
-	"math/big"
+	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
+
+var errDecompressedOverflow = errors.New("decompressed length overflows int")
 
 type compressionVersion uint8
 
@@ -22,25 +26,30 @@ func decompressedLength(r io.Reader, version compressionVersion) (string, error)
 		return "", err
 	}
 	data = bytes.Join(bytes.Fields(data), nil)
-	type section struct {
-		end                 int
-		repetitions, length big.Int
-	}
-	stack := []section{{end: len(data), repetitions: *big.NewInt(1)}}
-	one := big.NewInt(1)
+	type section struct{ end, repetitions, length int }
+	stack := []section{{end: len(data), repetitions: 1}}
 	for position := 0; ; {
 		current := &stack[len(stack)-1]
 		if position == current.end {
 			if len(stack) == 1 {
-				return current.length.String(), nil
+				return strconv.Itoa(current.length), nil
 			}
-			size := new(big.Int).Mul(&current.length, &current.repetitions)
+			size, sizeOK := xmath.CheckedMul(current.length, current.repetitions)
 			stack = stack[:len(stack)-1]
-			stack[len(stack)-1].length.Add(&stack[len(stack)-1].length, size)
+			parent := &stack[len(stack)-1]
+			length, lengthOK := xmath.CheckedAdd(parent.length, size)
+			if !sizeOK || !lengthOK {
+				return "", errDecompressedOverflow
+			}
+			parent.length = length
 			continue
 		}
 		if data[position] != '(' {
-			current.length.Add(&current.length, one)
+			length, ok := xmath.CheckedAdd(current.length, 1)
+			if !ok {
+				return "", errDecompressedOverflow
+			}
+			current.length = length
 			position++
 			continue
 		}
@@ -51,18 +60,22 @@ func decompressedLength(r io.Reader, version compressionVersion) (string, error)
 		closing += position
 		widthText, repeatText, ok := bytes.Cut(data[position+1:closing], []byte("x"))
 		width, widthErr := convert.ScanNumber[int](widthText)
-		repeat, repeatOK := new(big.Int).SetString(string(repeatText), 10)
-		if !ok || widthErr != nil || width < 0 || !repeatOK || repeat.Sign() < 0 || width > current.end-closing-1 {
+		repeat, repeatErr := convert.ScanNumber[int](repeatText)
+		if !ok || widthErr != nil || repeatErr != nil || width < 0 || repeat < 0 || width > current.end-closing-1 {
 			return "", fmt.Errorf("invalid marker at byte %d", position)
 		}
 		position = closing + 1
-		if version == flatCompression {
-			size := new(big.Int).Mul(big.NewInt(int64(width)), repeat)
-			current.length.Add(&current.length, size)
-			position += width
-		} else {
-			stack = append(stack, section{end: position + width, repetitions: *repeat})
+		if version == recursiveCompression {
+			stack = append(stack, section{end: position + width, repetitions: repeat})
+			continue
 		}
+		size, sizeOK := xmath.CheckedMul(width, repeat)
+		length, lengthOK := xmath.CheckedAdd(current.length, size)
+		if !sizeOK || !lengthOK {
+			return "", errDecompressedOverflow
+		}
+		current.length = length
+		position += width
 	}
 }
 

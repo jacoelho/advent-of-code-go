@@ -43,6 +43,12 @@ func TestStorageCannotSplitGoalData(t *testing.T) {
 	}
 }
 
+func TestStorageRejectsBlankLine(t *testing.T) {
+	if _, err := day22p01(strings.NewReader(occupiedStorage + "\n\n" + occupiedStorage)); err == nil {
+		t.Fatal("accepted blank line between storage nodes")
+	}
+}
+
 func TestDay22ReadErrors(t *testing.T) {
 	failure := errors.New("input failed")
 	for _, solve := range []func(io.Reader) (string, error){

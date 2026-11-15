@@ -66,6 +66,9 @@ func TestBotErrors(t *testing.T) {
 			t.Errorf("expected error for %q", input)
 		}
 	}
+	if _, err := day10p02(strings.NewReader("value 4294967296 goes to bot 0\nvalue 4294967297 goes to bot 0\nbot 0 gives low to output 0 and high to output 1\nvalue 4294967296 goes to bot 1\nvalue 1 goes to bot 1\nbot 1 gives low to output 2 and high to output 3")); err == nil {
+		t.Error("accepted output product beyond int")
+	}
 	failure := errors.New("read failed")
 	if _, err := day10p01(iotest.ErrReader(failure)); !errors.Is(err, failure) {
 		t.Errorf("got %v, want read error", err)

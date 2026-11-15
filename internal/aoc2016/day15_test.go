@@ -35,6 +35,12 @@ func TestCapsuleDiscErrors(t *testing.T) {
 			t.Errorf("expected error for %q", input)
 		}
 	}
+	overflow := "Disc #1 has 2147483647 positions; at time=0, it is at position 0.\n" +
+		"Disc #2 has 2147483646 positions; at time=0, it is at position 0.\n" +
+		"Disc #3 has 2147483645 positions; at time=0, it is at position 0."
+	if _, err := day15p01(strings.NewReader(overflow)); err == nil {
+		t.Error("accepted alignment period beyond int")
+	}
 	failure := errors.New("read failed")
 	if _, err := day15p01(iotest.ErrReader(failure)); !errors.Is(err, failure) {
 		t.Errorf("got %v, want read error", err)

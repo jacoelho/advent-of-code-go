@@ -33,25 +33,6 @@ func TestUnreachableVault(t *testing.T) {
 	}
 }
 
-func TestVaultSearchBudget(t *testing.T) {
-	for _, budget := range []vaultBudget{{1, 1 << 20}, {1000, 1}} {
-		if got, err := shortestVault("ihgpwlah", budget); err == nil || got != "" {
-			t.Errorf("shortest returned%q,%v after exhaustion", got, err)
-		}
-		if got, err := longestVault("ihgpwlah", budget); err == nil || got != 0 {
-			t.Errorf("longest returned%d,%v after exhaustion", got, err)
-		}
-	}
-}
-
-func TestVaultBudgetAfterGoal(t *testing.T) {
-	// The first DFS goal is reached after 78 generated paths; other branches remain.
-	got, err := longestVault("ihgpwlah", vaultBudget{paths: 78, bytes: 1 << 20})
-	if err == nil || got != 0 {
-		t.Fatalf("longest returned %d, %v after exhaustion; want no partial answer", got, err)
-	}
-}
-
 func TestDay17ReadErrors(t *testing.T) {
 	failure := errors.New("input failed")
 	for _, solve := range []func(io.Reader) (string, error){

@@ -42,28 +42,21 @@ func BFS[T comparable](start T, neighbours func(T) iter.Seq[T]) iter.Seq[T] {
 
 // BFSTree visits every occurrence without deduplication, preserving child order
 // within each depth. It yields a node before expanding it; stopping iteration
-// skips expansion. An expansion failure yields (zero, err) once and ends traversal,
-// discarding any children returned with the error. An empty slice makes a leaf.
+// skips expansion. An empty slice makes a leaf.
 //
 // Child values are copied into the frontier; their referenced data remains owned
 // by the caller. Each iteration has a fresh frontier, but replay also requires a
 // repeatable callback. The caller must ensure finiteness or enforce search limits.
-func BFSTree[T any](start T, children func(T) ([]T, error)) iter.Seq2[T, error] {
-	return func(yield func(T, error) bool) {
+func BFSTree[T any](start T, children func(T) []T) iter.Seq[T] {
+	return func(yield func(T) bool) {
 		frontier := collections.NewDeque[T](32)
 		frontier.PushBack(start)
 		for frontier.Size() > 0 {
 			node, _ := frontier.PopFront()
-			if !yield(node, nil) {
+			if !yield(node) {
 				return
 			}
-			next, err := children(node)
-			if err != nil {
-				var zero T
-				yield(zero, err)
-				return
-			}
-			for _, child := range next {
+			for _, child := range children(node) {
 				frontier.PushBack(child)
 			}
 		}

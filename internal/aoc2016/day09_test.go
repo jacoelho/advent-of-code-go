@@ -37,6 +37,12 @@ func TestDecompressionErrors(t *testing.T) {
 			t.Errorf("expected error for %q", input)
 		}
 	}
+	if _, err := day09p01(strings.NewReader("(1x9223372036854775807)A(1x2)B")); err == nil {
+		t.Error("accepted flat length beyond int")
+	}
+	if _, err := day09p02(strings.NewReader("(5x9223372036854775807)(1x2)A")); err == nil {
+		t.Error("accepted recursive length beyond int")
+	}
 	failure := errors.New("read failed")
 	if _, err := day09p01(iotest.ErrReader(failure)); !errors.Is(err, failure) {
 		t.Errorf("got %v, want read error", err)

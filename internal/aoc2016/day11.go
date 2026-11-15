@@ -140,9 +140,6 @@ func elevatorMoves(r io.Reader, extraPairs int) (string, error) {
 					if _, seen := distances[next]; seen {
 						continue
 					}
-					if len(distances) == 1_000_000 {
-						return "", fmt.Errorf("elevator search exceeds 1000000 states")
-					}
 					distances[next] = distance + 1
 					queue.PushBack(next)
 				}

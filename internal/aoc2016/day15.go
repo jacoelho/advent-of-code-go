@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math/big"
 	"regexp"
 	"strconv"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type capsuleDisc struct{ number, positions, start int64 }
@@ -47,26 +48,15 @@ func capsuleRelease(r io.Reader, extraPositions int64) (string, error) {
 	if extraPositions > 0 {
 		discs = append(discs, capsuleDisc{last + 1, extraPositions, 0})
 	}
-	time, period := new(big.Int), big.NewInt(1)
+	time, period := 0, 1
 	for _, disc := range discs {
-		size := big.NewInt(disc.positions)
-		divisor := new(big.Int).GCD(nil, nil, period, size)
-		difference := new(big.Int).Sub(big.NewInt(-disc.number-disc.start), time)
-		if new(big.Int).Mod(difference, divisor).Sign() != 0 {
-			return "", fmt.Errorf("disc %d has incompatible alignment", disc.number)
+		var err error
+		time, period, err = xmath.CombineCongruences(time, period, -int(disc.number+disc.start), int(disc.positions))
+		if err != nil {
+			return "", fmt.Errorf("disc %d alignment: %w", disc.number, err)
 		}
-		modulus := new(big.Int).Quo(size, divisor)
-		if modulus.Cmp(big.NewInt(1)) > 0 {
-			step := new(big.Int).Quo(period, divisor)
-			inverse := new(big.Int).ModInverse(step, modulus)
-			multiple := new(big.Int).Quo(difference, divisor)
-			multiple.Mul(multiple, inverse).Mod(multiple, modulus)
-			time.Add(time, multiple.Mul(multiple, period))
-		}
-		period.Mul(period, modulus)
-		time.Mod(time, period)
 	}
-	return time.String(), nil
+	return strconv.Itoa(time), nil
 }
 
 func day15p01(r io.Reader) (string, error) {

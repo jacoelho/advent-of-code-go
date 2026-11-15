@@ -42,12 +42,18 @@ func TestPadLookaheadBoundaries(t *testing.T) {
 		{"match later quintuple", map[int]padHashFeatures{0: {triple: 12}, 1: inspectPadHash([]byte("bbbbbaaaaaccccc"))}, 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := findPadKey(func(index int) padHashFeatures {
-				if features, ok := tt.features[index]; ok {
-					return features
+			hashes := func(yield func(padHashFeatures) bool) {
+				for index := 0; ; index++ {
+					features, ok := tt.features[index]
+					if !ok {
+						features = padHashFeatures{triple: -1}
+					}
+					if !yield(features) {
+						return
+					}
 				}
-				return padHashFeatures{triple: -1}
-			}, 1)
+			}
+			got, err := findPadKey(hashes, 1)
 			if err != nil || got != tt.want {
 				t.Errorf("got %d, %v; want %d", got, err, tt.want)
 			}
@@ -56,7 +62,7 @@ func TestPadLookaheadBoundaries(t *testing.T) {
 }
 
 func TestPadFirstStretchedKey(t *testing.T) {
-	got, err := findPadKey(func(index int) padHashFeatures { return padHash([]byte("abc"), index, 2017) }, 1)
+	got, err := findPadKey(padHashes([]byte("abc"), 2017), 1)
 	if err != nil || got != 10 {
 		t.Errorf("got %d, %v; want 10", got, err)
 	}

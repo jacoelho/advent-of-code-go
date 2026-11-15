@@ -53,7 +53,7 @@ func TestAssembunnySemantics(t *testing.T) {
 	}
 }
 
-func TestAssembunnyNonpositiveCounters(t *testing.T) {
+func TestAssembunnyLoopWithNonpositiveCounterOverflows(t *testing.T) {
 	for _, input := range []string{
 		"cpy 0 b\ninc a\ndec b\njnz b -2",
 		"cpy -1 b\ninc a\ndec b\njnz b -2",
@@ -63,7 +63,7 @@ func TestAssembunnyNonpositiveCounters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := executeAssembunny(program, [4]int64{}, 20); err == nil {
+		if _, err := runAssembunny(program, [4]int64{}); err == nil {
 			t.Errorf("nonterminating loop incorrectly completed: %q", input)
 		}
 	}

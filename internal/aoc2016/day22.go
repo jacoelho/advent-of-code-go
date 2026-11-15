@@ -34,7 +34,7 @@ func readStorage(r io.Reader) (storageGrid, error) {
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		line := s.Text()
-		if line == "" || strings.HasPrefix(line, "root@") || strings.HasPrefix(line, "Filesystem") {
+		if len(result.nodes) == 0 && (strings.HasPrefix(line, "root@") || strings.HasPrefix(line, "Filesystem")) {
 			continue
 		}
 		match := pattern.FindStringSubmatch(line)
@@ -172,7 +172,7 @@ func (g storageGrid) moveCompactStorage(movable []bool, empty int) (int, error) 
 	}
 	cost, found, err := search.AStarDistance(state{g.goal, empty}, func(s state) bool {
 		return s.goal == g.origin
-	}, edges, heuristic, search.Limits{MaxExpanded: 1_000_000})
+	}, edges, heuristic, search.Limits{})
 	if err != nil {
 		return 0, fmt.Errorf("compact storage search: %w", err)
 	}
@@ -205,7 +205,6 @@ func (g storageGrid) moveExactStorage() (int, error) {
 	queue := collections.NewDeque[state](32)
 	queue.PushBack(start)
 	seen := collections.NewSet(encode(start.goal, start.used))
-	stateLimit := (128 << 20) / (16*len(g.nodes) + 128)
 	for queue.Size() > 0 {
 		current, _ := queue.PopFront()
 		if current.goal == g.origin {
@@ -227,9 +226,6 @@ func (g storageGrid) moveExactStorage() (int, error) {
 				key := encode(next.goal, next.used)
 				if seen.Contains(key) {
 					continue
-				}
-				if seen.Len() >= stateLimit {
-					return 0, fmt.Errorf("exact storage search exceeded %d states for %d nodes", stateLimit, len(g.nodes))
 				}
 				seen.Add(key)
 				queue.PushBack(next)

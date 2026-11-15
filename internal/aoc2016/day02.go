@@ -36,6 +36,9 @@ func bathroomCode(r io.Reader, keypad []string, position grid.Position2D[int]) (
 	if err := s.Err(); err != nil {
 		return "", err
 	}
+	if code.Len() == 0 {
+		return "", fmt.Errorf("no keypad instructions")
+	}
 	return code.String(), nil
 }
 
