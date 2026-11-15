@@ -30,10 +30,6 @@ func Test_day17p01(t *testing.T) {
 }
 
 func Test_day17p02(t *testing.T) {
-	if testing.Short() {
-		t.Skip("full 50-million-insertion spinlock fixture")
-	}
-
 	tests := []aoc.TestInput{
 		{
 			Input: aoc.FileInput(t, 2017, 17),

@@ -58,6 +58,7 @@ func TestDay11MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"hex direction", "ne,east", day11p01},
+		{"empty path", "", day11p02},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

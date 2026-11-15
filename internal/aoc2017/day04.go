@@ -2,6 +2,7 @@ package aoc2017
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
@@ -12,8 +13,15 @@ import (
 
 func countPassphrases(r io.Reader, canonical func(string) string) (string, error) {
 	s := bufio.NewScanner(r)
-	count := 0
+	count, lines := 0, 0
 	for s.Scan() {
+		lines++
+		if strings.TrimSpace(s.Text()) == "" {
+			return "", fmt.Errorf("empty passphrase on line %d", lines)
+		}
+		if i := strings.IndexFunc(s.Text(), func(c rune) bool { return c != ' ' && (c < 'a' || c > 'z') }); i >= 0 {
+			return "", fmt.Errorf("invalid passphrase character %q on line %d", s.Text()[i], lines)
+		}
 		seen := collections.NewSet[string]()
 		valid := true
 		for word := range strings.FieldsSeq(s.Text()) {
@@ -30,6 +38,9 @@ func countPassphrases(r io.Reader, canonical func(string) string) (string, error
 	}
 	if err := s.Err(); err != nil {
 		return "", err
+	}
+	if lines == 0 {
+		return "", fmt.Errorf("no passphrases")
 	}
 
 	return strconv.Itoa(count), nil

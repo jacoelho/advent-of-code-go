@@ -35,6 +35,14 @@ oiii ioii iioi iiio`), Want: "3"},
 	aoc.AOCTest(t, day04p02, tests)
 }
 
+func TestDay04MalformedInput(t *testing.T) {
+	for _, input := range []string{"", "aa bb\n\ncc dd", "aa B1"} {
+		if _, err := day04p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected error for %q", input)
+		}
+	}
+}
+
 func TestDay04ReadErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	tests := []struct {

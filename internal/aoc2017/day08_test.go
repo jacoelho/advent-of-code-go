@@ -62,6 +62,7 @@ func TestDay08MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"register condition", "a inc 1 if b ?? 0", day08p01},
+		{"no instructions", "", day08p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func parseCoprocessor(r io.Reader) ([]assemblyInstruction, error) {
@@ -25,12 +27,9 @@ func parseCoprocessor(r io.Reader) ([]assemblyInstruction, error) {
 	return program, nil
 }
 
-func runCoprocessor(program []assemblyInstruction, registers [26]int64, limit int) ([26]int64, int, error) {
+func runCoprocessor(program []assemblyInstruction, registers [26]int64) ([26]int64, int, error) {
 	pointer, multiplications := int64(0), 0
-	for steps := 0; pointer >= 0 && pointer < int64(len(program)); steps++ {
-		if steps == limit {
-			return registers, 0, fmt.Errorf("coprocessor exceeded %d instructions", limit)
-		}
+	for pointer >= 0 && pointer < int64(len(program)) {
 		instruction := program[pointer]
 		if instruction.operation == "mul" {
 			multiplications++
@@ -112,29 +111,24 @@ jnz 1 -23`
 		return compositeRange{}, false
 	}
 	step := -decrement
-	if (end-start)%step != 0 || end-1 > math.MaxInt64/(end-1) {
+	if _, ok := xmath.CheckedMul(end-1, end-1); (end-start)%step != 0 || !ok {
 		return compositeRange{}, false
 	}
 
 	return compositeRange{start: start, end: end, step: step}, true
 }
 
-func countComposites(progression compositeRange) (int, error) {
-	count, work := 0, 0
+func countComposites(progression compositeRange) int {
+	count := 0
 	for value := progression.start; ; value += progression.step {
-		work++
 		for divisor := int64(2); divisor <= value/divisor; divisor++ {
-			work++
-			if work > 10_000_000 {
-				return 0, fmt.Errorf("composite search exceeded 10000000 operations")
-			}
 			if value%divisor == 0 {
 				count++
 				break
 			}
 		}
 		if value == progression.end {
-			return count, nil
+			return count
 		}
 	}
 }
@@ -144,7 +138,7 @@ func day23p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, multiplications, err := runCoprocessor(program, [26]int64{}, 10_000_000)
+	_, multiplications, err := runCoprocessor(program, [26]int64{})
 	if err != nil {
 		return "", err
 	}
@@ -159,16 +153,12 @@ func day23p02(r io.Reader) (string, error) {
 	}
 	// The full loop proves h counts composites; matching only its prefix is insufficient.
 	if progression, ok := coprocessorComposites(program); ok {
-		count, err := countComposites(progression)
-		if err != nil {
-			return "", err
-		}
-		return strconv.Itoa(count), nil
+		return strconv.Itoa(countComposites(progression)), nil
 	}
 
 	var registers [26]int64
 	registers[0] = 1
-	registers, _, err = runCoprocessor(program, registers, 10_000_000)
+	registers, _, err = runCoprocessor(program, registers)
 	if err != nil {
 		return "", err
 	}

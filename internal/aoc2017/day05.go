@@ -1,6 +1,7 @@
 package aoc2017
 
 import (
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
@@ -21,6 +22,9 @@ func jumpSteps(r io.Reader, policy jumpPolicy) (string, error) {
 	offsets := slices.Collect(s.Values())
 	if err := s.Err(); err != nil {
 		return "", err
+	}
+	if len(offsets) == 0 {
+		return "", fmt.Errorf("no jump offsets")
 	}
 
 	steps := 0

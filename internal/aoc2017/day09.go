@@ -13,7 +13,7 @@ func groupStreamTotals(r io.Reader) (score, garbage int, err error) {
 		return 0, 0, err
 	}
 
-	depth, inGarbage, canceled := 0, false, false
+	depth, inGarbage, canceled, started := 0, false, false, false
 	for _, symbol := range bytes.TrimSpace(input) {
 		if canceled {
 			canceled = false
@@ -30,14 +30,17 @@ func groupStreamTotals(r io.Reader) (score, garbage int, err error) {
 			}
 			continue
 		}
+		if depth == 0 {
+			if started || symbol != '{' && symbol != '<' {
+				return 0, 0, fmt.Errorf("group stream must be one group or garbage, got %q", symbol)
+			}
+			started = true
+		}
 		switch symbol {
 		case '{':
 			depth++
 			score += depth
 		case '}':
-			if depth == 0 {
-				return 0, 0, fmt.Errorf("unmatched group close")
-			}
 			depth--
 		case '<':
 			inGarbage = true
@@ -46,7 +49,7 @@ func groupStreamTotals(r io.Reader) (score, garbage int, err error) {
 			return 0, 0, fmt.Errorf("invalid group-stream symbol %q", symbol)
 		}
 	}
-	if depth != 0 || inGarbage || canceled {
+	if !started || depth != 0 || inGarbage || canceled {
 		return 0, 0, fmt.Errorf("unfinished group stream")
 	}
 

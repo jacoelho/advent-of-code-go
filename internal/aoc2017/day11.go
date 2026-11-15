@@ -12,8 +12,9 @@ import (
 
 func hexDistances(r io.Reader) (final, farthest int, err error) {
 	s := scanner.NewScannerWithSplit(r, scanner.SplitBySeparator([]byte{','}), func(token []byte) (string, error) { return string(bytes.TrimSpace(token)), nil })
-	x, y, z := 0, 0, 0
+	x, y, z, steps := 0, 0, 0, 0
 	for direction := range s.Values() {
+		steps++
 		switch direction {
 		case "n":
 			y++
@@ -40,7 +41,14 @@ func hexDistances(r io.Reader) (final, farthest int, err error) {
 		farthest = max(farthest, final)
 	}
 
-	return final, farthest, s.Err()
+	if err := s.Err(); err != nil {
+		return 0, 0, err
+	}
+	if steps == 0 {
+		return 0, 0, fmt.Errorf("empty hex path")
+	}
+
+	return final, farthest, nil
 }
 
 func day11p01(r io.Reader) (string, error) {

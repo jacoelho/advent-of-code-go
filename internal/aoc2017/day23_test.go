@@ -71,16 +71,6 @@ func TestCoprocessorRejectsOverflow(t *testing.T) {
 	}
 }
 
-func TestCoprocessorInstructionBudget(t *testing.T) {
-	program, err := parseCoprocessor(strings.NewReader("jnz 1 0"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := runCoprocessor(program, [26]int64{}, 10); err == nil {
-		t.Fatal("expected instruction limit error")
-	}
-}
-
 func TestDay23ReadErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	tests := []struct {

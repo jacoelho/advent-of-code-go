@@ -32,7 +32,7 @@ func parseGeneratorSeeds(r io.Reader) ([2]uint64, error) {
 		}
 
 		seed, err := convert.ScanNumber[int64](value)
-		if err != nil || seed < 0 || seed >= 2147483647 {
+		if err != nil || seed < 0 || seed >= generatorModulus {
 			return generatorSeed{}, fmt.Errorf("invalid generator seed %q", value)
 		}
 
@@ -58,6 +58,19 @@ func parseGeneratorSeeds(r io.Reader) ([2]uint64, error) {
 	return seeds, nil
 }
 
+const generatorModulus = 1<<31 - 1
+
+// nextGenerated returns value*factor mod 2^31-1 by folding the high bits, since 2^31 ≡ 1.
+func nextGenerated(value, factor uint64) uint64 {
+	product := value * factor
+	product = product&generatorModulus + product>>31
+	if product >= generatorModulus {
+		product -= generatorModulus
+	}
+	return product
+}
+
+// judgeGenerators counts low-16-bit matches; each divisor must be a power of two.
 func judgeGenerators(r io.Reader, pairs int, divisors [2]uint64) (string, error) {
 	seeds, err := parseGeneratorSeeds(r)
 	if err != nil {
@@ -65,19 +78,16 @@ func judgeGenerators(r io.Reader, pairs int, divisors [2]uint64) (string, error)
 	}
 
 	a, b := seeds[0], seeds[1]
+	maskA, maskB := divisors[0]-1, divisors[1]-1
 	matches := 0
 	for range pairs {
-		for {
-			a = a * 16807 % 2147483647
-			if a%divisors[0] == 0 {
-				break
-			}
+		a = nextGenerated(a, 16807)
+		for a&maskA != 0 {
+			a = nextGenerated(a, 16807)
 		}
-		for {
-			b = b * 48271 % 2147483647
-			if b%divisors[1] == 0 {
-				break
-			}
+		b = nextGenerated(b, 48271)
+		for b&maskB != 0 {
+			b = nextGenerated(b, 48271)
 		}
 		if uint16(a) == uint16(b) {
 			matches++

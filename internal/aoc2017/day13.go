@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math/big"
+	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
@@ -17,15 +17,23 @@ type firewallLayer struct {
 	width int64
 }
 
+// period is how many picoseconds the layer's scanner takes to return to the top.
+func (layer firewallLayer) period() int64 {
+	return 2 * (layer.width - 1)
+}
+
 func parseFirewall(r io.Reader) ([]firewallLayer, error) {
 	s := scanner.NewScanner(r, func(line []byte) (firewallLayer, error) {
 		depthText, widthText, ok := bytes.Cut(line, []byte(":"))
-		depth, depthErr := convert.ScanNumber[int32](bytes.TrimSpace(depthText))
-		width, widthErr := convert.ScanNumber[int32](bytes.TrimSpace(widthText))
+		depth, depthErr := convert.ScanNumber[int64](bytes.TrimSpace(depthText))
+		width, widthErr := convert.ScanNumber[int64](bytes.TrimSpace(widthText))
 		if !ok || depthErr != nil || widthErr != nil || depth < 0 || width < 1 {
 			return firewallLayer{}, fmt.Errorf("invalid firewall layer %q", line)
 		}
-		return firewallLayer{int64(depth), int64(width)}, nil
+		if _, ok := xmath.CheckedMul(width-1, 2); !ok {
+			return firewallLayer{}, fmt.Errorf("firewall layer %q has a period beyond int64", line)
+		}
+		return firewallLayer{depth, width}, nil
 	})
 
 	var layers []firewallLayer
@@ -53,14 +61,20 @@ func day13p01(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	severity := new(big.Int)
+	var severity int64
 	for _, layer := range layers {
-		if layer.width == 1 || layer.depth%(2*(layer.width-1)) == 0 {
-			severity.Add(severity, big.NewInt(layer.depth*layer.width))
+		if layer.width > 1 && layer.depth%layer.period() != 0 {
+			continue
 		}
+		damage, damageOK := xmath.CheckedMul(layer.depth, layer.width)
+		total, totalOK := xmath.CheckedAdd(severity, damage)
+		if !damageOK || !totalOK {
+			return "", fmt.Errorf("firewall severity overflows int64")
+		}
+		severity = total
 	}
 
-	return severity.String(), nil
+	return strconv.FormatInt(severity, 10), nil
 }
 
 func day13p02(r io.Reader) (string, error) {
@@ -69,50 +83,41 @@ func day13p02(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	const searchLimit int64 = 100_000_000
+	// Delays repeat with the LCM of the periods; past int64 the search is unbounded in practice.
 	cycle := int64(1)
-	completeCycle := true
 	for _, layer := range layers {
 		if layer.width == 1 {
 			return "", fmt.Errorf("firewall layer %d always catches the packet", layer.depth)
 		}
-		if !completeCycle {
-			continue
+		factor := layer.period() / xmath.GCD(cycle, layer.period())
+		next, ok := xmath.CheckedMul(cycle, factor)
+		if !ok {
+			next = math.MaxInt64
 		}
-		period := 2 * (layer.width - 1)
-		factor := period / xmath.GCD(cycle, period)
-		if cycle > searchLimit/factor {
-			completeCycle = false
-			cycle = searchLimit
-			continue
-		}
-		cycle *= factor
+		cycle = next
 	}
 
 	// Each scanner rejects one residue class; mark delays in bounded blocks.
 	var blocked [65536]bool
 	for start := int64(0); start < cycle; start += int64(len(blocked)) {
 		clear(blocked[:])
-		end := min(start+int64(len(blocked)), cycle)
+		size := min(int64(len(blocked)), cycle-start)
 		for _, layer := range layers {
-			period := 2 * (layer.width - 1)
-			first := (period - layer.depth%period) % period
-			if first < start {
-				first += (start - first + period - 1) / period * period
-			}
-			for delay := first; delay < end; delay += period {
-				blocked[delay-start] = true
+			period := layer.period()
+			caught := (period - layer.depth%period) % period
+			for offset := xmath.Modulo(caught-start, period); offset < size; offset += min(period, size) {
+				blocked[offset] = true
 			}
 		}
-		for offset := range end - start {
+		for offset := range size {
 			if !blocked[offset] {
 				return strconv.FormatInt(start+offset, 10), nil
 			}
 		}
+		if size < int64(len(blocked)) {
+			break
+		}
 	}
 
-	if completeCycle {
-		return "", fmt.Errorf("firewall has no safe delay")
-	}
-	return "", fmt.Errorf("firewall search exceeds %d delays", searchLimit)
+	return "", fmt.Errorf("firewall has no safe delay")
 }

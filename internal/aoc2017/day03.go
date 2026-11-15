@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func spiralTarget(r io.Reader) (int, error) {
@@ -77,11 +77,11 @@ func day03p02(r io.Reader) (string, error) {
 	for position := range spiralPositions() {
 		total := 0
 		for _, offset := range offsets {
-			value := values[position.Add(offset)]
-			if total > math.MaxInt-value {
+			sum, ok := xmath.CheckedAdd(total, values[position.Add(offset)])
+			if !ok {
 				return "", fmt.Errorf("spiral stress value exceeds int")
 			}
-			total += value
+			total = sum
 		}
 		total = max(total, 1)
 		if total > target {

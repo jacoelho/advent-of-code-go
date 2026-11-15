@@ -76,6 +76,9 @@ func registerMaxima(r io.Reader) (final, highest int, err error) {
 	if err := s.Err(); err != nil {
 		return 0, 0, err
 	}
+	if len(registers) == 0 {
+		return 0, 0, fmt.Errorf("no register instructions")
+	}
 
 	first := true
 	for _, value := range registers {

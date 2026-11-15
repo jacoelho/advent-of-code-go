@@ -28,6 +28,12 @@ func Test_day24p02(t *testing.T) {
 	})
 }
 
+func TestBridgeRejectsEmptyInput(t *testing.T) {
+	if _, err := day24p01(strings.NewReader("")); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestDay24ReadErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	tests := []struct {
