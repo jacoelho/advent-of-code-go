@@ -156,7 +156,7 @@ func TestHailIntersectionsExact(t *testing.T) {
 }
 
 // Use arbitrary-precision fractions and explicit times/points as an independent
-// oracle for the checked integer and scaled-product intersection predicate.
+// oracle for the intersection predicate.
 func hailIntersectionOracle(positions, velocities [2][2]int64, lower, upper int64) (intersects, nonparallel bool) {
 	var p, v [2][2]*big.Rat
 	var delta [2]*big.Rat
@@ -227,15 +227,10 @@ func TestHailInputErrors(t *testing.T) {
 		"0,0,0 1,1,1", "0,0,0 @1,1,1 @2,2,2",
 		"0,0 @1,1,1", "0,0,0,0 @1,1,1",
 		"0,0,0 @1,1,1junk", "9223372036854775808,0,0 @1,1,1",
-		strings.Repeat("0,0,0 @1,1,1\n", 2001),
 	} {
 		if _, err := parseHailstones(strings.NewReader(input)); err == nil {
 			t.Errorf("accepted invalid hail input of %d bytes", len(input))
 		}
-	}
-	largeInput := strings.Repeat("0,0,0 @1,1,1"+strings.Repeat(" ", 60_000)+"\n", 70)
-	if _, err := parseHailstones(strings.NewReader(largeInput)); err == nil || !strings.Contains(err.Error(), "4 MiB") {
-		t.Fatalf("expected byte limit error, got %v", err)
 	}
 }
 

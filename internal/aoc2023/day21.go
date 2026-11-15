@@ -3,100 +3,97 @@ package aoc2023
 import (
 	"fmt"
 	"io"
-	"iter"
-	"maps"
 	"math/big"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-func parseGarden(r io.Reader) (grid.Grid2D[int, rune], grid.Position2D[int], error) {
-	g := make(grid.Grid2D[int, rune])
-	var start grid.Position2D[int]
-	var foundStart bool
-	width := 0
+var gardenOffsets = [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
 
-	lineScanner := scanner.NewScanner(r, func(bytes []byte) (string, error) {
-		return string(bytes), nil
-	})
+type garden struct {
+	rows           [][]byte
+	startX, startY int
+}
 
-	for y, line := range xiter.Enumerate(lineScanner.Values()) {
-		if y == 0 {
-			width = len(line)
+func parseGarden(r io.Reader) (garden, error) {
+	g, err := grid.ReadBytes(r, ".#S")
+	if err != nil {
+		return garden{}, err
+	}
+	start, err := g.Find('S')
+	if err != nil {
+		return garden{}, err
+	}
+	return garden{rows: g.Rows(), startX: start.X, startY: start.Y}, nil
+}
+
+func (g garden) width() int  { return len(g.rows[0]) }
+func (g garden) height() int { return len(g.rows) }
+
+// plot reports whether x,y is a garden plot in the garden repeated infinitely.
+func (g garden) plot(x, y int) bool {
+	return g.rows[xmath.Modulo(y, g.height())][xmath.Modulo(x, g.width())] != '#'
+}
+
+func (g garden) hasExit() bool {
+	for _, offset := range gardenOffsets {
+		if g.plot(g.startX+offset[0], g.startY+offset[1]) {
+			return true
 		}
-		if width == 0 || len(line) != width {
-			return nil, start, fmt.Errorf("garden row %d is empty or has inconsistent width", y+1)
-		}
-		if len(g)+len(line) > 1_000_000 {
-			return nil, start, fmt.Errorf("garden exceeds one million cells")
-		}
-		for x, ch := range line {
-			if ch != '.' && ch != '#' && ch != 'S' {
-				return nil, start, fmt.Errorf("invalid garden tile %q at %d,%d", ch, x, y)
+	}
+	return false
+}
+
+// distances returns the step distances from the start to every cell of the
+// width×height window whose corner is x0,y0, walking only inside the window.
+// Cells are row-major and unreachable cells hold -1.
+func (g garden) distances(x0, y0, width, height int) []int {
+	distance := make([]int, width*height)
+	for i := range distance {
+		distance[i] = -1
+	}
+	startIndex := (g.startY-y0)*width + g.startX - x0
+	distance[startIndex] = 0
+	queue := []int{startIndex}
+	for head := 0; head < len(queue); head++ {
+		current := queue[head]
+		x, y := current%width, current/width
+		for _, offset := range gardenOffsets {
+			nx, ny := x+offset[0], y+offset[1]
+			if nx < 0 || ny < 0 || nx >= width || ny >= height || !g.plot(nx+x0, ny+y0) {
+				continue
 			}
-			pos := grid.NewPosition2D(x, y)
-			g[pos] = ch
-			if ch == 'S' {
-				if foundStart {
-					return nil, start, fmt.Errorf("garden has multiple starting positions")
-				}
-				start = pos
-				foundStart = true
+			if next := ny*width + nx; distance[next] < 0 {
+				distance[next] = distance[current] + 1
+				queue = append(queue, next)
 			}
 		}
 	}
-
-	if err := lineScanner.Err(); err != nil {
-		return nil, grid.Position2D[int]{}, err
-	}
-
-	if !foundStart {
-		return nil, grid.Position2D[int]{}, fmt.Errorf("starting position 'S' not found")
-	}
-
-	return g, start, nil
-}
-
-func isGardenPlot(g grid.Grid2D[int, rune], pos grid.Position2D[int]) bool {
-	ch, exists := g[pos]
-	return exists && (ch == '.' || ch == 'S')
-}
-
-func gardenNeighbours(g grid.Grid2D[int, rune]) func(grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-	return func(pos grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-		return xiter.From(grid.Neighbours4(pos)).Filter(func(next grid.Position2D[int]) bool {
-			return isGardenPlot(g, next)
-		}).All()
-	}
-}
-
-func countReachableInSteps(distances map[grid.Position2D[int]]int, targetSteps int) int {
-	if targetSteps > 0 && len(distances) == 1 {
-		return 0
-	}
-	targetParity := targetSteps % 2
-	return xiter.From(maps.Values(distances)).Filter(func(d int) bool {
-		return d <= targetSteps && d%2 == targetParity
-	}).Count()
+	return distance
 }
 
 func day21(r io.Reader, steps int) (string, error) {
 	if steps < 0 {
 		return "", fmt.Errorf("garden steps must be nonnegative")
 	}
-	g, start, err := parseGarden(r)
+	g, err := parseGarden(r)
 	if err != nil {
 		return "", err
 	}
-
-	distances := search.BFSDistances(start, gardenNeighbours(g))
-	count := countReachableInSteps(distances, steps)
-
+	count, reachable := 0, 0
+	for _, d := range g.distances(0, 0, g.width(), g.height()) {
+		if d >= 0 {
+			reachable++
+		}
+		if d >= 0 && d <= steps && d%2 == steps%2 {
+			count++
+		}
+	}
+	if steps > 0 && reachable == 1 {
+		return "0", nil
+	}
 	return strconv.Itoa(count), nil
 }
 
@@ -105,74 +102,57 @@ func day21p01(r io.Reader) (string, error) {
 }
 
 func day21p02(r io.Reader) (string, error) {
-	g, start, err := parseGarden(r)
+	g, err := parseGarden(r)
 	if err != nil {
 		return "", err
 	}
-
-	count, err := repeatedGardenPlots(g, start, 26501365)
+	count, err := repeatedGardenPlots(g, 26501365)
 	if err != nil {
 		return "", err
 	}
 	return count.String(), nil
 }
 
+// gardenDistances holds exact distances in the 5×5 tile patch around the
+// start tile and extends them to farther tiles by whole-tile translations.
 type gardenDistances struct {
-	side      int
-	distances map[grid.Position2D[int]]int
+	side  int
+	patch []int
 }
 
-func (d gardenDistances) at(pos grid.Position2D[int]) int {
-	x, y := xmath.Modulo(pos.X, d.side), xmath.Modulo(pos.Y, d.side)
-	tileX, tileY := (pos.X-x)/d.side, (pos.Y-y)/d.side
+func (d gardenDistances) at(x, y int) int {
+	modX, modY := xmath.Modulo(x, d.side), xmath.Modulo(y, d.side)
+	tileX, tileY := (x-modX)/d.side, (y-modY)/d.side
 	baseX, baseY := max(-1, min(1, tileX)), max(-1, min(1, tileY))
-	base := grid.NewPosition2D(baseX*d.side+x, baseY*d.side+y)
-	distance, ok := d.distances[base]
-	if !ok {
+	size := 5 * d.side
+	distance := d.patch[((baseY+2)*d.side+modY)*size+(baseX+2)*d.side+modX]
+	if distance < 0 {
 		return -1
 	}
 	return distance + d.side*(xmath.Abs(tileX-baseX)+xmath.Abs(tileY-baseY))
 }
 
-func repeatedGardenPlot(g grid.Grid2D[int, rune], side int, pos grid.Position2D[int]) bool {
-	return isGardenPlot(g, grid.NewPosition2D(xmath.Modulo(pos.X, side), xmath.Modulo(pos.Y, side)))
-}
-
-func certifyGardenDistances(g grid.Grid2D[int, rune], start grid.Position2D[int], side int) (gardenDistances, error) {
-	neighbors := func(pos grid.Position2D[int]) iter.Seq[grid.Position2D[int]] {
-		return func(yield func(grid.Position2D[int]) bool) {
-			for _, offset := range grid.OffsetsNeighbours4[int]() {
-				next := pos.Add(offset)
-				if next.X < -2*side || next.Y < -2*side || next.X >= 3*side || next.Y >= 3*side {
-					continue
-				}
-				if repeatedGardenPlot(g, side, next) && !yield(next) {
-					return
-				}
-			}
-		}
-	}
-	model := gardenDistances{side: side, distances: search.BFSDistances(start, neighbors)}
+func certifyGardenDistances(g garden, side int) (gardenDistances, error) {
+	model := gardenDistances{side: side, patch: g.distances(-2*side, -2*side, 5*side, 5*side)}
 
 	// These 25 tile regimes cover every translated edge, including neighbors beyond the patch.
 	// Descent to the unique zero proves reachability; the edge bound proves shortest distance.
 	for y := -2 * side; y < 3*side; y++ {
 		for x := -2 * side; x < 3*side; x++ {
-			pos := grid.NewPosition2D(x, y)
-			if !repeatedGardenPlot(g, side, pos) {
+			if !g.plot(x, y) {
 				continue
 			}
-			distance := model.at(pos)
-			if distance == 0 && pos != start {
+			distance := model.at(x, y)
+			if distance == 0 && (x != g.startX || y != g.startY) {
 				return gardenDistances{}, fmt.Errorf("unsupported garden distances: additional zero at %d,%d", x, y)
 			}
 			descending := distance == 0
-			for _, offset := range grid.OffsetsNeighbours4[int]() {
-				next := pos.Add(offset)
-				if !repeatedGardenPlot(g, side, next) {
+			for _, offset := range gardenOffsets {
+				nx, ny := x+offset[0], y+offset[1]
+				if !g.plot(nx, ny) {
 					continue
 				}
-				nextDistance := model.at(next)
+				nextDistance := model.at(nx, ny)
 				if (distance < 0) != (nextDistance < 0) || distance >= 0 && xmath.Abs(distance-nextDistance) > 1 {
 					return gardenDistances{}, fmt.Errorf("unsupported garden distances: edge at %d,%d", x, y)
 				}
@@ -213,30 +193,21 @@ func gardenCopies(distance, dimensions, side, steps int) *big.Int {
 	return result
 }
 
-func repeatedGardenPlots(g grid.Grid2D[int, rune], start grid.Position2D[int], steps int) (*big.Int, error) {
+func repeatedGardenPlots(g garden, steps int) (*big.Int, error) {
 	if steps < 0 {
 		return nil, fmt.Errorf("garden steps must be nonnegative")
 	}
-	_, maxX, _, maxY := g.Dimensions()
-	side := maxX + 1
-	if side != maxY+1 || side%2 == 0 || side > 201 {
-		return nil, fmt.Errorf("unsupported garden shape: need an odd square at most 201 cells wide")
+	side := g.width()
+	if side != g.height() || side%2 == 0 {
+		return nil, fmt.Errorf("unsupported garden shape: need an odd square")
 	}
-
-	hasExit := false
-	for _, offset := range grid.OffsetsNeighbours4[int]() {
-		if repeatedGardenPlot(g, side, start.Add(offset)) {
-			hasExit = true
-			break
-		}
-	}
-	if !hasExit {
+	if !g.hasExit() {
 		if steps == 0 {
 			return big.NewInt(1), nil
 		}
 		return new(big.Int), nil
 	}
-	model, err := certifyGardenDistances(g, start, side)
+	model, err := certifyGardenDistances(g, side)
 	if err != nil {
 		return nil, err
 	}
@@ -253,10 +224,10 @@ func repeatedGardenPlots(g grid.Grid2D[int, rune], start grid.Position2D[int], s
 			}
 			for y := range side {
 				for x := range side {
-					if !isGardenPlot(g, grid.NewPosition2D(x, y)) {
+					if !g.plot(x, y) {
 						continue
 					}
-					distance := model.at(grid.NewPosition2D(tileX*side+x, tileY*side+y))
+					distance := model.at(tileX*side+x, tileY*side+y)
 					total.Add(total, gardenCopies(distance, dimensions, side, steps))
 				}
 			}

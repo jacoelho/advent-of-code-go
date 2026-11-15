@@ -2,12 +2,11 @@ package aoc2023
 
 import (
 	"bytes"
-	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
-	"math/bits"
+	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
@@ -69,21 +68,10 @@ func parseHailstone(line []byte) (hailstone, error) {
 }
 
 func parseHailstones(r io.Reader) ([]hailstone, error) {
-	const inputLimit = 4 << 20
-	limited := &io.LimitedReader{R: r, N: inputLimit + 1}
-	s := scanner.NewScanner(limited, parseHailstone)
-	var stones []hailstone
-	for stone := range s.Values() {
-		if len(stones) == 2000 {
-			return nil, fmt.Errorf("hail input exceeds 2000 stones")
-		}
-		stones = append(stones, stone)
-	}
+	s := scanner.NewScanner(r, parseHailstone)
+	stones := slices.Collect(s.Values())
 	if err := s.Err(); err != nil {
 		return nil, err
-	}
-	if limited.N == 0 {
-		return nil, fmt.Errorf("hail input exceeds 4 MiB")
 	}
 	if len(stones) < 2 {
 		return nil, fmt.Errorf("need at least two hailstones")
@@ -201,109 +189,12 @@ func hailPathsIntersect(a, b hailstone, lower, upper linear.Rat) bool {
 	return true
 }
 
-type hailXYStone struct {
-	position, velocity [2]int64
-}
-
-func hailSubtract(a, b int64) (int64, bool) {
-	difference := a - b
-	return difference, (a^b)&(a^difference) >= 0
-}
-
-// hailProduct returns the signed 128-bit product as a signed high word and an
-// unsigned low word. Correcting the unsigned high word also handles MinInt64.
-func hailProduct(a, b int64) (int64, uint64) {
-	high, low := bits.Mul64(uint64(a), uint64(b))
-	if a < 0 {
-		high -= uint64(b)
-	}
-	if b < 0 {
-		high -= uint64(a)
-	}
-	return int64(high), low
-}
-
-func hailIntegerCross(a, b [2]int64) (int64, bool) {
-	leftHigh, leftLow := hailProduct(a[0], b[1])
-	rightHigh, rightLow := hailProduct(a[1], b[0])
-	left, right := int64(leftLow), int64(rightLow)
-	if leftHigh != left>>63 || rightHigh != right>>63 {
-		return 0, false
-	}
-	return hailSubtract(left, right)
-}
-
-// hailIntegerPathsIntersect reports whether checked integer arithmetic decided
-// the intersection. Overflow and parallel paths require the rational predicate.
-func hailIntegerPathsIntersect(a, b hailXYStone, lower, upper int64) (intersects, exact bool) {
-	determinant, ok := hailIntegerCross(a.velocity, b.velocity)
-	if !ok || determinant == 0 {
-		return false, false
-	}
-	var delta [2]int64
-	for axis := range 2 {
-		delta[axis], ok = hailSubtract(b.position[axis], a.position[axis])
-		if !ok {
-			return false, false
-		}
-	}
-	numeratorA, ok := hailIntegerCross(delta, b.velocity)
-	if !ok {
-		return false, false
-	}
-	if numeratorA != 0 && (numeratorA < 0) != (determinant < 0) {
-		return false, true
-	}
-	numeratorB, ok := hailIntegerCross(delta, a.velocity)
-	if !ok {
-		return false, false
-	}
-	if numeratorB != 0 && (numeratorB < 0) != (determinant < 0) {
-		return false, true
-	}
-	for axis := range 2 {
-		lowerDelta, ok := hailSubtract(lower, a.position[axis])
-		if !ok {
-			return false, false
-		}
-		upperDelta, ok := hailSubtract(upper, a.position[axis])
-		if !ok {
-			return false, false
-		}
-		// lower <= position + velocity*numeratorA/determinant <= upper.
-		// Compare shifted products to avoid both division and a 128-bit sum.
-		high, low := hailProduct(a.velocity[axis], numeratorA)
-		lowerHigh, lowerLow := hailProduct(lowerDelta, determinant)
-		upperHigh, upperLow := hailProduct(upperDelta, determinant)
-		lowerCmp := cmp.Or(cmp.Compare(high, lowerHigh), cmp.Compare(low, lowerLow))
-		upperCmp := cmp.Or(cmp.Compare(high, upperHigh), cmp.Compare(low, upperLow))
-		if determinant > 0 && (lowerCmp < 0 || upperCmp > 0) ||
-			determinant < 0 && (lowerCmp > 0 || upperCmp < 0) {
-			return false, true
-		}
-	}
-	return true, true
-}
-
 func countHailIntersections(stones []hailstone, minBound, maxBound int64) int {
 	lower, upper := linear.NewRat(minBound, 1), linear.NewRat(maxBound, 1)
-	// Parsing guarantees signed int64 coordinates. Project XY once so pair
-	// comparisons avoid rational conversions; retain stones for exact fallback.
-	xy := make([]hailXYStone, len(stones))
-	for i, stone := range stones {
-		for axis := range 2 {
-			xy[i].position[axis] = stone.position[axis].Numerator().Int64()
-			xy[i].velocity[axis] = stone.velocity[axis].Numerator().Int64()
-		}
-	}
 	count := 0
-	for i, a := range xy {
-		for j := i + 1; j < len(xy); j++ {
-			intersects, exact := hailIntegerPathsIntersect(a, xy[j], minBound, maxBound)
-			if !exact {
-				intersects = hailPathsIntersect(stones[i], stones[j], lower, upper)
-			}
-			if intersects {
+	for i, a := range stones {
+		for _, b := range stones[i+1:] {
+			if hailPathsIntersect(a, b, lower, upper) {
 				count++
 			}
 		}

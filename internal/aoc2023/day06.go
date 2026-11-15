@@ -3,12 +3,12 @@ package aoc2023
 import (
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/search"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type race struct {
@@ -17,13 +17,9 @@ type race struct {
 }
 
 func parseRaces(r io.Reader, combined bool) ([]race, error) {
-	const inputLimit = 1 << 20
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
-	}
-	if len(data) > inputLimit {
-		return nil, fmt.Errorf("race input exceeds 1 MiB")
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) != 2 {
@@ -36,8 +32,8 @@ func parseRaces(r io.Reader, combined bool) ([]race, error) {
 			return nil, fmt.Errorf("missing %s label", label)
 		}
 		fields[i] = strings.Fields(values)
-		if len(fields[i]) == 0 || len(fields[i]) > 10_000 {
-			return nil, fmt.Errorf("expected 1 to 10000 race values")
+		if len(fields[i]) == 0 {
+			return nil, fmt.Errorf("%s has no race values", label)
 		}
 		for _, value := range fields[i] {
 			for _, digit := range value {
@@ -104,11 +100,9 @@ func day06p01(r io.Reader) (string, error) {
 		if ways == 0 {
 			product, overflow = 0, false
 		} else if !overflow {
-			if product > math.MaxInt64/ways {
-				overflow = true
-			} else {
-				product *= ways
-			}
+			var ok bool
+			product, ok = xmath.CheckedMul(product, ways)
+			overflow = !ok
 		}
 	}
 	if overflow {

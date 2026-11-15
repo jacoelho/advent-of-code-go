@@ -38,3 +38,7 @@ func Test_day09p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day09p02, tests)
 }
+
+func TestDay09RejectsMalformedSequences(t *testing.T) {
+	requireRejected(t, []string{"1 2\n\n3 4", "1 x 3", "1,2,3"}, day09p01, day09p02)
+}

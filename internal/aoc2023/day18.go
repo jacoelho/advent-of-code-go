@@ -7,132 +7,83 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-type instruction struct {
+type digStep struct {
 	direction byte
 	distance  int
-	color     string
 }
 
-func parseInstruction(line []byte) (instruction, error) {
+// digInstruction holds the plan step and the step encoded in its colour.
+type digInstruction struct {
+	plan, colour digStep
+}
+
+func parseDigInstruction(line []byte) (digInstruction, error) {
 	parts := strings.Fields(string(line))
-	if len(parts) != 3 {
-		return instruction{}, fmt.Errorf("invalid instruction: %s", line)
+	if len(parts) != 3 || len(parts[0]) != 1 || !strings.Contains("UDLR", parts[0]) {
+		return digInstruction{}, fmt.Errorf("invalid dig instruction %q", line)
 	}
-
-	distance := aoc.MustAtoi(parts[1])
-	color := strings.Trim(parts[2], "()")
-
-	return instruction{
-		direction: parts[0][0],
-		distance:  distance,
-		color:     color,
+	distance, err := strconv.Atoi(parts[1])
+	if err != nil || distance < 0 {
+		return digInstruction{}, fmt.Errorf("invalid dig distance in %q", line)
+	}
+	colour, ok := strings.CutPrefix(parts[2], "(#")
+	colour, closed := strings.CutSuffix(colour, ")")
+	if !ok || !closed || len(colour) != 6 || strings.Trim(colour, "0123456789abcdef") != "" || colour[5] > '3' {
+		return digInstruction{}, fmt.Errorf("invalid dig colour in %q", line)
+	}
+	colourDistance, _ := strconv.ParseInt(colour[:5], 16, 64)
+	return digInstruction{
+		plan:   digStep{direction: parts[0][0], distance: distance},
+		colour: digStep{direction: "RDLU"[colour[5]-'0'], distance: int(colourDistance)},
 	}, nil
 }
 
-func decodeHexInstruction(color string) (byte, int, error) {
-	if len(color) != 7 || color[0] != '#' {
-		return 0, 0, fmt.Errorf("invalid color format: %s", color)
+func lagoonArea(r io.Reader, step func(digInstruction) digStep) (string, error) {
+	s := scanner.NewScanner(r, parseDigInstruction)
+	instructions := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return "", err
+	}
+	if len(instructions) == 0 {
+		return "", fmt.Errorf("empty dig plan")
 	}
 
-	distanceHex := color[1:6]
-	distance, err := strconv.ParseInt(distanceHex, 16, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid distance hex: %s", distanceHex)
-	}
-
-	directionHex := color[6]
-	var direction byte
-	switch directionHex {
-	case '0':
-		direction = 'R'
-	case '1':
-		direction = 'D'
-	case '2':
-		direction = 'L'
-	case '3':
-		direction = 'U'
-	default:
-		return 0, 0, fmt.Errorf("invalid direction hex: %c", directionHex)
-	}
-
-	return direction, int(distance), nil
-}
-
-func movePosition(pos grid.Position2D[int], direction byte, distance int) grid.Position2D[int] {
-	switch direction {
-	case 'R':
-		pos.X += distance
-	case 'L':
-		pos.X -= distance
-	case 'U':
-		pos.Y -= distance
-	case 'D':
-		pos.Y += distance
-	}
-	return pos
-}
-
-type instructionDecoder func(instruction) (direction byte, distance int, err error)
-
-func calculateLagoonArea(instructions []instruction, decoder instructionDecoder) (int, error) {
-	vertices := make([]grid.Position2D[int], 0, len(instructions)+1)
-	current := grid.Position2D[int]{X: 0, Y: 0}
-	vertices = append(vertices, current)
+	vertices := make([]grid.Position2D[int], 0, len(instructions))
+	var current grid.Position2D[int]
 	perimeter := 0
-
-	for _, inst := range instructions {
-		direction, distance, err := decoder(inst)
-		if err != nil {
-			return 0, err
+	for _, instruction := range instructions {
+		dig := step(instruction)
+		switch dig.direction {
+		case 'R':
+			current.X += dig.distance
+		case 'L':
+			current.X -= dig.distance
+		case 'U':
+			current.Y -= dig.distance
+		case 'D':
+			current.Y += dig.distance
 		}
-		perimeter += distance
-		current = movePosition(current, direction, distance)
+		perimeter += dig.distance
 		vertices = append(vertices, current)
 	}
-
-	area := xmath.PolygonArea(vertices)
+	if current != (grid.Position2D[int]{}) {
+		return "", fmt.Errorf("dig plan ends at %d,%d instead of its start", current.X, current.Y)
+	}
 
 	// Pick's theorem gives i = area - perimeter/2 + 1 interior lattice points.
 	// Including the boundary tiles gives i + perimeter = area + perimeter/2 + 1.
-	return area + perimeter/2 + 1, nil
-}
-
-func part1Decoder(inst instruction) (byte, int, error) {
-	return inst.direction, inst.distance, nil
-}
-
-func part2Decoder(inst instruction) (byte, int, error) {
-	return decodeHexInstruction(inst.color)
+	return strconv.Itoa(xmath.PolygonArea(vertices) + perimeter/2 + 1), nil
 }
 
 func day18p01(r io.Reader) (string, error) {
-	s := scanner.NewScanner(r, parseInstruction)
-	instructions := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
-		return "", err
-	}
-	result, err := calculateLagoonArea(instructions, part1Decoder)
-	if err != nil {
-		return "", err
-	}
-	return strconv.Itoa(result), nil
+	return lagoonArea(r, func(instruction digInstruction) digStep { return instruction.plan })
 }
 
 func day18p02(r io.Reader) (string, error) {
-	s := scanner.NewScanner(r, parseInstruction)
-	instructions := slices.Collect(s.Values())
-	if err := s.Err(); err != nil {
-		return "", err
-	}
-	result, err := calculateLagoonArea(instructions, part2Decoder)
-	if err != nil {
-		return "", err
-	}
-	return strconv.Itoa(result), nil
+	return lagoonArea(r, func(instruction digInstruction) digStep { return instruction.colour })
 }

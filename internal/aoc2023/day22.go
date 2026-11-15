@@ -4,248 +4,138 @@ import (
 	"cmp"
 	"fmt"
 	"io"
-	"iter"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
-	"github.com/jacoelho/advent-of-code-go/pkg/search"
-	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
+// brick spans the cells from low to high inclusive; they differ on at most one
+// axis and low.z is at least 1.
 type brick struct {
-	ID    int
-	Start grid.Position3D[int]
-	End   grid.Position3D[int]
+	low, high [3]int
 }
 
-func (b brick) MinZ() int {
-	return min(b.Start.Z, b.End.Z)
-}
-
-func (b brick) MaxZ() int {
-	return max(b.Start.Z, b.End.Z)
-}
-
-func (b brick) OccupiedPositions() []grid.Position3D[int] {
-	var positions []grid.Position3D[int]
-
-	dx := -cmp.Compare(b.Start.X, b.End.X)
-	dy := -cmp.Compare(b.Start.Y, b.End.Y)
-	dz := -cmp.Compare(b.Start.Z, b.End.Z)
-
-	pos := b.Start
-	for {
-		positions = append(positions, pos)
-		if pos == b.End {
-			break
-		}
-		pos = pos.Add(grid.NewPosition3D(dx, dy, dz))
+func parseBrickEnd(s string) ([3]int, error) {
+	var end [3]int
+	fields := strings.Split(s, ",")
+	if len(fields) != 3 {
+		return end, fmt.Errorf("brick end %q needs three coordinates", s)
 	}
-
-	return positions
+	for i, field := range fields {
+		value, err := strconv.Atoi(field)
+		if err != nil || value < 0 {
+			return end, fmt.Errorf("invalid brick coordinate %q", field)
+		}
+		end[i] = value
+	}
+	return end, nil
 }
 
-func parseBricks(r io.Reader) ([]brick, error) {
-	var bricks []brick
-
-	lineScanner := scanner.NewScanner(r, func(bytes []byte) (string, error) {
-		return string(bytes), nil
-	})
-
-	for id, line := range xiter.Enumerate(lineScanner.Values()) {
-		parts := strings.Split(line, "~")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid brick format: %s", line)
-		}
-
-		start, err := parsePosition(parts[0])
-		if err != nil {
-			return nil, fmt.Errorf("invalid start position: %w", err)
-		}
-
-		end, err := parsePosition(parts[1])
-		if err != nil {
-			return nil, fmt.Errorf("invalid end position: %w", err)
-		}
-
-		bricks = append(bricks, brick{
-			ID:    id,
-			Start: start,
-			End:   end,
-		})
+func parseBrick(line []byte) (brick, error) {
+	first, second, ok := strings.Cut(string(line), "~")
+	if !ok {
+		return brick{}, fmt.Errorf("invalid brick %q", line)
 	}
-
-	if err := lineScanner.Err(); err != nil {
-		return nil, err
-	}
-	return bricks, nil
-}
-
-func parsePosition(s string) (grid.Position3D[int], error) {
-	coords := strings.Split(s, ",")
-	if len(coords) != 3 {
-		return grid.Position3D[int]{}, fmt.Errorf("invalid position format: %s", s)
-	}
-
-	x, err := strconv.Atoi(coords[0])
+	a, err := parseBrickEnd(first)
 	if err != nil {
-		return grid.Position3D[int]{}, err
+		return brick{}, fmt.Errorf("brick %q: %w", line, err)
 	}
-
-	y, err := strconv.Atoi(coords[1])
+	b, err := parseBrickEnd(second)
 	if err != nil {
-		return grid.Position3D[int]{}, err
+		return brick{}, fmt.Errorf("brick %q: %w", line, err)
 	}
-
-	z, err := strconv.Atoi(coords[2])
-	if err != nil {
-		return grid.Position3D[int]{}, err
-	}
-
-	return grid.NewPosition3D(x, y, z), nil
-}
-
-func setupBricks(r io.Reader) ([]brick, map[int]collections.Set[int], map[int]collections.Set[int], error) {
-	bricks, err := parseBricks(r)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	slices.SortFunc(bricks, func(a, b brick) int {
-		return cmp.Compare(a.MinZ(), b.MinZ())
-	})
-
-	settledBricks, err := simulateFalling(bricks)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	supports, supportedBy := buildSupportGraph(settledBricks)
-	return settledBricks, supports, supportedBy, nil
-}
-
-func day22p01(r io.Reader) (string, error) {
-	settledBricks, supports, supportedBy, err := setupBricks(r)
-	if err != nil {
-		return "", err
-	}
-
-	safeCount := xiter.FromSlice(settledBricks).Filter(func(b brick) bool {
-		return canSafelyDisintegrate(b.ID, supports, supportedBy)
-	}).Count()
-
-	return strconv.Itoa(safeCount), nil
-}
-
-func simulateFalling(bricks []brick) ([]brick, error) {
-	heightMap := make(map[grid.Position2D[int]]int)
-	settledBricks := make([]brick, len(bricks))
-
-	for i, b := range bricks {
-		maxHeight := 0
-		positions := b.OccupiedPositions()
-
-		for _, pos := range positions {
-			xy := grid.NewPosition2D(pos.X, pos.Y)
-			if height, exists := heightMap[xy]; exists && height > maxHeight {
-				maxHeight = height
-			}
-		}
-
-		fallDistance := b.MinZ() - maxHeight - 1
-
-		settledBrick := brick{
-			ID:    b.ID,
-			Start: grid.NewPosition3D(b.Start.X, b.Start.Y, b.Start.Z-fallDistance),
-			End:   grid.NewPosition3D(b.End.X, b.End.Y, b.End.Z-fallDistance),
-		}
-		settledBricks[i] = settledBrick
-
-		for _, pos := range settledBrick.OccupiedPositions() {
-			xy := grid.NewPosition2D(pos.X, pos.Y)
-			heightMap[xy] = max(heightMap[xy], pos.Z)
+	var result brick
+	axes := 0
+	for i := range 3 {
+		result.low[i], result.high[i] = min(a[i], b[i]), max(a[i], b[i])
+		if a[i] != b[i] {
+			axes++
 		}
 	}
-
-	return settledBricks, nil
+	if axes > 1 {
+		return brick{}, fmt.Errorf("brick %q is not a straight line", line)
+	}
+	if result.low[2] < 1 {
+		return brick{}, fmt.Errorf("brick %q is below the ground", line)
+	}
+	return result, nil
 }
 
-func buildSupportGraph(bricks []brick) (map[int]collections.Set[int], map[int]collections.Set[int]) {
-	supports := make(map[int]collections.Set[int])
-	supportedBy := make(map[int]collections.Set[int])
-
-	for _, brick := range bricks {
-		supports[brick.ID] = collections.NewSet[int]()
-		supportedBy[brick.ID] = collections.NewSet[int]()
+// settleBricks drops the bricks and returns, for each settled brick, the
+// bricks resting on it and the bricks it rests on.
+func settleBricks(r io.Reader) (supports, supportedBy [][]int, err error) {
+	s := scanner.NewScanner(r, parseBrick)
+	bricks := slices.Collect(s.Values())
+	if err := s.Err(); err != nil {
+		return nil, nil, err
 	}
+	slices.SortFunc(bricks, func(a, b brick) int { return cmp.Compare(a.low[2], b.low[2]) })
 
-	positionToBrick := make(map[grid.Position3D[int]]int)
-	for _, brick := range bricks {
-		for _, pos := range brick.OccupiedPositions() {
-			positionToBrick[pos] = brick.ID
-		}
-	}
-
-	for _, brick := range bricks {
-		for _, pos := range brick.OccupiedPositions() {
-			below := grid.NewPosition3D(pos.X, pos.Y, pos.Z-1)
-			if belowBrickID, exists := positionToBrick[below]; exists && belowBrickID != brick.ID {
-				supports[belowBrickID].Add(brick.ID)
-				supportedBy[brick.ID].Add(belowBrickID)
-			}
-		}
-	}
-
-	return supports, supportedBy
-}
-
-func canSafelyDisintegrate(brickID int, supports, supportedBy map[int]collections.Set[int]) bool {
-	for supportedBrickID := range supports[brickID].Iter() {
-		if supportedBy[supportedBrickID].Len() < 2 {
-			return false
-		}
-	}
-	return true
-}
-
-func allSupportersHaveFallen(brickID int, supportedBy map[int]collections.Set[int], fallen collections.Set[int]) bool {
-	for supporter := range supportedBy[brickID] {
-		if !fallen.Contains(supporter) {
-			return false
-		}
-	}
-	return true
-}
-
-func countFallingBricks(brickID int, supports, supportedBy map[int]collections.Set[int]) int {
-	fallen := collections.NewSet(brickID)
-	for range search.BFSWithVisited(brickID, fallen, func(current int) iter.Seq[int] {
-		return func(yield func(int) bool) {
-			for supportedID := range supports[current].Iter() {
-				if allSupportersHaveFallen(supportedID, supportedBy, fallen) && !yield(supportedID) {
-					return
+	type top struct{ z, id int }
+	tops := make(map[[2]int]top)
+	supports = make([][]int, len(bricks))
+	supportedBy = make([][]int, len(bricks))
+	for id, b := range bricks {
+		rest := 1
+		for x := b.low[0]; x <= b.high[0]; x++ {
+			for y := b.low[1]; y <= b.high[1]; y++ {
+				if t, ok := tops[[2]int{x, y}]; ok {
+					rest = max(rest, t.z+1)
 				}
 			}
 		}
-	}) {
+		for x := b.low[0]; x <= b.high[0]; x++ {
+			for y := b.low[1]; y <= b.high[1]; y++ {
+				cell := [2]int{x, y}
+				if t, ok := tops[cell]; ok && t.z+1 == rest && !slices.Contains(supportedBy[id], t.id) {
+					supportedBy[id] = append(supportedBy[id], t.id)
+					supports[t.id] = append(supports[t.id], id)
+				}
+				tops[cell] = top{z: rest + b.high[2] - b.low[2], id: id}
+			}
+		}
 	}
-
-	return fallen.Len() - 1 // exclude the original brick
+	return supports, supportedBy, nil
 }
 
-func day22p02(r io.Reader) (string, error) {
-	settledBricks, supports, supportedBy, err := setupBricks(r)
+func day22p01(r io.Reader) (string, error) {
+	supports, supportedBy, err := settleBricks(r)
 	if err != nil {
 		return "", err
 	}
+	safe := 0
+	for _, above := range supports {
+		if !slices.ContainsFunc(above, func(id int) bool { return len(supportedBy[id]) == 1 }) {
+			safe++
+		}
+	}
+	return strconv.Itoa(safe), nil
+}
 
-	totalFalling := xiter.FromSlice(settledBricks).SumBy(func(b brick) int {
-		return countFallingBricks(b.ID, supports, supportedBy)
-	})
-
-	return strconv.Itoa(totalFalling), nil
+func day22p02(r io.Reader) (string, error) {
+	supports, supportedBy, err := settleBricks(r)
+	if err != nil {
+		return "", err
+	}
+	total := 0
+	standing := make([]int, len(supportedBy))
+	var queue []int
+	for removed := range supports {
+		for id, below := range supportedBy {
+			standing[id] = len(below)
+		}
+		queue = append(queue[:0], removed)
+		for head := 0; head < len(queue); head++ {
+			for _, above := range supports[queue[head]] {
+				standing[above]--
+				if standing[above] == 0 {
+					queue = append(queue, above)
+				}
+			}
+		}
+		total += len(queue) - 1
+	}
+	return strconv.Itoa(total), nil
 }

@@ -124,18 +124,6 @@ func TestPulseInputErrors(t *testing.T) {
 	}
 }
 
-func TestPulseNonDrainingPress(t *testing.T) {
-	network, err := parsePulseNetwork(strings.NewReader("broadcaster -> a\n&a -> a, rx"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	remaining := 32
-	err = network.press(&remaining, func(pulseMessage) error { return nil })
-	if err == nil || !strings.Contains(err.Error(), "event limit") {
-		t.Fatalf("got %v; want pulse event limit", err)
-	}
-}
-
 func TestPulseEqualDepthOrdering(t *testing.T) {
 	a := pulseBranch{period: 1, traces: []pulseTrace{
 		{events: []gatePulse{{depth: 2, high: true}, {depth: 2, high: false}}},

@@ -231,13 +231,6 @@ func TestNavigationUnreachable(t *testing.T) {
 	}
 }
 
-func TestNavigationStateLimit(t *testing.T) {
-	net := network{"AAA": {"ZZZ", "ZZZ"}, "ZZZ": {"ZZZ", "ZZZ"}}
-	if _, err := analyzeNavigation("L", net, "AAA", new(1)); err == nil {
-		t.Fatal("want state limit error")
-	}
-}
-
 func TestNavigationReaderErrors(t *testing.T) {
 	want := errors.New("navigation read failure")
 	for _, solve := range []func(io.Reader) (string, error){day08p01, day08p02} {

@@ -1,12 +1,12 @@
 package aoc2023
 
 import (
+	"fmt"
 	"io"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/internal/aoc"
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
@@ -18,13 +18,24 @@ type card struct {
 }
 
 func parseCard(line []byte) (card, error) {
-	parts := strings.Split(string(line), ": ")
-	numberParts := strings.Split(parts[1], " | ")
-
-	winning := collections.NewSetFromIter(xiter.From(strings.FieldsSeq(numberParts[0])).Map(aoc.MustAtoi).All())
-	numbers := xiter.From(strings.FieldsSeq(numberParts[1])).Map(aoc.MustAtoi).Collect()
-
-	return card{winning: winning, numbers: numbers}, nil
+	header, body, ok := strings.Cut(string(line), ":")
+	header, isCard := strings.CutPrefix(header, "Card ")
+	winningText, numbersText, hasBar := strings.Cut(body, " | ")
+	if !ok || !isCard || !hasBar {
+		return card{}, fmt.Errorf("invalid card %q", line)
+	}
+	if id, err := strconv.Atoi(strings.TrimSpace(header)); err != nil || id < 0 {
+		return card{}, fmt.Errorf("invalid card number in %q", line)
+	}
+	winning, err := parseNaturals(winningText)
+	if err != nil {
+		return card{}, fmt.Errorf("card %q: %w", line, err)
+	}
+	numbers, err := parseNaturals(numbersText)
+	if err != nil {
+		return card{}, fmt.Errorf("card %q: %w", line, err)
+	}
+	return card{winning: collections.NewSet(winning...), numbers: numbers}, nil
 }
 
 func (c card) matches() int {

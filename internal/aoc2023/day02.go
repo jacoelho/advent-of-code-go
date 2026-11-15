@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
@@ -22,53 +21,53 @@ type cubeGame struct {
 
 func parseCubeSet(setStr string) (cubeSet, error) {
 	set := cubeSet{}
-	cubes := strings.SplitSeq(setStr, ", ")
-
-	for cube := range cubes {
-		parts := strings.SplitN(cube, " ", 2)
-		if len(parts) != 2 {
-			return cubeSet{}, fmt.Errorf("invalid cube format: %s", cube)
+	seen := make(map[string]bool, 3)
+	for cube := range strings.SplitSeq(setStr, ", ") {
+		countText, colour, ok := strings.Cut(cube, " ")
+		if !ok {
+			return cubeSet{}, fmt.Errorf("invalid cube format %q", cube)
 		}
-
-		count, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return cubeSet{}, fmt.Errorf("invalid count: %w", err)
+		count, err := strconv.Atoi(countText)
+		if err != nil || count < 0 {
+			return cubeSet{}, fmt.Errorf("invalid cube count %q", countText)
 		}
-
-		switch parts[1] {
+		var field *int
+		switch colour {
 		case "red":
-			set.red = count
+			field = &set.red
 		case "green":
-			set.green = count
+			field = &set.green
 		case "blue":
-			set.blue = count
+			field = &set.blue
 		default:
-			return cubeSet{}, fmt.Errorf("invalid color: %s", parts[1])
+			return cubeSet{}, fmt.Errorf("invalid colour %q", colour)
 		}
+		if seen[colour] {
+			return cubeSet{}, fmt.Errorf("duplicate colour %q in %q", colour, setStr)
+		}
+		seen[colour] = true
+		*field = count
 	}
-
 	return set, nil
 }
 
 func parseCubeGame(line []byte) (cubeGame, error) {
-	parts := strings.SplitN(string(line), ": ", 2)
-	if len(parts) != 2 {
-		return cubeGame{}, fmt.Errorf("invalid game format: %s", line)
+	header, body, ok := strings.Cut(string(line), ": ")
+	idText, hasPrefix := strings.CutPrefix(header, "Game ")
+	if !ok || !hasPrefix {
+		return cubeGame{}, fmt.Errorf("invalid game format %q", line)
+	}
+	id, err := strconv.Atoi(idText)
+	if err != nil || id < 0 {
+		return cubeGame{}, fmt.Errorf("invalid game ID %q", idText)
 	}
 
-	digits := convert.ExtractDigits[int](parts[0])
-	if len(digits) == 0 {
-		return cubeGame{}, fmt.Errorf("invalid game ID: no digits found in %s", parts[0])
-	}
-	id := digits[0]
-
-	setStrs := strings.Split(parts[1], "; ")
+	setStrs := strings.Split(body, "; ")
 	sets := make([]cubeSet, 0, len(setStrs))
-
 	for _, setStr := range setStrs {
 		set, err := parseCubeSet(setStr)
 		if err != nil {
-			return cubeGame{}, err
+			return cubeGame{}, fmt.Errorf("game %d: %w", id, err)
 		}
 		sets = append(sets, set)
 	}

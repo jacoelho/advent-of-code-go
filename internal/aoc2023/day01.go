@@ -53,7 +53,7 @@ func day01(table map[string]int, r io.Reader) (string, error) {
 		}
 
 		if len(digits) == 0 {
-			return 0, fmt.Errorf("expected digits")
+			return 0, fmt.Errorf("calibration line %q has no digit", bytes)
 		}
 
 		return digits[0]*10 + digits[len(digits)-1], nil

@@ -7,10 +7,8 @@ import (
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
-
-const maxHeatGridCells = 250_000
 
 type heatGrid struct {
 	width, height int
@@ -23,36 +21,15 @@ type crucibleState struct {
 }
 
 func parseHeatGrid(r io.Reader) (heatGrid, error) {
-	var result heatGrid
-	s := scanner.NewScanner(r, func(line []byte) ([]byte, error) {
-		if len(line) == 0 || result.height > 0 && len(line) != result.width {
-			return nil, fmt.Errorf("empty or ragged heat grid at row %d", result.height+1)
-		}
-		if len(line) > maxHeatGridCells-len(result.cells) {
-			return nil, fmt.Errorf("heat grid exceeds %d cells", maxHeatGridCells)
-		}
-
-		row := make([]byte, len(line))
-		for i, ch := range line {
-			if ch < '0' || ch > '9' {
-				return nil, fmt.Errorf("invalid heat digit %q at row %d", ch, result.height+1)
-			}
-			row[i] = ch - '0'
-		}
-		return row, nil
-	})
-	for row := range s.Values() {
-		result.width = len(row)
-		result.height++
-		result.cells = append(result.cells, row...)
-	}
-	if err := s.Err(); err != nil {
+	g, err := grid.ReadBytes(r, "0123456789")
+	if err != nil {
 		return heatGrid{}, err
 	}
-	if result.height == 0 {
-		return heatGrid{}, fmt.Errorf("empty heat grid")
+	cells := g.Cells()
+	for i := range cells {
+		cells[i] -= '0'
 	}
-	return result, nil
+	return heatGrid{width: g.Width(), height: g.Height(), cells: cells}, nil
 }
 
 func minimumHeat(heatMap heatGrid, minSteps, maxSteps int) (int, error) {

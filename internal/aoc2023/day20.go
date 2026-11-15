@@ -13,17 +13,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-const (
-	maxPulsePresses       = 100_000
-	maxPulsesPerPress     = 1_000_000
-	maxQueuedPulses       = 100_000
-	maxPulseEvents        = 10_000_000
-	maxPulseStorage       = 64 << 20
-	maxPulseAlignmentWork = 10_000_000
-	maxPulseResidues      = 10_000
-	maxPulseCuts          = 10_000
-)
-
 type pulseModuleKind uint8
 
 const (
@@ -54,7 +43,7 @@ type pulseMessage struct {
 }
 
 func validPulseName(name string) bool {
-	if len(name) == 0 || len(name) > 64 {
+	if len(name) == 0 {
 		return false
 	}
 	for _, c := range name {
@@ -66,14 +55,6 @@ func validPulseName(name string) bool {
 }
 
 func parsePulseNetwork(r io.Reader) (*pulseNetwork, error) {
-	const inputLimit = 4 << 20
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > inputLimit {
-		return nil, fmt.Errorf("pulse input exceeds 4 MiB")
-	}
 	network := &pulseNetwork{broadcaster: -1, rx: -1}
 	indices := make(map[string]int)
 	index := func(name string) (int, error) {
@@ -83,19 +64,15 @@ func parsePulseNetwork(r io.Reader) (*pulseNetwork, error) {
 		if idx, exists := indices[name]; exists {
 			return idx, nil
 		}
-		if len(network.modules) == 4096 {
-			return 0, fmt.Errorf("pulse network exceeds 4096 modules and sinks")
-		}
 		idx := len(network.modules)
 		indices[name] = idx
 		network.modules = append(network.modules, pulseModule{})
 		return idx, nil
 	}
 
-	s := scanner.NewScanner(strings.NewReader(string(data)), func(line []byte) (string, error) {
+	s := scanner.NewScanner(r, func(line []byte) (string, error) {
 		return string(line), nil
 	})
-	edges := 0
 	for line := range s.Values() {
 		spec, destinations, ok := strings.Cut(line, " -> ")
 		if !ok || len(spec) == 0 {
@@ -129,10 +106,6 @@ func parsePulseNetwork(r io.Reader) (*pulseNetwork, error) {
 			if err != nil {
 				return nil, err
 			}
-			edges++
-			if edges > 16384 {
-				return nil, fmt.Errorf("pulse network exceeds 16384 edges")
-			}
 			network.modules[from].destinations = append(network.modules[from].destinations, to)
 		}
 	}
@@ -161,19 +134,13 @@ func parsePulseNetwork(r io.Reader) (*pulseNetwork, error) {
 	return network, nil
 }
 
-func (n *pulseNetwork) press(remaining *int, observe func(pulseMessage) error) error {
+// press sends one button pulse and observes every pulse until the queue drains.
+// A network whose pulses never die out makes press run forever.
+func (n *pulseNetwork) press(observe func(pulseMessage)) {
 	queue := collections.NewDeque[pulseMessage](100)
 	queue.PushBack(pulseMessage{from: -1, to: n.broadcaster})
-	processed := 0
 	for message, ok := queue.PopFront(); ok; message, ok = queue.PopFront() {
-		if *remaining == 0 || processed == maxPulsesPerPress {
-			return fmt.Errorf("pulse simulation event limit exceeded")
-		}
-		*remaining--
-		processed++
-		if err := observe(message); err != nil {
-			return err
-		}
+		observe(message)
 		module := &n.modules[message.to]
 		high := message.high
 		switch module.kind {
@@ -190,13 +157,9 @@ func (n *pulseNetwork) press(remaining *int, observe func(pulseMessage) error) e
 			high = slices.Contains(module.memory, false)
 		}
 		for _, to := range module.destinations {
-			if queue.Size() == maxQueuedPulses {
-				return fmt.Errorf("pulse queue exceeds %d events", maxQueuedPulses)
-			}
 			queue.PushBack(pulseMessage{from: message.to, to: to, depth: message.depth + 1, high: high})
 		}
 	}
-	return nil
 }
 
 func (n *pulseNetwork) state(modules []int) []byte {
@@ -220,43 +183,26 @@ func (n *pulseNetwork) state(modules []int) []byte {
 	return state
 }
 
-func chargePulseStorage(remaining *int, size int) error {
-	if size > *remaining {
-		return fmt.Errorf("pulse state and trace storage limit exceeded")
-	}
-	*remaining -= size
-	return nil
-}
-
 func firstLowBySimulation(n *pulseNetwork) (*big.Int, error) {
 	modules := make([]int, len(n.modules))
 	for i := range modules {
 		modules[i] = i
 	}
 	seen := make(map[string]bool)
-	remaining, storage := maxPulseEvents, maxPulseStorage
-	for press := 1; press <= maxPulsePresses; press++ {
+	for press := 1; ; press++ {
 		key := string(n.state(modules))
 		if seen[key] {
 			return nil, fmt.Errorf("rx never receives a low pulse")
 		}
-		if err := chargePulseStorage(&storage, len(key)+64); err != nil {
-			return nil, err
-		}
 		seen[key] = true
 		low := false
-		err := n.press(&remaining, func(message pulseMessage) error {
+		n.press(func(message pulseMessage) {
 			low = low || message.to == n.rx && !message.high
-			return nil
 		})
-		if err != nil {
-			return nil, err
-		}
 		if low {
 			return big.NewInt(int64(press)), nil
 		}
 	}
-	return nil, fmt.Errorf("pulse simulation exceeds %d presses", maxPulsePresses)
 }
 
 type gatePulse struct {
@@ -353,12 +299,11 @@ func independentPulseBranches(n *pulseNetwork) (int, []pulseBranch, bool) {
 }
 
 func firstLowByBranches(n *pulseNetwork, gate int, branches []pulseBranch) (*big.Int, error) {
-	remaining, storage := maxPulseEvents, maxPulseStorage
 	sources := make(map[int]int, len(branches))
 	for i, branch := range branches {
 		sources[n.modules[gate].inputs[branch.gateSlot]] = i
 	}
-	for boundary := 0; boundary <= maxPulsePresses; boundary++ {
+	for boundary := 0; ; boundary++ {
 		complete := true
 		for i := range branches {
 			branch := &branches[i]
@@ -376,9 +321,6 @@ func firstLowByBranches(n *pulseNetwork, gate int, branches []pulseBranch) (*big
 				branch.seen = nil
 				continue
 			}
-			if err := chargePulseStorage(&storage, len(key)+64+32); err != nil {
-				return nil, err
-			}
 			branch.seen[key] = boundary
 			branch.traces = append(branch.traces, pulseTrace{startHigh: memory != 0})
 			complete = false
@@ -386,34 +328,23 @@ func firstLowByBranches(n *pulseNetwork, gate int, branches []pulseBranch) (*big
 		if complete {
 			return alignPulseBranches(branches, boundary)
 		}
-		if boundary == maxPulsePresses {
-			break
-		}
 		low := false
-		err := n.press(&remaining, func(message pulseMessage) error {
+		n.press(func(message pulseMessage) {
 			low = low || message.to == n.rx && !message.high
 			if message.to != gate {
-				return nil
+				return
 			}
 			branch := &branches[sources[message.from]]
 			if branch.period != 0 {
-				return nil
-			}
-			if err := chargePulseStorage(&storage, 16); err != nil {
-				return err
+				return
 			}
 			trace := &branch.traces[len(branch.traces)-1]
 			trace.events = append(trace.events, gatePulse{depth: message.depth, high: message.high})
-			return nil
 		})
-		if err != nil {
-			return nil, err
-		}
 		if low {
 			return big.NewInt(int64(boundary + 1)), nil
 		}
 	}
-	return nil, fmt.Errorf("pulse branch cycles exceed %d presses", maxPulsePresses)
 }
 
 type pulseCut struct {
@@ -421,22 +352,14 @@ type pulseCut struct {
 	depth  int
 }
 
-func pulseCutResidues(branch pulseBranch, index int, cut pulseCut, work *int) ([]int, error) {
+func pulseCutResidues(branch pulseBranch, index int, cut pulseCut) []int {
 	var residues []int
 	for phase, trace := range branch.traces[branch.cycleStart : branch.cycleStart+branch.period] {
-		if *work == 0 {
-			return nil, fmt.Errorf("pulse alignment work limit exceeded")
-		}
-		*work--
 		high := trace.startHigh
 		if index == cut.branch {
 			high = false
 		}
 		for _, event := range trace.events {
-			if *work == 0 {
-				return nil, fmt.Errorf("pulse alignment work limit exceeded")
-			}
-			*work--
 			if index == cut.branch {
 				high = high || event.depth == cut.depth && event.high
 			} else if event.depth < cut.depth || event.depth == cut.depth && index < cut.branch {
@@ -449,19 +372,16 @@ func pulseCutResidues(branch pulseBranch, index int, cut pulseCut, work *int) ([
 			residues = append(residues, (branch.cycleStart+phase+1)%branch.period)
 		}
 	}
-	return residues, nil
+	return residues
 }
 
-func alignPulseCut(branches []pulseBranch, cut pulseCut, minimum *big.Int, work *int) (*big.Int, error) {
+func alignPulseCut(branches []pulseBranch, cut pulseCut, minimum *big.Int) *big.Int {
 	modulus := big.NewInt(1)
 	residues := []*big.Int{new(big.Int)}
 	for i, branch := range branches {
-		allowed, err := pulseCutResidues(branch, i, cut, work)
-		if err != nil {
-			return nil, err
-		}
+		allowed := pulseCutResidues(branch, i, cut)
 		if len(allowed) == 0 {
-			return nil, nil
+			return nil
 		}
 		period := big.NewInt(int64(branch.period))
 		var nextModulus *big.Int
@@ -469,10 +389,6 @@ func alignPulseCut(branches []pulseBranch, cut pulseCut, minimum *big.Int, work 
 		seen := make(map[string]bool)
 		for _, residue := range residues {
 			for _, phase := range allowed {
-				if *work == 0 {
-					return nil, fmt.Errorf("pulse alignment work limit exceeded")
-				}
-				*work--
 				combined, combinedModulus, compatible := combineCongruences(residue, modulus, big.NewInt(int64(phase)), period)
 				if !compatible {
 					continue
@@ -482,15 +398,12 @@ func alignPulseCut(branches []pulseBranch, cut pulseCut, minimum *big.Int, work 
 				if seen[key] {
 					continue
 				}
-				if len(next) == maxPulseResidues {
-					return nil, fmt.Errorf("pulse alignment exceeds %d residues", maxPulseResidues)
-				}
 				seen[key] = true
 				next = append(next, combined)
 			}
 		}
 		if len(next) == 0 {
-			return nil, nil
+			return nil
 		}
 		modulus, residues = nextModulus, next
 	}
@@ -501,25 +414,17 @@ func alignPulseCut(branches []pulseBranch, cut pulseCut, minimum *big.Int, work 
 			answer = candidate
 		}
 	}
-	return answer, nil
+	return answer
 }
 
 func alignPulseBranches(branches []pulseBranch, simulated int) (*big.Int, error) {
-	work := maxPulseAlignmentWork
 	seen := make(map[pulseCut]bool)
 	var cuts []pulseCut
 	for i, branch := range branches {
 		for _, trace := range branch.traces[branch.cycleStart : branch.cycleStart+branch.period] {
 			for _, event := range trace.events {
-				if work == 0 {
-					return nil, fmt.Errorf("pulse alignment work limit exceeded")
-				}
-				work--
 				cut := pulseCut{branch: i, depth: event.depth}
 				if event.high && !seen[cut] {
-					if len(cuts) == maxPulseCuts {
-						return nil, fmt.Errorf("pulse alignment exceeds %d event cuts", maxPulseCuts)
-					}
 					seen[cut] = true
 					cuts = append(cuts, cut)
 				}
@@ -534,10 +439,7 @@ func alignPulseBranches(branches []pulseBranch, simulated int) (*big.Int, error)
 	// FIFO orders independent branches by depth, then broadcaster-root order.
 	// Each cut tests the conjunction memory immediately after a triggering HIGH.
 	for _, cut := range cuts {
-		candidate, err := alignPulseCut(branches, cut, minimum, &work)
-		if err != nil {
-			return nil, err
-		}
+		candidate := alignPulseCut(branches, cut, minimum)
 		if candidate != nil && (answer == nil || candidate.Cmp(answer) < 0) {
 			answer = candidate
 		}
@@ -553,20 +455,15 @@ func day20p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	remaining := maxPulseEvents
 	var low, high int64
 	for range 1000 {
-		err := network.press(&remaining, func(message pulseMessage) error {
+		network.press(func(message pulseMessage) {
 			if message.high {
 				high++
 			} else {
 				low++
 			}
-			return nil
 		})
-		if err != nil {
-			return "", err
-		}
 	}
 	return strconv.FormatInt(low*high, 10), nil
 }

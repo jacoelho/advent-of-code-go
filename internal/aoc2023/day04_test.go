@@ -44,3 +44,13 @@ Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11`),
 	}
 	aoc.AOCTest(t, day04p02, tests)
 }
+
+func TestDay04RejectsMalformedCards(t *testing.T) {
+	requireRejected(t, []string{
+		"Card 1: 1 2 3",
+		"Card x: 1 | 2",
+		"Deck 1: 1 | 2",
+		"Card 1: 1 a | 2",
+		"Card 1: 1 | -2",
+	}, day04p01, day04p02)
+}

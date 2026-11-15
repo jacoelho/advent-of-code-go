@@ -13,12 +13,6 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
 )
 
-const (
-	maxNavigationStates = 1_000_000
-	maxAlignmentWork    = 1_000_000
-	maxAlignedResidues  = 10_000
-)
-
 type network map[string][2]string
 
 type networkEntry struct {
@@ -38,8 +32,8 @@ type navigationSchedule struct {
 	residues   []int64
 }
 
-func parseNetworkEntry(line []byte) (networkEntry, error) {
-	node, body, ok := strings.Cut(string(line), "=")
+func parseNetworkEntry(line string) (networkEntry, error) {
+	node, body, ok := strings.Cut(line, "=")
 	if !ok {
 		return networkEntry{}, fmt.Errorf("invalid network entry %q", line)
 	}
@@ -52,8 +46,8 @@ func parseNetworkEntry(line []byte) (networkEntry, error) {
 	}
 	entry := networkEntry{node: node, dest: [2]string{strings.TrimSpace(destinations[0]), strings.TrimSpace(destinations[1])}}
 	for _, name := range []string{entry.node, entry.dest[0], entry.dest[1]} {
-		if len(name) == 0 || len(name) > 128 {
-			return networkEntry{}, fmt.Errorf("network name must have 1 to 128 characters")
+		if len(name) == 0 {
+			return networkEntry{}, fmt.Errorf("empty network name in %q", line)
 		}
 		for _, c := range name {
 			if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9') {
@@ -65,37 +59,29 @@ func parseNetworkEntry(line []byte) (networkEntry, error) {
 }
 
 func parseNetwork(r io.Reader) (string, network, error) {
-	const inputLimit = 4 << 20
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	blocks, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return "", nil, err
 	}
-	if len(data) > inputLimit {
-		return "", nil, fmt.Errorf("network input exceeds 4 MiB")
+	if len(blocks) != 2 || len(blocks[0]) != 1 {
+		return "", nil, fmt.Errorf("expected instructions and a network")
 	}
-	input := strings.ReplaceAll(string(data), "\r\n", "\n")
-	instructions, entries, ok := strings.Cut(strings.TrimSpace(input), "\n\n")
-	if !ok || len(instructions) == 0 || len(instructions) > 100_000 {
-		return "", nil, fmt.Errorf("expected 1 to 100000 instructions and a network")
-	}
+	instructions := blocks[0][0]
 	for _, instruction := range instructions {
 		if instruction != 'L' && instruction != 'R' {
 			return "", nil, fmt.Errorf("invalid navigation instruction %q", instruction)
 		}
 	}
-	s := scanner.NewScanner(strings.NewReader(entries), parseNetworkEntry)
 	net := make(network)
-	for entry := range s.Values() {
+	for _, line := range blocks[1] {
+		entry, err := parseNetworkEntry(line)
+		if err != nil {
+			return "", nil, err
+		}
 		if _, exists := net[entry.node]; exists {
 			return "", nil, fmt.Errorf("duplicate network node %q", entry.node)
 		}
-		if len(net) == 100_000 {
-			return "", nil, fmt.Errorf("network exceeds 100000 nodes")
-		}
 		net[entry.node] = entry.dest
-	}
-	if err := s.Err(); err != nil {
-		return "", nil, err
 	}
 	if len(net) == 0 {
 		return "", nil, fmt.Errorf("empty network")
@@ -121,7 +107,7 @@ func (state navigationState) next(instructions string, net network) navigationSt
 	}
 }
 
-func analyzeNavigation(instructions string, net network, start string, remaining *int) (navigationSchedule, error) {
+func analyzeNavigation(instructions string, net network, start string) navigationSchedule {
 	seen := make(map[navigationState]int64)
 	var hits []int64
 	state := navigationState{node: start}
@@ -136,12 +122,8 @@ func analyzeNavigation(instructions string, net network, start string, remaining
 				}
 			}
 			slices.Sort(schedule.residues)
-			return schedule, nil
+			return schedule
 		}
-		if *remaining == 0 {
-			return navigationSchedule{}, fmt.Errorf("navigation exceeds one million states")
-		}
-		*remaining -= 1
 		seen[state] = step
 		if strings.HasSuffix(state.node, "Z") {
 			hits = append(hits, step)
@@ -166,16 +148,11 @@ func alignNavigation(schedules []navigationSchedule) (*big.Int, error) {
 			latest = i
 		}
 	}
-	work := maxAlignmentWork
 	// Any shared hit before all walks are periodic must be a transient hit
 	// of the last walk to enter its cycle.
 	for _, step := range schedules[latest].transient {
 		shared := true
 		for _, schedule := range schedules {
-			if work == 0 {
-				return nil, fmt.Errorf("navigation alignment work limit exceeded")
-			}
-			work--
 			if !schedule.contains(step) {
 				shared = false
 				break
@@ -198,10 +175,6 @@ func alignNavigation(schedules []navigationSchedule) (*big.Int, error) {
 		var next []*big.Int
 		for _, residue := range residues {
 			for _, target := range schedule.residues {
-				if work == 0 {
-					return nil, fmt.Errorf("navigation alignment work limit exceeded")
-				}
-				work--
 				combined, combinedPeriod, compatible := combineCongruences(residue, period, big.NewInt(target), modulus)
 				if !compatible {
 					continue
@@ -210,9 +183,6 @@ func alignNavigation(schedules []navigationSchedule) (*big.Int, error) {
 				key := combined.String()
 				if seen[key] {
 					continue
-				}
-				if len(next) == maxAlignedResidues {
-					return nil, fmt.Errorf("navigation exceeds 10000 aligned residues")
 				}
 				seen[key] = true
 				next = append(next, combined)
@@ -254,9 +224,6 @@ func day08p01(r io.Reader) (string, error) {
 		if seen[state] {
 			return "", fmt.Errorf("ZZZ is unreachable")
 		}
-		if len(seen) == maxNavigationStates {
-			return "", fmt.Errorf("navigation exceeds one million states")
-		}
 		seen[state] = true
 		state = state.next(instructions, net)
 	}
@@ -270,18 +237,13 @@ func day08p02(r io.Reader) (string, error) {
 	starts := xiter.From(maps.Keys(net)).Filter(func(node string) bool {
 		return strings.HasSuffix(node, "A")
 	}).Collect()
-	if len(starts) == 0 || len(starts) > 1024 {
-		return "", fmt.Errorf("expected 1 to 1024 navigation starts")
+	if len(starts) == 0 {
+		return "", fmt.Errorf("network has no start nodes ending in A")
 	}
 	slices.Sort(starts)
-	remaining := maxNavigationStates
 	schedules := make([]navigationSchedule, 0, len(starts))
 	for _, start := range starts {
-		schedule, err := analyzeNavigation(instructions, net, start, &remaining)
-		if err != nil {
-			return "", err
-		}
-		schedules = append(schedules, schedule)
+		schedules = append(schedules, analyzeNavigation(instructions, net, start))
 	}
 	answer, err := alignNavigation(schedules)
 	if err != nil {

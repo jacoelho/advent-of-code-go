@@ -25,7 +25,7 @@ type wiringDiagram struct {
 func parseWiringLine(line []byte) (wiringLine, error) {
 	node, neighbors, ok := strings.Cut(string(line), ":")
 	validName := func(name string) bool {
-		return len(name) > 0 && len(name) <= 128 && !strings.ContainsRune(name, ':') && !strings.ContainsFunc(name, unicode.IsSpace)
+		return len(name) > 0 && !strings.ContainsRune(name, ':') && !strings.ContainsFunc(name, unicode.IsSpace)
 	}
 	if !ok || !validName(node) {
 		return wiringLine{}, fmt.Errorf("invalid wiring declaration %q", line)
@@ -41,11 +41,9 @@ func parseWiringLine(line []byte) (wiringLine, error) {
 }
 
 func parseWiringDiagram(r io.Reader) (wiringDiagram, error) {
-	const inputLimit = 4 << 20
-	limited := &io.LimitedReader{R: r, N: inputLimit + 1}
 	nodes := make(map[string]int)
 	wires := make(map[[2]string]struct{})
-	s := scanner.NewScanner(limited, parseWiringLine)
+	s := scanner.NewScanner(r, parseWiringLine)
 	for line := range s.Values() {
 		nodes[line.node] = 0
 		for _, neighbor := range line.neighbors {
@@ -55,19 +53,10 @@ func parseWiringDiagram(r io.Reader) (wiringDiagram, error) {
 				wire[0], wire[1] = wire[1], wire[0]
 			}
 			wires[wire] = struct{}{}
-			if len(nodes) > 4096 || len(wires) > 20_000 {
-				return wiringDiagram{}, fmt.Errorf("wiring exceeds 4096 vertices or 20000 wires")
-			}
-		}
-		if len(nodes) > 4096 {
-			return wiringDiagram{}, fmt.Errorf("wiring exceeds 4096 vertices")
 		}
 	}
 	if err := s.Err(); err != nil {
 		return wiringDiagram{}, err
-	}
-	if limited.N == 0 {
-		return wiringDiagram{}, fmt.Errorf("wiring input exceeds 4 MiB")
 	}
 	if len(nodes) < 2 {
 		return wiringDiagram{}, fmt.Errorf("wiring needs at least two vertices")
@@ -109,7 +98,6 @@ func (graph wiringDiagram) threeEdgeCut() ([]bool, error) {
 	residual := make([]uint8, len(graph.destination))
 	previous := make([]int, len(graph.adjacent))
 	queue := make([]int, 0, len(graph.adjacent))
-	remaining := 200_000_000
 	var cut []bool
 
 	// Every global cut separates vertex zero from at least one target.
@@ -125,10 +113,6 @@ func (graph wiringDiagram) threeEdgeCut() ([]bool, error) {
 			queue = append(queue[:0], 0)
 			for head := 0; head < len(queue) && previous[target] == -1; head++ {
 				for _, arc := range graph.adjacent[queue[head]] {
-					if remaining == 0 {
-						return nil, fmt.Errorf("wiring search exceeds 200 million arc visits")
-					}
-					remaining--
 					next := graph.destination[arc]
 					if residual[arc] == 0 || previous[next] != -1 {
 						continue
