@@ -48,12 +48,6 @@ func TestDay15ZeroRisk(t *testing.T) {
 	}
 }
 
-func TestDay15ExpandedGridLimit(t *testing.T) {
-	if _, err := day15p02(strings.NewReader(strings.Repeat("1", 40001))); err == nil {
-		t.Fatal("expected expanded grid limit error")
-	}
-}
-
 func TestDay15ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

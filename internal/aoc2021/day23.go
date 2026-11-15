@@ -6,7 +6,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/search"
 	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
@@ -153,11 +153,11 @@ func (state burrow) remainingEnergy(depth int) int {
 	return total
 }
 
-func (state burrow) moves(depth int, visit func(burrow, int)) {
-	move := func(from, to, steps int) {
+func (state burrow) moves(depth int, yield func(burrow, int) bool) {
+	move := func(from, to, steps int) bool {
 		next := state
 		next[to], next[from] = state[from], 0
-		visit(next, steps*amphipodEnergy(state[from]))
+		return yield(next, steps*amphipodEnergy(state[from]))
 	}
 
 	for x := range 11 {
@@ -167,8 +167,8 @@ func (state burrow) moves(depth int, visit func(burrow, int)) {
 		}
 		room := int(kind) - 1
 		level := state.roomDestination(room, depth)
-		if level >= 0 && state.hallwayClear(x, 2+2*room) {
-			move(x, roomCell(room, level), xmath.Abs(x-(2+2*room))+level+1)
+		if level >= 0 && state.hallwayClear(x, 2+2*room) && !move(x, roomCell(room, level), xmath.Abs(x-(2+2*room))+level+1) {
+			return
 		}
 	}
 
@@ -185,52 +185,33 @@ func (state burrow) moves(depth int, visit func(burrow, int)) {
 		destination := int(state[from]) - 1
 		if destination != room {
 			landing := state.roomDestination(destination, depth)
-			if landing >= 0 && state.hallwayClear(entrance, 2+2*destination) {
-				move(from, roomCell(destination, landing), level+landing+2+2*xmath.Abs(room-destination))
+			if landing >= 0 && state.hallwayClear(entrance, 2+2*destination) && !move(from, roomCell(destination, landing), level+landing+2+2*xmath.Abs(room-destination)) {
+				return
 			}
 		}
 		for _, x := range [...]int{0, 1, 3, 5, 7, 9, 10} {
-			if state.hallwayClear(entrance, x) {
-				move(from, x, level+1+xmath.Abs(entrance-x))
+			if state.hallwayClear(entrance, x) && !move(from, x, level+1+xmath.Abs(entrance-x)) {
+				return
 			}
 		}
 	}
 }
 
 func organizeBurrow(start burrow, depth int) (int, error) {
-	type entry struct {
-		state       burrow
-		cost, score int
+	remaining := func(state burrow) int { return state.remainingEnergy(depth) }
+	solved := func(state burrow) bool { return remaining(state) == 0 }
+	edges := func(state burrow, yield func(burrow, int) bool) error {
+		state.moves(depth, yield)
+		return nil
 	}
-	queue := collections.NewHeap(func(a, b entry) bool { return a.score < b.score })
-	queue.Push(entry{state: start, score: start.remainingEnergy(depth)})
-	best := map[burrow]int{start: 0}
-	const limit = 2_000_000
-	expanded := 0
-	for current := range queue.PopSeq() {
-		if best[current.state] != current.cost {
-			continue
-		}
-		if current.state.remainingEnergy(depth) == 0 {
-			return current.cost, nil
-		}
-		expanded++
-		if expanded > limit {
-			return 0, fmt.Errorf("burrow search exceeds %d expanded states", limit)
-		}
-		current.state.moves(depth, func(next burrow, energy int) {
-			cost := current.cost + energy
-			if previous, exists := best[next]; exists && previous <= cost {
-				return
-			}
-			best[next] = cost
-			queue.Push(entry{state: next, cost: cost, score: cost + next.remainingEnergy(depth)})
-		})
-		if len(best) > limit || queue.Len() > limit {
-			return 0, fmt.Errorf("burrow search exceeds %d stored states", limit)
-		}
+	energy, found, err := search.AStarDistance(start, solved, edges, remaining, search.Limits{})
+	if err != nil {
+		return 0, err
 	}
-	return 0, fmt.Errorf("burrow cannot be organized")
+	if !found {
+		return 0, fmt.Errorf("burrow cannot be organized")
+	}
+	return energy, nil
 }
 
 func day23p01(r io.Reader) (string, error) {

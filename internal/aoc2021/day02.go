@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type submarineNavigation byte
@@ -19,15 +19,16 @@ const (
 )
 
 func navigationSum(a, b int64) (int64, error) {
-	if b > 0 && a > math.MaxInt64-b || b < 0 && a < math.MinInt64-b {
+	sum, ok := xmath.CheckedAdd(a, b)
+	if !ok {
 		return 0, fmt.Errorf("navigation addition overflows int64")
 	}
-	return a + b, nil
+	return sum, nil
 }
 
 func navigationProduct(a, b int64) (int64, error) {
-	product := a * b
-	if a == -1 && b == math.MinInt64 || b == -1 && a == math.MinInt64 || a != 0 && product/a != b {
+	product, ok := xmath.CheckedMul(a, b)
+	if !ok {
 		return 0, fmt.Errorf("navigation multiplication overflows int64")
 	}
 	return product, nil

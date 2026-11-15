@@ -3,12 +3,12 @@ package aoc2021
 import (
 	"fmt"
 	"io"
-	"math"
 	"regexp"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type reactorCuboid struct {
@@ -89,12 +89,9 @@ func rebootReactor(r io.Reader, region reactorRegion) (string, error) {
 	})
 
 	var cuboids []reactorCuboid
-	commands, work := 0, 0
+	commands := 0
 	for step := range s.Values() {
 		commands++
-		if commands > 10_000 {
-			return "", fmt.Errorf("reactor input exceeds 10000 commands")
-		}
 		if region == initializationRegion {
 			var intersects bool
 			step.cuboid, intersects = intersectReactor(step.cuboid, reactorCuboid{[3]int64{-50, -50, -50}, [3]int64{50, 50, 50}})
@@ -104,20 +101,10 @@ func rebootReactor(r io.Reader, region reactorRegion) (string, error) {
 		}
 		var next []reactorCuboid
 		for _, cuboid := range cuboids {
-			work++
-			if work > 20_000_000 {
-				return "", fmt.Errorf("reactor reboot exceeds 20000000 intersections")
-			}
 			next = subtractReactor(next, cuboid, step.cuboid)
-			if len(next) > 200_000 {
-				return "", fmt.Errorf("reactor reboot exceeds 200000 disjoint cuboids")
-			}
 		}
 		if step.on {
 			next = append(next, step.cuboid)
-		}
-		if len(next) > 200_000 {
-			return "", fmt.Errorf("reactor reboot exceeds 200000 disjoint cuboids")
 		}
 		cuboids = next
 	}
@@ -132,15 +119,16 @@ func rebootReactor(r io.Reader, region reactorRegion) (string, error) {
 		volume := int64(1)
 		for axis := range 3 {
 			size := cuboid.high[axis] - cuboid.low[axis] + 1
-			if volume > math.MaxInt64/size {
+			var ok bool
+			if volume, ok = xmath.CheckedMul(volume, size); !ok {
 				return "", fmt.Errorf("reactor cuboid volume exceeds int64")
 			}
-			volume *= size
 		}
-		if total > math.MaxInt64-volume {
+		sum, ok := xmath.CheckedAdd(total, volume)
+		if !ok {
 			return "", fmt.Errorf("reactor total volume exceeds int64")
 		}
-		total += volume
+		total = sum
 	}
 	return strconv.FormatInt(total, 10), nil
 }

@@ -73,6 +73,14 @@ a-end`)); err == nil {
 	}
 }
 
+func TestDay12InvalidCaveName(t *testing.T) {
+	for _, input := range []string{"start-b-c\nb-c-end", "start-1\n1-end", "start-aB\naB-end"} {
+		if _, err := day12p01(strings.NewReader(input)); err == nil {
+			t.Errorf("expected invalid cave name error for %q", input)
+		}
+	}
+}
+
 func TestDay12ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

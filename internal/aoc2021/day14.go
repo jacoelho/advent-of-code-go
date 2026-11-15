@@ -1,56 +1,68 @@
 package aoc2021
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-func polymerInput(r io.Reader) (string, map[[2]byte]byte, error) {
-	s := bufio.NewScanner(r)
-	if !s.Scan() {
-		if err := s.Err(); err != nil {
-			return "", nil, err
-		}
-		return "", nil, fmt.Errorf("empty polymer input")
-	}
-	template := s.Text()
-	if len(template) == 0 {
-		return "", nil, fmt.Errorf("empty polymer template")
-	}
-	for _, element := range template {
-		if element < 'A' || element > 'Z' {
-			return "", nil, fmt.Errorf("invalid polymer element %q", element)
-		}
-	}
-	rules := make(map[[2]byte]byte)
-	for s.Scan() {
-		if s.Text() == "" {
-			continue
-		}
-		pair, inserted, ok := strings.Cut(s.Text(), " -> ")
-		if !ok || len(pair) != 2 || len(inserted) != 1 || pair[0] < 'A' || pair[0] > 'Z' ||
-			pair[1] < 'A' || pair[1] > 'Z' || inserted[0] < 'A' || inserted[0] > 'Z' {
-			return "", nil, fmt.Errorf("invalid polymer rule %q", s.Text())
-		}
-		key := [2]byte{pair[0], pair[1]}
-		if previous, exists := rules[key]; exists && previous != inserted[0] {
-			return "", nil, fmt.Errorf("conflicting polymer rule for %q", pair)
-		}
-		rules[key] = inserted[0]
-	}
-	return template, rules, s.Err()
+const polymerElements = 26
+
+// polymerRules holds the inserted element plus one for each pair, or zero for no rule.
+type polymerRules [polymerElements][polymerElements]byte
+
+func polymerElement(c byte) (byte, bool) {
+	return c - 'A', c >= 'A' && c <= 'Z'
 }
 
-func addPolymerPair(pairs map[[2]byte]uint64, pair [2]byte, count uint64) error {
-	if pairs[pair] > math.MaxUint64-count {
-		return fmt.Errorf("polymer pair count overflows uint64")
+func polymerInput(r io.Reader) ([]byte, *polymerRules, error) {
+	sections, err := scanner.ReadBlocks(r)
+	if err != nil {
+		return nil, nil, err
 	}
-	pairs[pair] += count
-	return nil
+	if len(sections) == 0 {
+		return nil, nil, fmt.Errorf("empty polymer input")
+	}
+	if len(sections[0]) != 1 {
+		return nil, nil, fmt.Errorf("expected one polymer template line followed by a blank line")
+	}
+	if len(sections) > 2 || len(sections) == 2 && len(sections[1]) == 0 {
+		return nil, nil, fmt.Errorf("blank line among polymer rules")
+	}
+	template := []byte(sections[0][0])
+	for i, c := range template {
+		element, ok := polymerElement(c)
+		if !ok {
+			return nil, nil, fmt.Errorf("invalid polymer element %q", c)
+		}
+		template[i] = element
+	}
+	var ruleLines []string
+	if len(sections) == 2 {
+		ruleLines = sections[1]
+	}
+	rules := new(polymerRules)
+	for _, line := range ruleLines {
+		pair, inserted, ok := strings.Cut(line, " -> ")
+		if !ok || len(pair) != 2 || len(inserted) != 1 {
+			return nil, nil, fmt.Errorf("invalid polymer rule %q", line)
+		}
+		left, leftOK := polymerElement(pair[0])
+		right, rightOK := polymerElement(pair[1])
+		element, elementOK := polymerElement(inserted[0])
+		if !leftOK || !rightOK || !elementOK {
+			return nil, nil, fmt.Errorf("invalid polymer rule %q", line)
+		}
+		if previous := rules[left][right]; previous != 0 && previous != element+1 {
+			return nil, nil, fmt.Errorf("conflicting polymer rule for %q", pair)
+		}
+		rules[left][right] = element + 1
+	}
+	return template, rules, nil
 }
 
 func polymerDifference(r io.Reader, steps int) (uint64, error) {
@@ -58,34 +70,38 @@ func polymerDifference(r io.Reader, steps int) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	pairs := make(map[[2]byte]uint64)
+	// The element total, (len(template)-1)<<steps + 1, bounds every count.
+	if steps >= 64 || uint64(len(template)-1) > (math.MaxUint64-1)>>steps {
+		return 0, fmt.Errorf("polymer of %d elements overflows after %d steps", len(template), steps)
+	}
+	var pairs [polymerElements][polymerElements]uint64
 	for i := 0; i+1 < len(template); i++ {
-		pairs[[2]byte{template[i], template[i+1]}]++
+		pairs[template[i]][template[i+1]]++
 	}
 	for range steps {
-		next := make(map[[2]byte]uint64)
-		for pair, count := range pairs {
-			if element, found := rules[pair]; found {
-				if err := addPolymerPair(next, [2]byte{pair[0], element}, count); err != nil {
-					return 0, err
+		var next [polymerElements][polymerElements]uint64
+		for left := range polymerElements {
+			for right, count := range pairs[left] {
+				if count == 0 {
+					continue
 				}
-				if err := addPolymerPair(next, [2]byte{element, pair[1]}, count); err != nil {
-					return 0, err
+				if inserted := rules[left][right]; inserted != 0 {
+					element := inserted - 1
+					next[left][element] += count
+					next[element][right] += count
+				} else {
+					next[left][right] += count
 				}
-			} else if err := addPolymerPair(next, pair, count); err != nil {
-				return 0, err
 			}
 		}
 		pairs = next
 	}
-	var counts [26]uint64
-	counts[template[len(template)-1]-'A'] = 1
-	for pair, count := range pairs {
-		index := pair[0] - 'A'
-		if counts[index] > math.MaxUint64-count {
-			return 0, fmt.Errorf("polymer element count overflows uint64")
+	var counts [polymerElements]uint64
+	counts[template[len(template)-1]] = 1
+	for left := range polymerElements {
+		for _, count := range pairs[left] {
+			counts[left] += count
 		}
-		counts[index] += count
 	}
 	least, most := uint64(math.MaxUint64), uint64(0)
 	for _, count := range counts {

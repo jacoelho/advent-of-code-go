@@ -71,8 +71,7 @@ func TestSnailfishAdditionPreservesOperands(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantLeft, wantRight := slices.Clone(left), slices.Clone(right)
-	work := 0
-	if _, err := addSnailfish(left, right, &work); err != nil {
+	if _, err := addSnailfish(left, right); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(left, wantLeft) || !slices.Equal(right, wantRight) {

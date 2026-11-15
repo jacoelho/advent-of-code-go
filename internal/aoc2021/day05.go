@@ -8,11 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
-
-const maxVentPoints = 1_000_000
 
 type ventGeometry byte
 
@@ -22,25 +20,14 @@ const (
 )
 
 func ventPoint(text string) (grid.Position2D[int], error) {
-	var point grid.Position2D[int]
-	x, y, ok := strings.Cut(text, ",")
-	if !ok {
-		return point, fmt.Errorf("invalid vent point %q", text)
-	}
-	var err error
-	point.X, err = convert.ScanNumber[int]([]byte(strings.TrimSpace(x)))
+	point, err := grid.ParsePosition2D[int](text)
 	if err != nil {
 		return point, err
 	}
-	point.Y, err = convert.ScanNumber[int]([]byte(strings.TrimSpace(y)))
-	return point, err
-}
-
-func ventDistance(a, b int) uint {
-	if a < b {
-		return uint(b) - uint(a)
+	if point.X < 0 || point.Y < 0 {
+		return point, fmt.Errorf("negative vent point %q", text)
 	}
-	return uint(a) - uint(b)
+	return point, nil
 }
 
 func ventOverlaps(r io.Reader, geometry ventGeometry) (int, error) {
@@ -60,7 +47,7 @@ func ventOverlaps(r io.Reader, geometry ventGeometry) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		dx, dy := ventDistance(start.X, end.X), ventDistance(start.Y, end.Y)
+		dx, dy := xmath.Abs(end.X-start.X), xmath.Abs(end.Y-start.Y)
 		if dx != 0 && dy != 0 {
 			if dx != dy {
 				return 0, fmt.Errorf("vent line is not horizontal, vertical, or diagonal")
@@ -69,15 +56,8 @@ func ventOverlaps(r io.Reader, geometry ventGeometry) (int, error) {
 				continue
 			}
 		}
-		steps := max(dx, dy)
-		if steps >= maxVentPoints {
-			return 0, fmt.Errorf("vent line exceeds %d raster points", maxVentPoints)
-		}
-		for step := range int(steps) + 1 {
+		for step := 0; step <= max(dx, dy); step++ {
 			point := grid.Position2D[int]{X: start.X + step*cmp.Compare(end.X, start.X), Y: start.Y + step*cmp.Compare(end.Y, start.Y)}
-			if coverage[point] == 0 && len(coverage) == maxVentPoints {
-				return 0, fmt.Errorf("vent coverage exceeds %d points", maxVentPoints)
-			}
 			coverage[point]++
 			if coverage[point] == 2 {
 				overlaps++

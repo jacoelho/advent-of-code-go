@@ -58,11 +58,15 @@ fold along x=3`)); err == nil {
 	}
 }
 
-func TestDay13CoordinateBudget(t *testing.T) {
-	if _, err := day13p01(strings.NewReader(`9223372036854775807,0
+func TestDay13DotAfterFolds(t *testing.T) {
+	if _, err := day13p01(strings.NewReader(day13Example + "\n1,1")); err == nil {
+		t.Fatal("expected dot after fold section error")
+	}
+}
 
-fold along x=1`)); err == nil {
-		t.Fatal("expected coordinate budget error")
+func TestDay13FoldPastPaperEdge(t *testing.T) {
+	if _, err := day13p01(strings.NewReader("0,0\n5,0\n\nfold along x=1")); err == nil {
+		t.Fatal("expected fold past paper edge error")
 	}
 }
 
@@ -72,7 +76,9 @@ func TestFoldedPaperExample(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, fold := range folds {
-		points = foldPaper(points, fold)
+		if points, err = foldPaper(points, fold); err != nil {
+			t.Fatal(err)
+		}
 	}
 	rows, err := renderPaper(points)
 	if err != nil {

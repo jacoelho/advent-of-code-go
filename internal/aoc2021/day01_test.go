@@ -49,6 +49,12 @@ func TestDay01Malformed(t *testing.T) {
 	}
 }
 
+func TestDay01NegativeDepth(t *testing.T) {
+	if _, err := day01p01(strings.NewReader("1\n-2")); err == nil {
+		t.Fatal("expected negative depth error")
+	}
+}
+
 func TestDay01ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, tt := range []struct {

@@ -8,6 +8,7 @@ import (
 	"testing/iotest"
 
 	"github.com/jacoelho/advent-of-code-go/internal/aoc"
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
 func Test_day25p01(t *testing.T) {
@@ -39,12 +40,12 @@ func TestSeaCucumberPhases(t *testing.T) {
 		{input: ">v\n..", want: ">..v"},
 	}
 	for _, tt := range tests {
-		floor, err := parseSeaFloor(strings.NewReader(tt.input))
+		floor, err := grid.ReadBytes(strings.NewReader(tt.input), ".>v")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !floor.step(make([]byte, len(floor.cells))) || string(floor.cells) != tt.want {
-			t.Fatalf("one step from %q: got %q; want %q", tt.input, floor.cells, tt.want)
+		if !stepSeaCucumbers(floor, make([]byte, len(floor.Cells()))) || string(floor.Cells()) != tt.want {
+			t.Fatalf("one step from %q: got %q; want %q", tt.input, floor.Cells(), tt.want)
 		}
 	}
 }

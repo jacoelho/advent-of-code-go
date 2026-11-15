@@ -6,6 +6,8 @@ import (
 	"io"
 	"math"
 	"strconv"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type packetBits struct {
@@ -26,10 +28,7 @@ func (b *packetBits) read(n int) (uint64, error) {
 	return value, nil
 }
 
-func (b *packetBits) packet(depth int) (uint64, uint64, error) {
-	if depth > 512 {
-		return 0, 0, fmt.Errorf("packet nesting exceeds 512 levels")
-	}
+func (b *packetBits) packet() (uint64, uint64, error) {
 	version, err := b.read(3)
 	if err != nil {
 		return 0, 0, err
@@ -77,7 +76,7 @@ func (b *packetBits) packet(depth int) (uint64, uint64, error) {
 
 	var values []uint64
 	for mode == 0 && b.pos < b.end || mode == 1 && len(values) < int(length) {
-		childVersion, value, err := b.packet(depth + 1)
+		childVersion, value, err := b.packet()
 		if err != nil {
 			return 0, 0, err
 		}
@@ -93,15 +92,15 @@ func (b *packetBits) packet(depth int) (uint64, uint64, error) {
 	for _, next := range values[1:] {
 		switch kind {
 		case 0:
-			if value > math.MaxUint64-next {
+			var ok bool
+			if value, ok = xmath.CheckedAdd(value, next); !ok {
 				return 0, 0, fmt.Errorf("packet sum exceeds uint64")
 			}
-			value += next
 		case 1:
-			if next != 0 && value > math.MaxUint64/next {
+			var ok bool
+			if value, ok = xmath.CheckedMul(value, next); !ok {
 				return 0, 0, fmt.Errorf("packet product exceeds uint64")
 			}
-			value *= next
 		case 2:
 			value = min(value, next)
 		case 3:
@@ -118,12 +117,9 @@ func (b *packetBits) packet(depth int) (uint64, uint64, error) {
 }
 
 func decodeTransmission(r io.Reader) (uint64, uint64, error) {
-	data, err := io.ReadAll(io.LimitReader(r, 1_000_001))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return 0, 0, err
-	}
-	if len(data) > 1_000_000 {
-		return 0, 0, fmt.Errorf("transmission exceeds 1000000 bytes")
 	}
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
@@ -142,7 +138,7 @@ func decodeTransmission(r io.Reader) (uint64, uint64, error) {
 		}
 	}
 	bits := packetBits{nibbles: data, end: len(data) * 4}
-	version, value, err := bits.packet(0)
+	version, value, err := bits.packet()
 	if err != nil {
 		return 0, 0, err
 	}

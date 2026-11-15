@@ -3,12 +3,12 @@ package aoc2021
 import (
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type snailfishLeaf struct {
@@ -21,8 +21,8 @@ func parseSnailfish(line []byte) ([]snailfishLeaf, error) {
 	pos := 0
 	var parse func(int) error
 	parse = func(depth int) error {
-		if pos == len(line) || depth > 64 || len(leaves) >= 1024 {
-			return fmt.Errorf("truncated or oversized snailfish number")
+		if pos == len(line) {
+			return fmt.Errorf("truncated snailfish number")
 		}
 		if line[pos] == '[' {
 			pos++
@@ -69,9 +69,6 @@ func readSnailfish(r io.Reader) ([][]snailfishLeaf, error) {
 	s := scanner.NewScanner(r, parseSnailfish)
 	var numbers [][]snailfishLeaf
 	for number := range s.Values() {
-		if len(numbers) == 200 {
-			return nil, fmt.Errorf("snailfish input exceeds 200 numbers")
-		}
 		numbers = append(numbers, number)
 	}
 	if err := s.Err(); err != nil {
@@ -90,16 +87,18 @@ func explodeSnailfish(number []snailfishLeaf) ([]snailfishLeaf, bool, error) {
 			continue
 		}
 		if i > 0 {
-			if number[i-1].value > math.MaxInt64-left.value {
+			sum, ok := xmath.CheckedAdd(number[i-1].value, left.value)
+			if !ok {
 				return nil, false, fmt.Errorf("snailfish explosion overflows int64")
 			}
-			number[i-1].value += left.value
+			number[i-1].value = sum
 		}
 		if i+2 < len(number) {
-			if number[i+2].value > math.MaxInt64-right.value {
+			sum, ok := xmath.CheckedAdd(number[i+2].value, right.value)
+			if !ok {
 				return nil, false, fmt.Errorf("snailfish explosion overflows int64")
 			}
-			number[i+2].value += right.value
+			number[i+2].value = sum
 		}
 		number[i] = snailfishLeaf{depth: left.depth - 1}
 		return slices.Delete(number, i+1, i+2), true, nil
@@ -107,7 +106,7 @@ func explodeSnailfish(number []snailfishLeaf) ([]snailfishLeaf, bool, error) {
 	return number, false, nil
 }
 
-func addSnailfish(left, right []snailfishLeaf, work *int) ([]snailfishLeaf, error) {
+func addSnailfish(left, right []snailfishLeaf) ([]snailfishLeaf, error) {
 	number := make([]snailfishLeaf, 0, len(left)+len(right))
 	for _, operand := range [][]snailfishLeaf{left, right} {
 		for _, leaf := range operand {
@@ -116,10 +115,6 @@ func addSnailfish(left, right []snailfishLeaf, work *int) ([]snailfishLeaf, erro
 		}
 	}
 	for {
-		*work += len(number)
-		if *work > 100_000_000 {
-			return nil, fmt.Errorf("snailfish reduction exceeds 100000000 leaf visits")
-		}
 		var exploded bool
 		var err error
 		number, exploded, err = explodeSnailfish(number)
@@ -151,11 +146,14 @@ func snailfishMagnitude(number []snailfishLeaf) (int64, error) {
 		stack = append(stack, leaf)
 		for len(stack) >= 2 && stack[len(stack)-1].depth == stack[len(stack)-2].depth {
 			left, right := stack[len(stack)-2], stack[len(stack)-1]
-			if left.value > math.MaxInt64/3 || right.value > (math.MaxInt64-3*left.value)/2 {
+			tripled, leftOK := xmath.CheckedMul(3, left.value)
+			doubled, rightOK := xmath.CheckedMul(2, right.value)
+			magnitude, sumOK := xmath.CheckedAdd(tripled, doubled)
+			if !leftOK || !rightOK || !sumOK {
 				return 0, fmt.Errorf("snailfish magnitude overflows int64")
 			}
 			stack = stack[:len(stack)-1]
-			stack[len(stack)-1] = snailfishLeaf{3*left.value + 2*right.value, left.depth - 1}
+			stack[len(stack)-1] = snailfishLeaf{magnitude, left.depth - 1}
 		}
 	}
 	return stack[0].value, nil
@@ -166,9 +164,9 @@ func day18p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum, work := numbers[0], 0
+	sum := numbers[0]
 	for _, number := range numbers[1:] {
-		sum, err = addSnailfish(sum, number, &work)
+		sum, err = addSnailfish(sum, number)
 		if err != nil {
 			return "", err
 		}
@@ -189,13 +187,12 @@ func day18p02(r io.Reader) (string, error) {
 		return "", fmt.Errorf("maximum snailfish pair requires two input numbers")
 	}
 	var largest int64
-	work := 0
 	for i, left := range numbers {
 		for j, right := range numbers {
 			if i == j {
 				continue
 			}
-			sum, err := addSnailfish(left, right, &work)
+			sum, err := addSnailfish(left, right)
 			if err != nil {
 				return "", err
 			}

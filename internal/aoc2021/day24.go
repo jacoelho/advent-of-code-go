@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type aluOperand struct {
@@ -56,9 +57,6 @@ func parseALU(r io.Reader) ([]aluInstruction, error) {
 			return nil, fmt.Errorf("unknown ALU operation %q", fields[0])
 		}
 		program = append(program, instruction)
-		if len(program) > 18*18 {
-			return nil, fmt.Errorf("ALU program exceeds 324 instructions")
-		}
 	}
 	if err := s.Err(); err != nil {
 		return nil, err
@@ -89,15 +87,17 @@ func executeALU(program []aluInstruction, input []int64) ([4]int64, error) {
 		var value int64
 		switch instruction.operation {
 		case "add":
-			if b > 0 && a > math.MaxInt64-b || b < 0 && a < math.MinInt64-b {
+			sum, ok := xmath.CheckedAdd(a, b)
+			if !ok {
 				return registers, fmt.Errorf("ALU instruction %d addition overflows int64", i+1)
 			}
-			value = a + b
+			value = sum
 		case "mul":
-			value = a * b
-			if a == -1 && b == math.MinInt64 || b == -1 && a == math.MinInt64 || a != 0 && value/a != b {
+			product, ok := xmath.CheckedMul(a, b)
+			if !ok {
 				return registers, fmt.Errorf("ALU instruction %d multiplication overflows int64", i+1)
 			}
+			value = product
 		case "div":
 			if b == 0 || a == math.MinInt64 && b == -1 {
 				return registers, fmt.Errorf("ALU instruction %d has invalid division", i+1)
