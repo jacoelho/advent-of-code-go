@@ -13,11 +13,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
-const (
-	maxGiftShapes = 16
-	maxGiftWork   = 100_000_000
-	maxGiftStates = 1_000_000
-)
+const maxGiftShapes = 16
 
 type giftOrientation struct {
 	cells         []grid.Position2D[int]
@@ -73,13 +69,9 @@ func giftOrientations(cells []grid.Position2D[int]) []giftOrientation {
 }
 
 func parseGiftSummary(r io.Reader) ([]giftShape, []giftRegion, error) {
-	const inputLimit = 4 << 20
-	data, err := io.ReadAll(io.LimitReader(r, inputLimit+1))
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, nil, err
-	}
-	if len(data) > inputLimit {
-		return nil, nil, fmt.Errorf("gift summary exceeds 4 MiB")
 	}
 	input := strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n"))
 	sections := strings.Split(input, "\n\n")
@@ -130,16 +122,13 @@ func parseGiftSummary(r io.Reader) ([]giftShape, []giftRegion, error) {
 		if err != nil {
 			return 0, err
 		}
-		if value < 1 || value > 1_000_000 {
-			return 0, fmt.Errorf("gift region dimension must be 1 to 1000000")
+		if value < 1 {
+			return 0, fmt.Errorf("gift region dimension must be positive")
 		}
 		return value, nil
 	}
 	var regions []giftRegion
 	for line := range strings.SplitSeq(sections[len(sections)-1], "\n") {
-		if len(regions) == 10_000 {
-			return nil, nil, fmt.Errorf("gift summary exceeds 10000 regions")
-		}
 		dimensions, counts, ok := strings.Cut(line, ":")
 		if !ok {
 			return nil, nil, fmt.Errorf("gift region needs dimensions and counts")
@@ -162,8 +151,8 @@ func parseGiftSummary(r io.Reader) ([]giftShape, []giftRegion, error) {
 			if err != nil {
 				return nil, nil, fmt.Errorf("gift count: %w", err)
 			}
-			if count < 0 || count > 1_000_000 {
-				return nil, nil, fmt.Errorf("gift count must be 0 to 1000000")
+			if count < 0 {
+				return nil, nil, fmt.Errorf("gift count must not be negative")
 			}
 			region.counts = append(region.counts, count)
 		}
@@ -202,20 +191,7 @@ type giftPackingState struct {
 	counts   [maxGiftShapes]uint8
 }
 
-type giftPackingWork struct {
-	checks int
-	states int
-}
-
-func (w *giftPackingWork) check() error {
-	if w.checks == 0 {
-		return fmt.Errorf("gift packing exceeds one hundred million placement and state checks")
-	}
-	w.checks--
-	return nil
-}
-
-func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork) (bool, error) {
+func packGiftRegion(shapes []giftShape, region giftRegion) (bool, error) {
 	var area, pieces int64
 	for i, count := range region.counts {
 		if count == 0 {
@@ -256,9 +232,6 @@ func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork
 		for _, orientation := range shape.orientations {
 			for y := 0; y <= region.height-orientation.height; y++ {
 				for x := 0; x <= region.width-orientation.width; x++ {
-					if err := work.check(); err != nil {
-						return false, err
-					}
 					var mask uint64
 					for _, cell := range orientation.cells {
 						mask |= uint64(1) << ((y+cell.Y)*region.width + x + cell.X)
@@ -273,21 +246,14 @@ func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork
 	}
 
 	failed := make(map[giftPackingState]bool)
-	reject := func(state giftPackingState) (bool, error) {
-		if work.states == 0 {
-			return false, fmt.Errorf("gift packing exceeds one million failed states")
-		}
-		work.states--
+	reject := func(state giftPackingState) bool {
 		failed[state] = true
-		return false, nil
+		return false
 	}
-	var search func(giftPackingState) (bool, error)
-	search = func(state giftPackingState) (bool, error) {
-		if err := work.check(); err != nil {
-			return false, err
-		}
+	var search func(giftPackingState) bool
+	search = func(state giftPackingState) bool {
 		if failed[state] {
-			return false, nil
+			return false
 		}
 		chosen := -1
 		var choices []uint64
@@ -302,9 +268,6 @@ func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork
 			var legal []uint64
 			var cells uint64
 			for _, placement := range placements[i] {
-				if err := work.check(); err != nil {
-					return false, err
-				}
 				if placement&state.occupied == 0 {
 					legal = append(legal, placement)
 					cells |= placement
@@ -319,7 +282,7 @@ func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork
 			}
 		}
 		if chosen == -1 {
-			return true, nil
+			return true
 		}
 		// The remaining pieces must fit in the union of currently legal placements.
 		if bits.OnesCount64(allCells) < requiredArea {
@@ -329,14 +292,13 @@ func packGiftRegion(shapes []giftShape, region giftRegion, work *giftPackingWork
 			next := state
 			next.occupied |= placement
 			next.counts[chosen]--
-			found, err := search(next)
-			if err != nil || found {
-				return found, err
+			if search(next) {
+				return true
 			}
 		}
 		return reject(state)
 	}
-	return search(initial)
+	return search(initial), nil
 }
 
 func day12p01(r io.Reader) (string, error) {
@@ -344,10 +306,9 @@ func day12p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	work := giftPackingWork{checks: maxGiftWork, states: maxGiftStates}
 	count := 0
 	for i, region := range regions {
-		fits, err := packGiftRegion(shapes, region, &work)
+		fits, err := packGiftRegion(shapes, region)
 		if err != nil {
 			return "", fmt.Errorf("gift region %d: %w", i+1, err)
 		}

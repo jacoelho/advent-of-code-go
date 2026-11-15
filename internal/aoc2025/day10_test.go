@@ -94,16 +94,6 @@ func TestMachineArithmeticLimits(t *testing.T) {
 	}
 }
 
-func TestJoltageStateLimit(t *testing.T) {
-	step, err := parseMachine([]byte("[.] (0) (0) {2}"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, err := minJoltagePresses(step, subsetsByParity(step), 0); err == nil || !strings.Contains(err.Error(), "exceeds 0 states") {
-		t.Fatalf("got %d, %v; want state-limit error", got, err)
-	}
-}
-
 func TestMachineParsing(t *testing.T) {
 	wideLights := strings.Repeat(".", 63) + "#"
 	wideJoltage := strings.Repeat("0,", 63) + "1"

@@ -34,9 +34,6 @@ func parseRedTilesLayout(r io.Reader) ([]grid.Position2D[int64], error) {
 	})
 	var tiles []grid.Position2D[int64]
 	for tile := range s.Values() {
-		if len(tiles) == 1024 {
-			return nil, fmt.Errorf("layout exceeds 1024 red tiles")
-		}
 		tiles = append(tiles, tile)
 	}
 	if err := s.Err(); err != nil {
@@ -180,9 +177,6 @@ func newRedTileFloor(tiles []grid.Position2D[int64]) (*redTileFloor, error) {
 		xs[i], ys[i] = tile.X, tile.Y
 	}
 	xs, ys = tileAxis(xs), tileAxis(ys)
-	if len(xs) > 4_000_000/len(ys) {
-		return nil, fmt.Errorf("tile floor exceeds four million compressed cells")
-	}
 	floor := &redTileFloor{
 		xs:      xs,
 		ys:      ys,

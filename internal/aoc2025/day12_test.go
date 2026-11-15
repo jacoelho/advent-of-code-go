@@ -194,16 +194,8 @@ func TestGiftInputErrors(t *testing.T) {
 	}
 }
 
-func TestGiftSearchLimits(t *testing.T) {
-	shapes, regions, err := parseGiftSummary(strings.NewReader("0:\n##\n#.\n\n3x2: 2"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	work := giftPackingWork{states: maxGiftStates}
-	if _, err := packGiftRegion(shapes, regions[0], &work); err == nil {
-		t.Fatal("exhausted exact search must return an error")
-	}
-	_, err = day12p01(strings.NewReader("0:\n##\n#.\n\n9x9: 27"))
+func TestGiftRegionBeyondExactSearchIsUnsupported(t *testing.T) {
+	_, err := day12p01(strings.NewReader("0:\n##\n#.\n\n9x9: 27"))
 	if err == nil || !strings.Contains(err.Error(), "unsupported gift region") {
 		t.Fatalf("got %v; want unsupported exact-search region", err)
 	}
