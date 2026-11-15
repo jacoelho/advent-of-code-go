@@ -36,9 +36,6 @@ func parseDialRotations(r io.Reader) ([]int64, error) {
 	})
 	var rotations []int64
 	for rotation := range s.Values() {
-		if len(rotations) == 100_000 {
-			return nil, fmt.Errorf("dial input exceeds 100000 rotations")
-		}
 		rotations = append(rotations, rotation)
 	}
 	return rotations, s.Err()

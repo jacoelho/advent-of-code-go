@@ -19,8 +19,6 @@ const (
 	noSolution        = -1
 	maxMachineWidth   = 64
 	maxMachineButtons = 16
-	maxMachines       = 1024
-	maxJoltageStates  = 1_000_000
 )
 
 type machineRequirements struct {
@@ -131,9 +129,6 @@ func parseInitializationProcedure(r io.Reader) ([]machineRequirements, error) {
 	machineIndex := 0
 	s := scanner.NewScanner(r, func(line []byte) (machineRequirements, error) {
 		machineIndex++
-		if machineIndex > maxMachines {
-			return machineRequirements{}, fmt.Errorf("machine %d: procedure exceeds %d machines", machineIndex, maxMachines)
-		}
 		machine, err := parseMachine(line)
 		if err != nil {
 			return machineRequirements{}, fmt.Errorf("machine %d: %w", machineIndex, err)
@@ -197,7 +192,7 @@ func minButtonPresses(step machineRequirements, groups map[uint64][]buttonSubset
 // any solution, the buttons pressed an odd number of times form a subset whose
 // effect matches the targets' parity; removing it leaves every button pressed
 // an even number of times, which is twice a solution for the halved remainder.
-func minJoltagePresses(step machineRequirements, groups map[uint64][]buttonSubset, maxStates int) (int64, error) {
+func minJoltagePresses(step machineRequirements, groups map[uint64][]buttonSubset) (int64, error) {
 	width := len(step.joltage)
 	memo := make(map[string]int64)
 	var solve func(target []int64) (int64, error)
@@ -214,9 +209,6 @@ func minJoltagePresses(step machineRequirements, groups map[uint64][]buttonSubse
 		key := joltageKey(target)
 		if cost, known := memo[key]; known {
 			return cost, nil
-		}
-		if len(memo) == maxStates {
-			return 0, fmt.Errorf("joltage search exceeds %d states", maxStates)
 		}
 		best := int64(noSolution)
 		next := make([]int64, width)
@@ -288,7 +280,5 @@ func day10p01(r io.Reader) (string, error) {
 }
 
 func day10p02(r io.Reader) (string, error) {
-	return day10(r, func(step machineRequirements, groups map[uint64][]buttonSubset) (int64, error) {
-		return minJoltagePresses(step, groups, maxJoltageStates)
-	})
+	return day10(r, minJoltagePresses)
 }
