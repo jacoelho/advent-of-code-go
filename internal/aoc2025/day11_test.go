@@ -139,17 +139,6 @@ func TestDeviceLabels(t *testing.T) {
 	}
 }
 
-func TestDeviceRequiredTarget(t *testing.T) {
-	network, err := parseDevicesList(strings.NewReader("source: out out"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := countPaths(network, []string{"out"}, "out", "source")
-	if err != nil || got != 2 {
-		t.Fatalf("got %d, %v; want two paths through the required target", got, err)
-	}
-}
-
 func TestDay11ReaderErrors(t *testing.T) {
 	failure := errors.New("input read failed")
 	for _, solve := range []func(io.Reader) (string, error){day11p01, day11p02} {

@@ -2,63 +2,98 @@ package aoc2025
 
 import (
 	"io"
-	"maps"
-	"slices"
 	"strconv"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
-func parseRollsPaper(r io.Reader) (grid.Grid2D[int, rune], error) {
-	s := scanner.NewScanner(r, func(line []byte) ([]rune, error) {
-		return []rune(string(line)), nil
-	})
-	g := grid.NewGrid2D[int](slices.Collect(s.Values()))
-	maps.DeleteFunc(g, func(_ grid.Position2D[int], v rune) bool {
-		return v != '@'
-	})
-	return g, s.Err()
-}
+const forkliftLimit = 4
 
-func accessibleRolls(g grid.Grid2D[int, rune]) []grid.Position2D[int] {
-	var removable []grid.Position2D[int]
-	for pos := range g {
-		var neighborCount int
-		for range g.ValidNeighbours8(pos) {
-			neighborCount++
-		}
-		if neighborCount < 4 {
-			removable = append(removable, pos)
+// paperRolls records, for every roll, how many of its eight neighbours hold a
+// roll. Positions without a roll are absent.
+type paperRolls map[int]int
+
+func parseRollsPaper(r io.Reader) (paperRolls, int, error) {
+	s := scanner.NewScanner(r, func(line []byte) (string, error) {
+		return string(line), nil
+	})
+	var rows []string
+	width := 0
+	for row := range s.Values() {
+		rows = append(rows, row)
+		width = max(width, len(row))
+	}
+	if err := s.Err(); err != nil {
+		return nil, 0, err
+	}
+	stride := width + 2
+	rolls := make(paperRolls)
+	for y, row := range rows {
+		for x := range len(row) {
+			if row[x] == '@' {
+				rolls[(y+1)*stride+x+1] = 0
+			}
 		}
 	}
-	return removable
+	for position := range rolls {
+		for _, offset := range rollOffsets(stride) {
+			if _, roll := rolls[position+offset]; roll {
+				rolls[position]++
+			}
+		}
+	}
+	return rolls, stride, nil
+}
+
+// rollOffsets returns the index offsets of the eight neighbours in a grid with
+// a one-cell border, so neighbours of edge cells never wrap to another row.
+func rollOffsets(stride int) [8]int {
+	return [8]int{-stride - 1, -stride, -stride + 1, -1, 1, stride - 1, stride, stride + 1}
 }
 
 func day04p01(r io.Reader) (string, error) {
-	g, err := parseRollsPaper(r)
+	rolls, _, err := parseRollsPaper(r)
 	if err != nil {
 		return "", err
 	}
-	return strconv.Itoa(len(accessibleRolls(g))), nil
+	accessible := 0
+	for _, neighbours := range rolls {
+		if neighbours < forkliftLimit {
+			accessible++
+		}
+	}
+	return strconv.Itoa(accessible), nil
 }
 
+// day04p02 removes accessible rolls until none remain. Removal only lowers
+// neighbour counts, so the removed set does not depend on order, and each roll
+// is queued once: initially, or when its count drops to the limit minus one.
 func day04p02(r io.Reader) (string, error) {
-	g, err := parseRollsPaper(r)
+	rolls, stride, err := parseRollsPaper(r)
 	if err != nil {
 		return "", err
 	}
-
-	total := 0
-	for {
-		removable := accessibleRolls(g)
-		if len(removable) == 0 {
-			break
+	var queue []int
+	for position, neighbours := range rolls {
+		if neighbours < forkliftLimit {
+			queue = append(queue, position)
 		}
-		for _, pos := range removable {
-			delete(g, pos)
-		}
-		total += len(removable)
 	}
-	return strconv.Itoa(total), nil
+	removed := 0
+	for len(queue) > 0 {
+		position := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		delete(rolls, position)
+		removed++
+		for _, offset := range rollOffsets(stride) {
+			neighbour := position + offset
+			if count, roll := rolls[neighbour]; roll {
+				rolls[neighbour] = count - 1
+				if count == forkliftLimit {
+					queue = append(queue, neighbour)
+				}
+			}
+		}
+	}
+	return strconv.Itoa(removed), nil
 }

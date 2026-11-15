@@ -3,7 +3,6 @@ package aoc2025
 import (
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
@@ -72,10 +71,11 @@ func dialPassword(r io.Reader, mode dialCountMode) (string, error) {
 		} else if next == 0 {
 			increment = 1
 		}
-		if increment > math.MaxInt64-count {
+		sum, ok := xmath.CheckedAdd(count, increment)
+		if !ok {
 			return "", fmt.Errorf("dial password overflows int64")
 		}
-		count += increment
+		count = sum
 		position = next
 	}
 	return strconv.FormatInt(count, 10), nil

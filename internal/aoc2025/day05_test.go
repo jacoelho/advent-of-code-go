@@ -54,3 +54,21 @@ func Test_day05p02(t *testing.T) {
 	}
 	aoc.AOCTest(t, day05p02, tests)
 }
+
+func TestDay05RejectsMalformedInventory(t *testing.T) {
+	for _, input := range []string{
+		"",
+		"3-5\n",
+		"3-5\n\n\n1\n",
+		"\n1\n",
+		"5-3\n\n1\n",
+		"3-x\n\n1\n",
+		"-3-5\n\n1\n",
+		"3-5\n\n-1\n",
+		"3-5\n\n1 2\n",
+	} {
+		if got, err := day05p01(strings.NewReader(input)); err == nil {
+			t.Errorf("input %q: got %q, want error", input, got)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 	"github.com/jacoelho/advent-of-code-go/pkg/xslices"
 )
 
@@ -73,10 +74,11 @@ func (r tileRectangle) area() (int64, error) {
 		return 0, fmt.Errorf("rectangle area exceeds int64")
 	}
 	width, height := int64(dx)+1, int64(dy)+1
-	if width > math.MaxInt64/height {
+	area, ok := xmath.CheckedMul(width, height)
+	if !ok {
 		return 0, fmt.Errorf("rectangle area exceeds int64")
 	}
-	return width * height, nil
+	return area, nil
 }
 
 func tilePolygonEdges(tiles []grid.Position2D[int64]) ([]tileRectangle, error) {
