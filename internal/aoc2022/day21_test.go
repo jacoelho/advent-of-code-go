@@ -55,6 +55,9 @@ func TestMonkeyGraphErrors(t *testing.T) {
 		"root: 1\nroot: 2",
 		"root: left / rght\nleft: 1\nrght: 0",
 		"root: left / rght\nleft: 3\nrght: 2",
+		"root: left * rght\nleft: 9223372036854775807\nrght: 2",
+		"root: left - rght\nleft: -9223372036854775808\nrght: 1",
+		"root: left + rght\nleft: 9223372036854775807\nrght: 1",
 	} {
 		if _, err := day21p01(strings.NewReader(input)); err == nil {
 			t.Errorf("expected monkey expression error for %q", input)

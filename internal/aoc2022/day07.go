@@ -3,12 +3,12 @@ package aoc2022
 import (
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/xiter"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type terminalDirectory struct {
@@ -34,9 +34,6 @@ func directorySizes(r io.Reader) ([]int64, error) {
 		}
 		if index, ok := directories[current].children[name]; ok {
 			return index, nil
-		}
-		if len(directories) >= 100_000 {
-			return 0, fmt.Errorf("too many directories")
 		}
 		index := len(directories)
 		directories[current].children[name] = index
@@ -96,10 +93,11 @@ func directorySizes(r io.Reader) ([]int64, error) {
 				}
 				continue
 			}
-			if directories[current].size > math.MaxInt64-size {
+			total, ok := xmath.CheckedAdd(directories[current].size, size)
+			if !ok {
 				return nil, fmt.Errorf("directory size overflows")
 			}
-			directories[current].size += size
+			directories[current].size = total
 			directories[current].files[name] = size
 		}
 	}
@@ -108,10 +106,11 @@ func directorySizes(r io.Reader) ([]int64, error) {
 		size := directories[i].size
 		sizes[i] = size
 		if parent := directories[i].parent; parent >= 0 {
-			if directories[parent].size > math.MaxInt64-size {
+			total, ok := xmath.CheckedAdd(directories[parent].size, size)
+			if !ok {
 				return nil, fmt.Errorf("directory size overflows")
 			}
-			directories[parent].size += size
+			directories[parent].size = total
 		}
 	}
 	return sizes, nil

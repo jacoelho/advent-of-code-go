@@ -3,47 +3,46 @@ package aoc2022
 import (
 	"fmt"
 	"io"
-	"math/big"
-	"slices"
+	"math/bits"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 type monkey struct {
-	id          int
-	items       []*big.Int
+	items       []uint64
 	operator    byte
-	operand     *big.Int
-	divisor     *big.Int
+	squares     bool
+	operand     uint64
+	divisor     uint64
 	targets     [2]int
 	inspections uint64
 }
 
 func parseMonkeys(r io.Reader) ([]monkey, error) {
-	input, err := puzzleInput(r)
+	blocks, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return nil, err
 	}
-	blocks := strings.Split(input, "\n\n")
-	if len(blocks) < 2 || len(blocks) > 128 {
-		return nil, fmt.Errorf("expected 2 to 128 monkeys")
+	if len(blocks) < 2 {
+		return nil, fmt.Errorf("expected at least two monkeys")
 	}
-	monkeys := make([]monkey, 0, len(blocks))
-	itemCount := 0
-	number := func(text string) (int64, error) {
+	monkeys := make([]monkey, len(blocks))
+	defined := make([]bool, len(blocks))
+	number := func(text string) (uint64, error) {
 		value, err := convert.ScanNumber[int64]([]byte(text))
 		if err != nil {
 			return 0, err
 		}
 		if value < 0 {
-			return 0, fmt.Errorf("negative monkey value")
+			return 0, fmt.Errorf("negative monkey value %d", value)
 		}
-		return value, nil
+		return uint64(value), nil
 	}
-	for _, block := range blocks {
-		lines := strings.Split(block, "\n")
+	for _, lines := range blocks {
 		if len(lines) != 6 {
 			return nil, fmt.Errorf("monkey requires six records")
 		}
@@ -58,10 +57,11 @@ func parseMonkeys(r io.Reader) ([]monkey, error) {
 		if err != nil {
 			return nil, err
 		}
-		if id >= int64(len(blocks)) {
-			return nil, fmt.Errorf("monkey ID out of range")
+		if id >= uint64(len(blocks)) || defined[id] {
+			return nil, fmt.Errorf("monkey ID %d is out of range or duplicated", id)
 		}
-		m := monkey{id: int(id)}
+		defined[id] = true
+		m := &monkeys[id]
 		items, ok := strings.CutPrefix(lines[1], "Starting items:")
 		if !ok {
 			return nil, fmt.Errorf("invalid monkey items")
@@ -72,11 +72,7 @@ func parseMonkeys(r io.Reader) ([]monkey, error) {
 				if err != nil {
 					return nil, err
 				}
-				itemCount++
-				if itemCount > 10_000 {
-					return nil, fmt.Errorf("too many monkey items")
-				}
-				m.items = append(m.items, big.NewInt(value))
+				m.items = append(m.items, value)
 			}
 		}
 		operation, ok := strings.CutPrefix(lines[2], "Operation: new = old ")
@@ -85,12 +81,13 @@ func parseMonkeys(r io.Reader) ([]monkey, error) {
 			return nil, fmt.Errorf("invalid monkey operation")
 		}
 		m.operator = fields[0][0]
-		if fields[1] != "old" {
-			value, err := number(fields[1])
+		if fields[1] == "old" {
+			m.squares = true
+		} else {
+			m.operand, err = number(fields[1])
 			if err != nil {
 				return nil, err
 			}
-			m.operand = big.NewInt(value)
 		}
 		for i, prefix := range []string{"Test: divisible by ", "If true: throw to monkey ", "If false: throw to monkey "} {
 			text, ok := strings.CutPrefix(lines[i+3], prefix)
@@ -105,20 +102,13 @@ func parseMonkeys(r io.Reader) ([]monkey, error) {
 				if value == 0 {
 					return nil, fmt.Errorf("zero monkey divisor")
 				}
-				m.divisor = big.NewInt(value)
+				m.divisor = value
 			} else {
-				if value >= int64(len(blocks)) || value == id {
+				if value >= uint64(len(blocks)) || value == id {
 					return nil, fmt.Errorf("unknown or unsupported self-target monkey")
 				}
 				m.targets[i-1] = int(value)
 			}
-		}
-		monkeys = append(monkeys, m)
-	}
-	slices.SortFunc(monkeys, func(a, b monkey) int { return a.id - b.id })
-	for i, m := range monkeys {
-		if m.id != i {
-			return nil, fmt.Errorf("duplicate or missing monkey ID")
 		}
 	}
 	return monkeys, nil
@@ -129,49 +119,47 @@ func monkeyBusiness(r io.Reader, rounds int, relief bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	modulus := big.NewInt(1)
-	var gcd big.Int
-	for _, m := range monkeys {
-		gcd.GCD(nil, nil, modulus, m.divisor)
-		modulus.Quo(modulus, &gcd).Mul(modulus, m.divisor)
+	// Without relief, reducing modulo the divisors' LCM preserves every
+	// divisibility test.
+	modulus := uint64(1)
+	if !relief {
+		for _, m := range monkeys {
+			var ok bool
+			if modulus, ok = xmath.CheckedMul(modulus/xmath.GCD(modulus, m.divisor), m.divisor); !ok {
+				return "", fmt.Errorf("monkey divisor LCM overflows uint64")
+			}
+		}
 	}
-	var remainder big.Int
-	three := big.NewInt(3)
-	work := 0
 	for range rounds {
 		for i := range monkeys {
 			m := &monkeys[i]
-			items := m.items
-			m.items = nil
-			m.inspections += uint64(len(items))
-			for _, item := range items {
-				work++
-				if work > 20_000_000 {
-					return "", fmt.Errorf("monkey inspection limit exceeded")
-				}
+			m.inspections += uint64(len(m.items))
+			for _, item := range m.items {
 				operand := m.operand
-				if operand == nil {
+				if m.squares {
 					operand = item
 				}
+				var hi, lo uint64
 				if m.operator == '+' {
-					item.Add(item, operand)
+					lo, hi = bits.Add64(item, operand, 0)
 				} else {
-					item.Mul(item, operand)
+					hi, lo = bits.Mul64(item, operand)
 				}
 				if relief {
-					if item.BitLen() > 4096 {
-						return "", fmt.Errorf("worry value exceeds 4096 bits")
+					if hi != 0 {
+						return "", fmt.Errorf("worry level overflows uint64")
 					}
-					item.Quo(item, three)
+					item = lo / 3
 				} else {
-					item.Mod(item, modulus)
+					item = bits.Rem64(hi, lo, modulus)
 				}
 				target := m.targets[1]
-				if remainder.Mod(item, m.divisor).Sign() == 0 {
+				if item%m.divisor == 0 {
 					target = m.targets[0]
 				}
 				monkeys[target].items = append(monkeys[target].items, item)
 			}
+			m.items = m.items[:0]
 		}
 	}
 	var first, second uint64

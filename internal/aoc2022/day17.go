@@ -1,11 +1,11 @@
 package aoc2022
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
@@ -16,7 +16,6 @@ type rockChamber struct {
 	jets []byte
 	jet  int
 	base int64
-	work int
 }
 
 func (c *rockChamber) blocked(shape []grid.Position2D[int], x, y int) bool {
@@ -29,13 +28,9 @@ func (c *rockChamber) blocked(shape []grid.Position2D[int], x, y int) bool {
 	return false
 }
 
-func (c *rockChamber) drop(shape []grid.Position2D[int]) error {
+func (c *rockChamber) drop(shape []grid.Position2D[int]) {
 	x, y := 2, len(c.rows)+3
 	for {
-		c.work++
-		if c.work > 100_000_000 {
-			return fmt.Errorf("rock simulation exceeds 100000000 steps and air visits")
-		}
 		dx := -1
 		if c.jets[c.jet] == '>' {
 			dx = 1
@@ -56,13 +51,10 @@ func (c *rockChamber) drop(shape []grid.Position2D[int]) error {
 		}
 		c.rows[py] |= 1 << px
 	}
-	if len(c.rows) > 100_000 {
-		return fmt.Errorf("rock surface exceeds 100000 retained rows")
-	}
-	return c.trim()
+	c.trim()
 }
 
-func (c *rockChamber) trim() error {
+func (c *rockChamber) trim() {
 	visited := make([]byte, len(c.rows)+1)
 	queue := collections.NewDeque[int](128)
 	top, lowest := len(c.rows), len(c.rows)
@@ -74,10 +66,6 @@ func (c *rockChamber) trim() error {
 		cell, _ := queue.PopFront()
 		x, y := cell%7, cell/7
 		lowest = min(lowest, y)
-		c.work++
-		if c.work > 100_000_000 {
-			return fmt.Errorf("rock simulation exceeds 100000000 steps and air visits")
-		}
 		for _, next := range [4]grid.Position2D[int]{{X: x - 1, Y: y}, {X: x + 1, Y: y}, {X: x, Y: y - 1}, {X: x, Y: y + 1}} {
 			if next.X < 0 || next.X >= 7 || next.Y < 0 || next.Y > top {
 				continue
@@ -95,23 +83,16 @@ func (c *rockChamber) trim() error {
 		c.rows = slices.Clone(c.rows[lowest:])
 		c.base += int64(lowest)
 	}
-	return nil
 }
 
 func fallingRockHeight(r io.Reader, target int64) (string, error) {
-	data, err := io.ReadAll(io.LimitReader(r, 1_000_001))
+	input, err := puzzleInput(r)
 	if err != nil {
 		return "", err
 	}
-	if len(data) > 1_000_000 {
-		return "", fmt.Errorf("jet pattern exceeds 1000000 bytes")
-	}
-	jets := bytes.TrimSpace(data)
-	if len(jets) == 0 || len(bytes.Trim(jets, "<>")) != 0 {
+	jets := []byte(input)
+	if strings.Trim(input, "<>") != "" {
 		return "", fmt.Errorf("jet pattern must contain only < and >")
-	}
-	if target < 0 || target > 1_000_000_000_000 {
-		return "", fmt.Errorf("rock count must be in 0..1000000000000")
 	}
 	shapes := [][]grid.Position2D[int]{
 		{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 0}, {X: 3, Y: 0}},
@@ -131,17 +112,10 @@ func fallingRockHeight(r io.Reader, target int64) (string, error) {
 	chamber := rockChamber{jets: jets}
 	seen := map[state]occurrence{{}: {}}
 	var count, skippedHeight int64
-	simulated, stored := 0, 0
 	skipped := false
 	for count < target {
-		if simulated == 200_000 {
-			return "", fmt.Errorf("rock simulation exceeded 200000 rocks without a sufficient cycle")
-		}
-		if err := chamber.drop(shapes[count%int64(len(shapes))]); err != nil {
-			return "", err
-		}
+		chamber.drop(shapes[count%int64(len(shapes))])
 		count++
-		simulated++
 		if skipped {
 			continue
 		}
@@ -156,10 +130,6 @@ func fallingRockHeight(r io.Reader, target int64) (string, error) {
 				skipped = true
 			}
 		} else {
-			stored += len(key.surface)
-			if stored > 64_000_000 {
-				return "", fmt.Errorf("rock cycle history exceeds 64000000 surface bytes")
-			}
 			seen[key] = occurrence{count, height}
 		}
 	}

@@ -1,35 +1,19 @@
 package aoc2022
 
 import (
-	"fmt"
 	"io"
 	"slices"
 	"strconv"
-	"strings"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 )
 
 func treeVisibility(r io.Reader) (int, int64, error) {
-	input, err := puzzleInput(r)
+	forest, err := grid.ReadBytes(r, "0123456789")
 	if err != nil {
 		return 0, 0, err
 	}
-	rows := strings.Split(input, "\n")
-	width, height := len(rows[0]), len(rows)
-	if width == 0 || height > 1_000_000/width {
-		return 0, 0, fmt.Errorf("forest exceeds one million cells")
-	}
-	trees := make([]byte, 0, width*height)
-	for _, row := range rows {
-		if len(row) != width {
-			return 0, 0, fmt.Errorf("ragged forest")
-		}
-		for _, c := range []byte(row) {
-			if c < '0' || c > '9' {
-				return 0, 0, fmt.Errorf("invalid tree height")
-			}
-			trees = append(trees, c-'0')
-		}
-	}
+	trees, width, height := forest.Cells(), forest.Width(), forest.Height()
 	visible := make([]bool, len(trees))
 	scores := make([]int64, len(trees))
 	for i := range scores {

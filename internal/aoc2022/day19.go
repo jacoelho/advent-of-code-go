@@ -28,9 +28,6 @@ func robotBlueprints(r io.Reader) ([]robotBlueprint, error) {
 			if err != nil {
 				return robotBlueprint{}, fmt.Errorf("blueprint value: %w", err)
 			}
-			if i > 0 && value > 10_000 {
-				return robotBlueprint{}, fmt.Errorf("robot cost exceeds 10000")
-			}
 			values[i] = int(value)
 		}
 		if values[0] == 0 {
@@ -49,8 +46,8 @@ func robotBlueprints(r io.Reader) ([]robotBlueprint, error) {
 	var blueprints []robotBlueprint
 	ids := make(map[int64]bool)
 	for blueprint := range s.Values() {
-		if len(blueprints) == 1000 || ids[blueprint.id] {
-			return nil, fmt.Errorf("duplicate blueprint ID or more than 1000 blueprints")
+		if ids[blueprint.id] {
+			return nil, fmt.Errorf("duplicate blueprint ID %d", blueprint.id)
 		}
 		ids[blueprint.id] = true
 		blueprints = append(blueprints, blueprint)
@@ -64,10 +61,7 @@ func robotBlueprints(r io.Reader) ([]robotBlueprint, error) {
 	return blueprints, nil
 }
 
-func blueprintGeodes(blueprint robotBlueprint, minutes int, work *int) (int, error) {
-	if minutes < 0 || minutes > 32 {
-		return 0, fmt.Errorf("robot planning supports 0..32 minutes")
-	}
+func blueprintGeodes(blueprint robotBlueprint, minutes int) int {
 	var maxSpend [3]int
 	for _, cost := range blueprint.costs {
 		for resource := range maxSpend {
@@ -81,23 +75,19 @@ func blueprintGeodes(blueprint robotBlueprint, minutes int, work *int) (int, err
 	}
 	seen := make(map[state]int)
 	best := 0
-	var explore func(state, int) error
-	explore = func(current state, geodes int) error {
-		*work++
-		if *work > 20_000_000 || len(seen) >= 2_000_000 {
-			return fmt.Errorf("robot planning exceeded its state or work limit")
-		}
+	var explore func(state, int)
+	explore = func(current state, geodes int) {
 		best = max(best, geodes+current.bots[3]*current.time)
 		// Even a free new geode robot each minute cannot exceed this bound.
 		if geodes+current.bots[3]*current.time+current.time*(current.time-1)/2 <= best {
-			return nil
+			return
 		}
 		for resource := range current.stock {
 			cap := max(0, current.time*maxSpend[resource]-current.bots[resource]*(current.time-1))
 			current.stock[resource] = min(current.stock[resource], cap)
 		}
 		if previous, exists := seen[current]; exists && previous >= geodes {
-			return nil
+			return
 		}
 		seen[current] = geodes
 		for robot := 3; robot >= 0; robot-- {
@@ -127,16 +117,11 @@ func blueprintGeodes(blueprint robotBlueprint, minutes int, work *int) (int, err
 				child.stock[resource] += current.bots[resource]*elapsed - cost
 			}
 			child.bots[robot]++
-			if err := explore(child, geodes+current.bots[3]*elapsed); err != nil {
-				return err
-			}
+			explore(child, geodes+current.bots[3]*elapsed)
 		}
-		return nil
 	}
-	if err := explore(state{bots: [4]int{1}, time: minutes}, 0); err != nil {
-		return 0, err
-	}
-	return best, nil
+	explore(state{bots: [4]int{1}, time: minutes}, 0)
+	return best
 }
 
 func day19p01(r io.Reader) (string, error) {
@@ -145,13 +130,8 @@ func day19p01(r io.Reader) (string, error) {
 		return "", err
 	}
 	var total int64
-	work := 0
 	for _, blueprint := range blueprints {
-		geodes, err := blueprintGeodes(blueprint, 24, &work)
-		if err != nil {
-			return "", fmt.Errorf("blueprint %d: %w", blueprint.id, err)
-		}
-		total += blueprint.id * int64(geodes)
+		total += blueprint.id * int64(blueprintGeodes(blueprint, 24))
 	}
 	return strconv.FormatInt(total, 10), nil
 }
@@ -161,13 +141,9 @@ func day19p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	total, work := 1, 0
+	total := 1
 	for _, blueprint := range blueprints[:min(3, len(blueprints))] {
-		geodes, err := blueprintGeodes(blueprint, 32, &work)
-		if err != nil {
-			return "", fmt.Errorf("blueprint %d: %w", blueprint.id, err)
-		}
-		total *= geodes
+		total *= blueprintGeodes(blueprint, 32)
 	}
 	return strconv.Itoa(total), nil
 }

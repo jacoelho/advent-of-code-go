@@ -37,21 +37,15 @@ func parseSensors(r io.Reader) ([]beaconSensor, error) {
 		}
 		var values [4]int64
 		for i := range values {
-			value, err := convert.ScanNumber[int64]([]byte(fields[i+1]))
+			value, err := convert.ScanNumber[int32]([]byte(fields[i+1]))
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("sensor coordinate: %w", err)
 			}
-			if value < -1_000_000_000 || value > 1_000_000_000 {
-				return nil, fmt.Errorf("sensor coordinate exceeds one billion")
-			}
-			values[i] = value
+			values[i] = int64(value)
 		}
 		position := grid.Position2D[int64]{X: values[0], Y: values[1]}
 		beacon := grid.Position2D[int64]{X: values[2], Y: values[3]}
 		sensors = append(sensors, beaconSensor{position: position, beacon: beacon, radius: position.Distance(beacon)})
-		if len(sensors) > 128 {
-			return nil, fmt.Errorf("too many sensors")
-		}
 	}
 	return sensors, nil
 }
@@ -77,9 +71,6 @@ func sensorCoverage(sensors []beaconSensor, row int64, intervals []sensorInterva
 }
 
 func excludedBeacons(r io.Reader, row int64) (string, error) {
-	if row < -1_000_000_000 || row > 1_000_000_000 {
-		return "", fmt.Errorf("scan row exceeds coordinate bound")
-	}
 	sensors, err := parseSensors(r)
 	if err != nil {
 		return "", err
@@ -98,57 +89,59 @@ func excludedBeacons(r io.Reader, row int64) (string, error) {
 	return strconv.FormatInt(total-int64(beacons.Len()), 10), nil
 }
 
+// distressBeacon works in rotated coordinates u = x+y, v = x-y, where every
+// sensor diamond becomes an axis-aligned square. The square edges split the
+// plane into cells that are either wholly covered or wholly uncovered, so only
+// uncovered cells need their lattice points (u and v of equal parity) examined.
 func distressBeacon(r io.Reader, limit int64) (string, error) {
-	if limit < 0 || limit > 4_000_000 {
-		return "", fmt.Errorf("search limit must be between zero and four million")
+	if limit < 0 {
+		return "", fmt.Errorf("negative search limit %d", limit)
 	}
 	sensors, err := parseSensors(r)
 	if err != nil {
 		return "", err
 	}
-	if int64(len(sensors))*(limit+1) > 160_000_000 {
-		return "", fmt.Errorf("sensor search exceeds work limit")
+	us := []int64{0, 2*limit + 1}
+	vs := []int64{-limit, limit + 1}
+	for _, sensor := range sensors {
+		u, v := sensor.position.X+sensor.position.Y, sensor.position.X-sensor.position.Y
+		us = append(us, min(max(u-sensor.radius, 0), 2*limit+1), min(max(u+sensor.radius+1, 0), 2*limit+1))
+		vs = append(vs, min(max(v-sensor.radius, -limit), limit+1), min(max(v+sensor.radius+1, -limit), limit+1))
 	}
-	intervals := make([]sensorInterval, 0, len(sensors))
-	var answer grid.Position2D[int64]
-	found := false
-	for y := int64(0); y <= limit; y++ {
-		intervals = sensorCoverage(sensors, y, intervals)
-		next := int64(0)
-		gap := func(end int64) error {
-			if next > end {
-				return nil
-			}
-			if next != end || found {
-				return fmt.Errorf("distress beacon is not unique")
-			}
-			answer = grid.Position2D[int64]{X: next, Y: y}
-			found = true
-			return nil
-		}
-		for _, interval := range intervals {
-			if interval.end < 0 {
+	slices.Sort(us)
+	slices.Sort(vs)
+	us, vs = slices.Compact(us), slices.Compact(vs)
+	var found []grid.Position2D[int64]
+	for i := range len(us) - 1 {
+		for j := range len(vs) - 1 {
+			u1, u2, v1, v2 := us[i], us[i+1]-1, vs[j], vs[j+1]-1
+			covered := slices.ContainsFunc(sensors, func(sensor beaconSensor) bool {
+				u, v := sensor.position.X+sensor.position.Y, sensor.position.X-sensor.position.Y
+				return xmath.Abs(u1-u) <= sensor.radius && xmath.Abs(v1-v) <= sensor.radius
+			})
+			if covered {
 				continue
 			}
-			if interval.start > limit {
-				break
+			// Inside the search square |v| <= u <= 2*limit-|v|; this loop finds a
+			// lattice point within two iterations, so it stops early once two exist.
+			nearest := max(0, v1, -v2)
+			for u := max(u1, nearest); u <= min(u2, 2*limit-nearest); u++ {
+				reach := min(u, 2*limit-u)
+				low, high := max(v1, -reach), min(v2, reach)
+				low += (low - u) & 1
+				for v := low; v <= high; v += 2 {
+					found = append(found, grid.Position2D[int64]{X: (u + v) / 2, Y: (u - v) / 2})
+					if len(found) > 1 {
+						return "", fmt.Errorf("distress beacon is not unique")
+					}
+				}
 			}
-			if err := gap(min(limit, interval.start-1)); err != nil {
-				return "", err
-			}
-			next = max(next, interval.end+1)
-			if next > limit {
-				break
-			}
-		}
-		if err := gap(limit); err != nil {
-			return "", err
 		}
 	}
-	if !found {
+	if len(found) == 0 {
 		return "", fmt.Errorf("no uncovered beacon position")
 	}
-	return strconv.FormatInt(answer.X*4_000_000+answer.Y, 10), nil
+	return strconv.FormatInt(found[0].X*4_000_000+found[0].Y, 10), nil
 }
 
 func day15p01(r io.Reader) (string, error) {

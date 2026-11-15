@@ -19,7 +19,6 @@ func ropePositions(r io.Reader, knots int) (string, error) {
 	}
 	rope := make([]grid.Position2D[int], knots)
 	visited := collections.NewSet(rope[knots-1])
-	steps := 0
 	for line := range strings.SplitSeq(input, "\n") {
 		direction, countText, ok := strings.Cut(line, " ")
 		if !ok {
@@ -29,10 +28,9 @@ func ropePositions(r io.Reader, knots int) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if count < 0 || count > 1_000_000-steps {
-			return "", fmt.Errorf("rope exceeds one million steps")
+		if count < 0 {
+			return "", fmt.Errorf("negative rope motion %q", line)
 		}
-		steps += count
 		var delta grid.Position2D[int]
 		switch direction {
 		case "R":

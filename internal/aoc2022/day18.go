@@ -10,6 +10,7 @@ import (
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
 	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func lavaCubes(r io.Reader) (map[grid.Position3D[int64]]bool, error) {
@@ -29,11 +30,9 @@ func lavaCubes(r io.Reader) (map[grid.Position3D[int64]]bool, error) {
 		return grid.NewPosition3D(coordinates[0], coordinates[1], coordinates[2]), nil
 	})
 	cubes := make(map[grid.Position3D[int64]]bool)
-	count := 0
 	for cube := range s.Values() {
-		count++
-		if count > 100_000 {
-			return nil, fmt.Errorf("lava input exceeds 100000 cubes")
+		if cubes[cube] {
+			return nil, fmt.Errorf("duplicate lava cube %d,%d,%d", cube.X, cube.Y, cube.Z)
 		}
 		cubes[cube] = true
 	}
@@ -93,10 +92,11 @@ func day18p02(r io.Reader) (string, error) {
 	width, height, depth := high.X-low.X+1, high.Y-low.Y+1, high.Z-low.Z+1
 	volume := int64(1)
 	for _, size := range []int64{width, height, depth} {
-		if size > 4_000_000/volume {
-			return "", fmt.Errorf("lava exterior exceeds 4000000 cells")
+		product, ok := xmath.CheckedMul(volume, size)
+		if !ok {
+			return "", fmt.Errorf("lava bounding box volume overflows int64")
 		}
-		volume *= size
+		volume = product
 	}
 	index := func(point grid.Position3D[int64]) int64 {
 		return ((point.Z-low.Z)*height+point.Y-low.Y)*width + point.X - low.X

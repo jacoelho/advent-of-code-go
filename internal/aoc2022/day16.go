@@ -1,8 +1,10 @@
 package aoc2022
 
 import (
+	"cmp"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
 	"slices"
 	"strconv"
@@ -19,7 +21,7 @@ type pressureValve struct {
 	tunnels []string
 }
 
-func valveScores(r io.Reader, minutes int) ([]int64, error) {
+func valveScores(r io.Reader, minutes int) (map[uint64]int64, error) {
 	pattern := regexp.MustCompile(`^Valve ([A-Z]{2}) has flow rate=(\d+); (?:tunnels lead to valves|tunnel leads to valve) ([A-Z]{2}(?:, [A-Z]{2})*)$`)
 	s := scanner.NewScanner(r, func(line []byte) (pressureValve, error) {
 		match := pattern.FindSubmatch(line)
@@ -62,8 +64,8 @@ func valveScores(r io.Reader, minutes int) ([]int64, error) {
 			edges[i] = append(edges[i], id)
 		}
 	}
-	if len(useful) > 20 {
-		return nil, fmt.Errorf("pressure search supports at most 20 positive-flow valves")
+	if len(useful) > 64 {
+		return nil, fmt.Errorf("%d positive-flow valves exceed the 64-bit opened-valve set", len(useful))
 	}
 
 	sources := append([]int{start}, useful...)
@@ -91,41 +93,31 @@ func valveScores(r io.Reader, minutes int) ([]int64, error) {
 	}
 
 	type state struct {
-		opened uint32
-		from   uint8
-		time   uint8
+		opened uint64
+		from   int
+		time   int
 	}
-	best := make([]int64, 1<<len(useful))
+	best := make(map[uint64]int64)
 	seen := make(map[state]int64)
-	work := 0
-	var explore func(state, int64) error
-	explore = func(current state, pressure int64) error {
-		work++
-		if work > 20_000_000 || len(seen) >= 2_000_000 {
-			return fmt.Errorf("pressure search exceeded its state or work limit")
-		}
+	var explore func(state, int64)
+	explore = func(current state, pressure int64) {
 		if previous, exists := seen[current]; exists && previous >= pressure {
-			return nil
+			return
 		}
 		seen[current] = pressure
 		best[current.opened] = max(best[current.opened], pressure)
 		for next, valve := range useful {
-			bit := uint32(1) << next
+			bit := uint64(1) << next
 			distance := distances[current.from][next]
 			remaining := int(current.time) - distance - 1
 			if current.opened&bit != 0 || distance < 0 || remaining <= 0 {
 				continue
 			}
-			child := state{current.opened | bit, uint8(next + 1), uint8(remaining)}
-			if err := explore(child, pressure+int64(remaining)*valves[valve].rate); err != nil {
-				return err
-			}
+			child := state{current.opened | bit, next + 1, remaining}
+			explore(child, pressure+int64(remaining)*valves[valve].rate)
 		}
-		return nil
 	}
-	if err := explore(state{time: uint8(minutes)}, 0); err != nil {
-		return nil, err
-	}
+	explore(state{time: minutes}, 0)
 	return best, nil
 }
 
@@ -134,7 +126,7 @@ func day16p01(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strconv.FormatInt(slices.Max(scores), 10), nil
+	return strconv.FormatInt(slices.Max(slices.Collect(maps.Values(scores))), 10), nil
 }
 
 func day16p02(r io.Reader) (string, error) {
@@ -142,17 +134,29 @@ func day16p02(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	subsets := slices.Clone(scores)
-	for bit := 1; bit < len(subsets); bit <<= 1 {
-		for mask := range subsets {
-			if mask&bit != 0 {
-				subsets[mask] = max(subsets[mask], subsets[mask^bit])
+	type route struct {
+		opened uint64
+		score  int64
+	}
+	routes := make([]route, 0, len(scores))
+	for opened, score := range scores {
+		routes = append(routes, route{opened, score})
+	}
+	slices.SortFunc(routes, func(a, b route) int { return cmp.Compare(b.score, a.score) })
+	var best int64
+	for i, a := range routes {
+		if 2*a.score <= best {
+			break
+		}
+		for _, b := range routes[i:] {
+			if a.score+b.score <= best {
+				break
+			}
+			if a.opened&b.opened == 0 {
+				best = a.score + b.score
+				break
 			}
 		}
-	}
-	var best int64
-	for mask, score := range scores {
-		best = max(best, score+subsets[len(scores)-1^mask])
 	}
 	return strconv.FormatInt(best, 10), nil
 }

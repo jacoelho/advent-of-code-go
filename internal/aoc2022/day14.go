@@ -6,65 +6,69 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jacoelho/advent-of-code-go/pkg/collections"
-	"github.com/jacoelho/advent-of-code-go/pkg/convert"
 	"github.com/jacoelho/advent-of-code-go/pkg/grid"
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
-func sandUnits(r io.Reader, floor bool) (string, error) {
+func rockSegments(r io.Reader) ([][2]grid.Position2D[int], error) {
 	input, err := puzzleInput(r)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	occupied := collections.NewSet[grid.Position2D[int]]()
-	bottom := 0
-	work := 0
+	var segments [][2]grid.Position2D[int]
 	for line := range strings.SplitSeq(input, "\n") {
 		var previous grid.Position2D[int]
 		for i, text := range strings.Split(line, " -> ") {
-			coordinates := strings.Split(text, ",")
-			if len(coordinates) != 2 {
-				return "", fmt.Errorf("invalid rock point")
+			rock, err := grid.ParsePosition2D[int32](text)
+			if err != nil {
+				return nil, err
 			}
-			var values [2]int
-			for j, coordinate := range coordinates {
-				value, err := convert.ScanNumber[int]([]byte(coordinate))
-				if err != nil {
-					return "", err
-				}
-				if value < -1_000_000 || value > 1_000_000 {
-					return "", fmt.Errorf("rock coordinate exceeds one million")
-				}
-				values[j] = value
+			if rock.X < 0 || rock.Y < 0 {
+				return nil, fmt.Errorf("negative rock coordinate %q", text)
 			}
-			point := grid.Position2D[int]{X: values[0], Y: values[1]}
-			if point.Y < 0 {
-				return "", fmt.Errorf("rock above sand source")
-			}
-			bottom = max(bottom, point.Y)
+			point := grid.Position2D[int]{X: int(rock.X), Y: int(rock.Y)}
 			if i == 0 {
 				previous = point
 			}
 			if previous.X != point.X && previous.Y != point.Y {
-				return "", fmt.Errorf("diagonal rock segment")
+				return nil, fmt.Errorf("diagonal rock segment in %q", line)
 			}
-			dx, dy := max(-1, min(1, point.X-previous.X)), max(-1, min(1, point.Y-previous.Y))
-			for {
-				work++
-				if work > 2_000_000 {
-					return "", fmt.Errorf("rock raster limit exceeded")
-				}
-				occupied.Add(previous)
-				if previous == point {
-					break
-				}
-				previous.X += dx
-				previous.Y += dy
+			segments = append(segments, [2]grid.Position2D[int]{previous, point})
+			previous = point
+		}
+	}
+	return segments, nil
+}
+
+func sandUnits(r io.Reader, floor bool) (string, error) {
+	segments, err := rockSegments(r)
+	if err != nil {
+		return "", err
+	}
+	bottom := 0
+	for _, segment := range segments {
+		bottom = max(bottom, segment[0].Y, segment[1].Y)
+	}
+	// Sand moves at most one column per row, so nothing outside this triangle
+	// above the floor at bottom+2 can be reached from the source.
+	left, width, height := 500-bottom-2, 2*bottom+5, bottom+2
+	area, ok := xmath.CheckedMul(width, height)
+	if !ok {
+		return "", fmt.Errorf("sand area for depth %d overflows int", bottom)
+	}
+	occupied := make([]bool, area)
+	for _, segment := range segments {
+		low, high := segment[0], segment[1]
+		low.X, high.X = min(low.X, high.X), max(low.X, high.X)
+		low.Y, high.Y = min(low.Y, high.Y), max(low.Y, high.Y)
+		for y := low.Y; y <= high.Y; y++ {
+			for x := max(low.X, left); x <= min(high.X, left+width-1); x++ {
+				occupied[y*width+x-left] = true
 			}
 		}
 	}
 	source := grid.Position2D[int]{X: 500}
-	if occupied.Contains(source) {
+	if occupied[source.X-left] {
 		return "0", nil
 	}
 	path := []grid.Position2D[int]{source}
@@ -75,25 +79,20 @@ func sandUnits(r io.Reader, floor bool) (string, error) {
 			return strconv.Itoa(settled), nil
 		}
 		moved := false
-		for _, dx := range []int{0, -1, 1} {
-			next := grid.Position2D[int]{X: at.X + dx, Y: at.Y + 1}
-			if floor && next.Y == bottom+2 || occupied.Contains(next) {
-				continue
+		if at.Y+1 < height {
+			for _, dx := range [3]int{0, -1, 1} {
+				next := grid.Position2D[int]{X: at.X + dx, Y: at.Y + 1}
+				if !occupied[next.Y*width+next.X-left] {
+					path = append(path, next)
+					moved = true
+					break
+				}
 			}
-			path = append(path, next)
-			moved = true
-			break
 		}
 		if moved {
-			if len(path) > 1_000_000 {
-				return "", fmt.Errorf("sand depth limit exceeded")
-			}
 			continue
 		}
-		if settled >= 1_000_000 {
-			return "", fmt.Errorf("sand exceeds one million grains")
-		}
-		occupied.Add(at)
+		occupied[at.Y*width+at.X-left] = true
 		settled++
 		path = path[:len(path)-1]
 	}

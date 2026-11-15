@@ -25,17 +25,11 @@ func registerCycles(r io.Reader) ([240]int64, int, error) {
 			if !ok {
 				return values, 0, fmt.Errorf("invalid CPU instruction")
 			}
-			delta, err = convert.ScanNumber[int64]([]byte(operand))
+			value, err := convert.ScanNumber[int32]([]byte(operand))
 			if err != nil {
-				return values, 0, err
+				return values, 0, fmt.Errorf("addx operand: %w", err)
 			}
-			if delta < -1_000_000 || delta > 1_000_000 {
-				return values, 0, fmt.Errorf("CPU operand exceeds one million")
-			}
-			duration = 2
-		}
-		if cycle > 1_000_000-duration {
-			return values, 0, fmt.Errorf("CPU exceeds one million cycles")
+			delta, duration = int64(value), 2
 		}
 		for range duration {
 			if cycle < len(values) {

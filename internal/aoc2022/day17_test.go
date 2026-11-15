@@ -54,7 +54,7 @@ func TestRockHeights(t *testing.T) {
 }
 
 func TestRockErrors(t *testing.T) {
-	for _, input := range []string{"", "<x>", "<>\n<>"} {
+	for _, input := range []string{"", "<x>", "<>\n<>", " <>"} {
 		if _, err := day17p01(strings.NewReader(input)); err == nil {
 			t.Errorf("expected invalid jet error for %q", input)
 		}

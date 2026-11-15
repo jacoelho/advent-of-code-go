@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 )
 
 func markerPosition(r io.Reader, width int) (string, error) {
@@ -12,15 +11,16 @@ func markerPosition(r io.Reader, width int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if strings.ContainsAny(input, "\r\n") {
-		return "", fmt.Errorf("expected one datastream line")
+	for i, c := range []byte(input) {
+		if c < 'a' || c > 'z' {
+			return "", fmt.Errorf("invalid datastream character %q at %d", c, i)
+		}
 	}
 	var counts [256]int
 	duplicates := 0
 	for i, c := range []byte(input) {
-		at := c
-		counts[at]++
-		if counts[at] == 2 {
+		counts[c]++
+		if counts[c] == 2 {
 			duplicates++
 		}
 		if i >= width {

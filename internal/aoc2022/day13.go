@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/convert"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 type distressPacket struct {
@@ -17,24 +17,24 @@ type distressPacket struct {
 }
 
 func parsePackets(r io.Reader) ([]distressPacket, error) {
-	input, err := puzzleInput(r)
+	blocks, err := scanner.ReadBlocks(r)
 	if err != nil {
 		return nil, err
 	}
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("empty input")
+	}
 	var packets []distressPacket
-	nodes := 0
-	for _, block := range strings.Split(input, "\n\n") {
-		lines := strings.Split(block, "\n")
+	for _, lines := range blocks {
 		if len(lines) != 2 {
 			return nil, fmt.Errorf("expected packet pair")
 		}
 		for _, line := range lines {
 			at := 0
-			var parse func(int) (distressPacket, error)
-			parse = func(depth int) (distressPacket, error) {
-				nodes++
-				if depth > 128 || nodes > 1_000_000 || at >= len(line) {
-					return distressPacket{}, fmt.Errorf("invalid or oversized packet")
+			var parse func() (distressPacket, error)
+			parse = func() (distressPacket, error) {
+				if at >= len(line) {
+					return distressPacket{}, fmt.Errorf("truncated packet %q", line)
 				}
 				if line[at] != '[' {
 					start := at
@@ -51,7 +51,7 @@ func parsePackets(r io.Reader) ([]distressPacket, error) {
 					return result, nil
 				}
 				for {
-					child, err := parse(depth + 1)
+					child, err := parse()
 					if err != nil {
 						return distressPacket{}, err
 					}
@@ -70,7 +70,7 @@ func parsePackets(r io.Reader) ([]distressPacket, error) {
 					}
 				}
 			}
-			packet, err := parse(0)
+			packet, err := parse()
 			if err != nil {
 				return nil, err
 			}
