@@ -39,6 +39,10 @@ func TestCookieErrors(t *testing.T) {
 			t.Errorf("expected error for %q", input)
 		}
 	}
+	overflowing := "Huge: capacity 2147483647, durability 2147483647, flavor 2147483647, texture 2147483647, calories 0"
+	if _, err := day15p01(strings.NewReader(overflowing)); err == nil {
+		t.Errorf("expected overflow error for %q", overflowing)
+	}
 	failure := errors.New("read failed")
 	if _, err := day15p01(iotest.ErrReader(failure)); !errors.Is(err, failure) {
 		t.Errorf("got %v, want read error", err)

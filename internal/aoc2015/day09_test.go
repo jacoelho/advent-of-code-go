@@ -55,6 +55,9 @@ func TestDay09MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"route distance", "A to B = nope", day09p01},
+		{"trailing text", "A to B = 5 km", day09p01},
+		{"self route", "A to A = 5", day09p02},
+		{"duplicate route", "A to B = 5\nB to A = 6", day09p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

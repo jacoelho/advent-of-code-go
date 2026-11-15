@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math/big"
 	"regexp"
 	"strconv"
+
+	"github.com/jacoelho/advent-of-code-go/pkg/xmath"
 )
 
 func cookieScore(r io.Reader, calories int64) (string, error) {
@@ -36,11 +37,8 @@ func cookieScore(r io.Reader, calories int64) (string, error) {
 	if len(ingredients) == 0 {
 		return "", fmt.Errorf("empty ingredient list")
 	}
-	combinations := new(big.Int).Binomial(int64(99+len(ingredients)), int64(len(ingredients)-1))
-	if combinations.Cmp(big.NewInt(10_000_000)) > 0 {
-		return "", fmt.Errorf("cookie search exceeds 10000000 recipes")
-	}
-	best := new(big.Int)
+	var best int64
+	var overflow error
 	var visit func(int, int64, [5]int64)
 	visit = func(index int, remaining int64, totals [5]int64) {
 		if index == len(ingredients)-1 {
@@ -50,19 +48,22 @@ func cookieScore(r io.Reader, calories int64) (string, error) {
 			if calories >= 0 && totals[4] != calories {
 				return
 			}
-			score := big.NewInt(1)
+			score := int64(1)
 			for _, value := range totals[:4] {
 				if value <= 0 {
 					return
 				}
-				score.Mul(score, big.NewInt(value))
+				next, ok := xmath.CheckedMul(score, value)
+				if !ok {
+					overflow = fmt.Errorf("cookie score overflows int64")
+					return
+				}
+				score = next
 			}
-			if score.Cmp(best) > 0 {
-				best.Set(score)
-			}
+			best = max(best, score)
 			return
 		}
-		for quantity := int64(0); quantity <= remaining; quantity++ {
+		for quantity := int64(0); quantity <= remaining && overflow == nil; quantity++ {
 			next := totals
 			for property, value := range ingredients[index] {
 				next[property] += quantity * value
@@ -71,7 +72,10 @@ func cookieScore(r io.Reader, calories int64) (string, error) {
 		}
 	}
 	visit(0, 100, [5]int64{})
-	return best.String(), nil
+	if overflow != nil {
+		return "", overflow
+	}
+	return strconv.FormatInt(best, 10), nil
 }
 
 func day15p01(r io.Reader) (string, error) {

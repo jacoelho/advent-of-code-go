@@ -1,6 +1,7 @@
 package aoc2015
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -28,26 +29,30 @@ func niceString(word string) bool {
 }
 
 func nicerString(word string) bool {
-	firstPair := make(map[[2]byte]int)
 	repeatedPair, repeatedLetter := false, false
 	for i := range len(word) {
 		if i >= 2 && word[i] == word[i-2] {
 			repeatedLetter = true
 		}
-		if i+1 < len(word) {
-			pair := [2]byte{word[i], word[i+1]}
-			if previous, ok := firstPair[pair]; ok {
-				repeatedPair = repeatedPair || i-previous >= 2
-			} else {
-				firstPair[pair] = i
-			}
+		if i+1 < len(word) && strings.Contains(word[i+2:], word[i:i+2]) {
+			repeatedPair = true
 		}
 	}
 	return repeatedPair && repeatedLetter
 }
 
 func countNiceStrings(r io.Reader, nice func(string) bool) (string, error) {
-	s := scanner.NewScanner(r, func(line []byte) (string, error) { return string(line), nil })
+	s := scanner.NewScanner(r, func(line []byte) (string, error) {
+		if len(line) == 0 {
+			return "", fmt.Errorf("empty word")
+		}
+		for _, letter := range line {
+			if letter < 'a' || letter > 'z' {
+				return "", fmt.Errorf("invalid letter %q in word %q", letter, line)
+			}
+		}
+		return string(line), nil
+	})
 	count := xiter.From(s.Values()).Filter(nice).Count()
 	if err := s.Err(); err != nil {
 		return "", err

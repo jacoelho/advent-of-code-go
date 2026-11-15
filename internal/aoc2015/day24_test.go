@@ -36,6 +36,13 @@ func TestPackageWeightsRemainDistinctEntries(t *testing.T) {
 	}
 }
 
+func TestPackageEntanglementOverflowIsAnError(t *testing.T) {
+	input := strings.Repeat("4294967296\n", 6)
+	if _, err := day24p01(strings.NewReader(input)); err == nil {
+		t.Error("accepted an entanglement product beyond int64")
+	}
+}
+
 func TestDay24ReadErrors(t *testing.T) {
 	failure := errors.New("input failed")
 	for _, solve := range []func(io.Reader) (string, error){

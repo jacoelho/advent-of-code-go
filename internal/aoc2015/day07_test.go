@@ -76,6 +76,10 @@ func TestDay07MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"circuit operation", "1 XOR 2 -> a", day07p01},
+		{"operand characters", "x$ AND 1 -> a", day07p01},
+		{"signal range", "65536 -> a", day07p01},
+		{"wire characters", "1 -> A", day07p01},
+		{"unused invalid operand", "1 -> a\nB OR c -> d", day07p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

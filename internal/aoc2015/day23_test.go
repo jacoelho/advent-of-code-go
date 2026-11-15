@@ -27,7 +27,7 @@ func TestTinyComputerHalvesAndBranches(t *testing.T) {
 	if err != nil || got != [2]uint64{2, 1} {
 		t.Fatalf("registers = %v, %v; want [2 1]", got, err)
 	}
-	for _, input := range []string{"jmp +0", "inc c", "wat a", "jie a, x"} {
+	for _, input := range []string{"jmp +0", "inc c", "wat a", "jie a, x", "jie a +2", "inc a, b", "jmp"} {
 		if _, err := day23p01(strings.NewReader(input)); err == nil {
 			t.Errorf("accepted %q", input)
 		}

@@ -48,6 +48,9 @@ func TestDay08MalformedInput(t *testing.T) {
 		solve       func(io.Reader) (string, error)
 	}{
 		{"string escape", `"\xgg"`, day08p01},
+		{"escape outside the puzzle set", `"a\nb"`, day08p01},
+		{"unescaped quote", `"a"b"`, day08p02},
+		{"truncated hex escape", `"\x4"`, day08p01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

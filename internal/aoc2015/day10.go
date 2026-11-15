@@ -7,14 +7,18 @@ import (
 	"strconv"
 )
 
-func lookAndSay(sequence []byte) []byte {
-	next := make([]byte, 0, len(sequence)*2)
+func lookAndSay(next, sequence []byte) []byte {
+	next = next[:0]
 	for start := 0; start < len(sequence); {
 		end := start + 1
 		for end < len(sequence) && sequence[end] == sequence[start] {
 			end++
 		}
-		next = strconv.AppendInt(next, int64(end-start), 10)
+		if run := end - start; run < 10 {
+			next = append(next, byte('0'+run))
+		} else {
+			next = strconv.AppendInt(next, int64(run), 10)
+		}
 		next = append(next, sequence[start])
 		start = end
 	}
@@ -35,8 +39,9 @@ func lookAndSayLength(r io.Reader, rounds int) (string, error) {
 			return "", fmt.Errorf("invalid look-and-say digit %q", digit)
 		}
 	}
+	var next []byte
 	for range rounds {
-		sequence = lookAndSay(sequence)
+		sequence, next = lookAndSay(next, sequence), sequence
 	}
 	return strconv.Itoa(len(sequence)), nil
 }

@@ -20,38 +20,28 @@ func tinyComputer(r io.Reader, initialA uint64) ([2]uint64, error) {
 	var program []tinyInstruction
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		fields := strings.Fields(strings.ReplaceAll(s.Text(), ",", ""))
-		if len(fields) < 2 || len(fields) > 3 {
+		op, operands, ok := strings.Cut(s.Text(), " ")
+		if !ok {
 			return [2]uint64{}, fmt.Errorf("invalid instruction %q", s.Text())
 		}
-		instruction := tinyInstruction{op: fields[0]}
-		switch instruction.op {
-		case "hlf", "tpl", "inc":
-			if len(fields) != 2 {
-				return [2]uint64{}, fmt.Errorf("invalid instruction %q", s.Text())
+		args := strings.Split(operands, ", ")
+		instruction := tinyInstruction{op: op}
+		switch {
+		case (op == "hlf" || op == "tpl" || op == "inc") && len(args) == 1,
+			(op == "jie" || op == "jio") && len(args) == 2:
+			if args[0] != "a" && args[0] != "b" {
+				return [2]uint64{}, fmt.Errorf("unknown register in %q", s.Text())
 			}
-		case "jmp":
-			if len(fields) != 2 {
-				return [2]uint64{}, fmt.Errorf("invalid jump %q", s.Text())
-			}
-		case "jie", "jio":
-			if len(fields) != 3 {
-				return [2]uint64{}, fmt.Errorf("invalid jump %q", s.Text())
-			}
+			instruction.register = int(args[0][0] - 'a')
+		case op == "jmp" && len(args) == 1:
 		default:
-			return [2]uint64{}, fmt.Errorf("unknown instruction %q", fields[0])
+			return [2]uint64{}, fmt.Errorf("invalid instruction %q", s.Text())
 		}
-		if instruction.op != "jmp" {
-			if fields[1] != "a" && fields[1] != "b" {
-				return [2]uint64{}, fmt.Errorf("unknown register %q", fields[1])
-			}
-			instruction.register = int(fields[1][0] - 'a')
-		}
-		if instruction.op == "jmp" || len(fields) == 3 {
+		if op == "jmp" || op == "jie" || op == "jio" {
 			var err error
-			instruction.offset, err = convert.ScanNumber[int]([]byte(fields[len(fields)-1]))
+			instruction.offset, err = convert.ScanNumber[int]([]byte(args[len(args)-1]))
 			if err != nil {
-				return [2]uint64{}, fmt.Errorf("invalid jump offset: %w", err)
+				return [2]uint64{}, fmt.Errorf("invalid jump offset in %q: %w", s.Text(), err)
 			}
 		}
 		program = append(program, instruction)

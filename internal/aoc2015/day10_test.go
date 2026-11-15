@@ -13,7 +13,7 @@ import (
 func TestLookAndSayPhases(t *testing.T) {
 	sequence := []byte("1")
 	for _, want := range []string{"11", "21", "1211", "111221", "312211"} {
-		sequence = lookAndSay(sequence)
+		sequence = lookAndSay(nil, sequence)
 		if string(sequence) != want {
 			t.Fatalf("got %s, want %s", sequence, want)
 		}

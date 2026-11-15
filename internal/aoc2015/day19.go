@@ -1,50 +1,41 @@
 package aoc2015
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"iter"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jacoelho/advent-of-code-go/pkg/collections"
+	"github.com/jacoelho/advent-of-code-go/pkg/scanner"
 )
 
 type medicineRule struct{ from, to string }
 
 func readMedicine(r io.Reader) ([]medicineRule, string, error) {
-	var rules []medicineRule
-	var molecule string
-	readingRules := true
-	s := bufio.NewScanner(r)
-	for s.Scan() {
-		line := s.Text()
-		if line == "" {
-			readingRules = false
-			continue
-		}
-		if readingRules {
-			from, to, ok := strings.Cut(line, " => ")
-			if !ok || from == "" || to == "" || strings.ContainsAny(from+to, " \t") {
-				return nil, "", fmt.Errorf("invalid replacement %q", line)
-			}
-			rules = append(rules, medicineRule{from, to})
-		} else {
-			if molecule != "" || strings.ContainsAny(line, " \t") {
-				return nil, "", fmt.Errorf("invalid medicine molecule %q", line)
-			}
-			molecule = line
-		}
-	}
-	if err := s.Err(); err != nil {
+	blocks, err := scanner.ReadBlocks(r)
+	if err != nil {
 		return nil, "", err
 	}
-	if len(rules) == 0 || molecule == "" {
+	if len(blocks) < 2 || len(blocks[0]) == 0 {
 		return nil, "", fmt.Errorf("missing replacements or medicine molecule")
 	}
-	return rules, molecule, nil
+	rules := make([]medicineRule, 0, len(blocks[0]))
+	for _, line := range blocks[0] {
+		from, to, ok := strings.Cut(line, " => ")
+		if !ok || from == "" || to == "" || strings.ContainsAny(from+to, " \t") {
+			return nil, "", fmt.Errorf("invalid replacement %q", line)
+		}
+		rules = append(rules, medicineRule{from, to})
+	}
+	molecule := slices.Concat(blocks[1:]...)
+	if len(molecule) != 1 || strings.ContainsAny(molecule[0], " \t") {
+		return nil, "", fmt.Errorf("want one medicine molecule without whitespace, got %q", molecule)
+	}
+	return rules, molecule[0], nil
 }
 
 func medicineProducts(molecule string, rules []medicineRule) iter.Seq[string] {
